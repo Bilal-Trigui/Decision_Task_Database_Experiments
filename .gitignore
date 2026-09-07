@@ -1,0 +1,26 @@
+# training outputs
+checkpoints/
+results/
+hf_cache/
+
+# model weights of any kind
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+
+# credentials: never commit a token
+*.token
+.env
+.env.*
+*credentials*
+*secret*
+
+# local environment
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+.pytest_cache/

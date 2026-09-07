@@ -1,0 +1,12 @@
+# The four pinned packages must match what the training environment ships.
+# run_me.py rewrites these pins from the live environment; the values below
+# are placeholders until it has been run on Colab.
+torch==2.8.0
+transformers==4.56.1
+peft==0.17.0
+bitsandbytes==0.47.0; sys_platform == 'linux'
+accelerate
+numpy
+pandas
+scikit-learn
+matplotlib
