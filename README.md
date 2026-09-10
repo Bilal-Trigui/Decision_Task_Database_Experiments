@@ -249,14 +249,14 @@ whose manifest was built with different rule parameters than the settings say.
 ## Building the training files from weights you wrote yourself
 
 The rule modules above draw a fresh latent. To test a latent you designed by hand,
-the other direction is `vector_dataset_constructor.py`: it takes a folder's four
+the other direction is `data/vector_dataset_constructor.py`: it takes a folder's four
 inputs, uses `instilled_weights.csv` exactly as given, and writes the training
 files from it.
 
 ```
-python vector_dataset_constructor.py --data data/plunkett                    # his three JSONLs, byte for byte
-python vector_dataset_constructor.py --data data/a3 --rule interaction       # a non-linear rule labels the trials
-python vector_dataset_constructor.py --data data/mine --rule linear          # your own weights
+python data/vector_dataset_constructor.py --data plunkett                    # his three JSONLs, byte for byte
+python data/vector_dataset_constructor.py --data a3 --rule interaction       # a non-linear rule labels the trials
+python data/vector_dataset_constructor.py --data mine --rule linear          # your own weights
 ```
 
 It writes `instill_<N>_prefs.jsonl`, its `_val` file, Plunkett's Experiment 2 file

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build the training files from a data folder's four inputs, using its weights as given.
 
-    python vector_dataset_constructor.py --data data/plunkett                      # Plunkett's files, byte for byte
-    python vector_dataset_constructor.py --data data/a3 --rule interaction         # a non-linear rule
-    python vector_dataset_constructor.py --data data/my_latents --rule linear --out data/my_latents
+    python data/vector_dataset_constructor.py --data data/plunkett                 # Plunkett's files, byte for byte
+    python data/vector_dataset_constructor.py --data data/a3 --rule interaction    # a non-linear rule
+    python data/vector_dataset_constructor.py --data data/mine --rule linear       # your own weights
+
+Run from the repo root. --data also accepts a bare folder name inside data/.
 
 Reads the four inputs:
     candidate_scenarios.json   the choice types, attributes, units, ranges      (authored)
@@ -32,13 +34,17 @@ object.attribute_count from the folder; everything else is an argument.
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 
-import pandas as pd
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))   # this file lives in data/; src/ is one level up
 
-from src import data as D
-from src.config import load_component
-from src.rules.base import _parse_param
+import pandas as pd  # noqa: E402
+
+from src import data as D  # noqa: E402
+from src.config import load_component  # noqa: E402
+from src.rules.base import _parse_param  # noqa: E402
 
 SEEDS = {"trials": 2, "introspection": 6}
 
@@ -47,6 +53,8 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
               seeds=None, schema_name=None):
     """Build the training files. Returns the manifest dict."""
     data_dir = Path(data_dir)
+    if not data_dir.exists() and (REPO / "data" / data_dir).exists():
+        data_dir = REPO / "data" / data_dir      # `--data plunkett` means data/plunkett
     out = Path(out_dir) if out_dir else data_dir
     out.mkdir(parents=True, exist_ok=True)
     seeds = {**SEEDS, **(seeds or {})}
