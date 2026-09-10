@@ -1,4 +1,12 @@
 {
+  "_comment": [
+    "THE DEFAULT. Every other settings file in this folder is this file with a few fields changed.",
+    "Run it unchanged and it reproduces Plunkett et al. (2025) on Qwen3-0.6B: 4-bit, fp16, sized for a Colab T4.",
+    "The six blocks mirror the paper's environment frame (object, decision_rule, model_training,",
+    "model_estimating, report_schema, model_hyperparameters), plus gates and compute.",
+    "Every value with a Plunkett source is his value; README 'Settings' gives the source of each field.",
+    "To make a new experiment: copy this file, change one element, name the copy after the change."
+  ],
   "object": {
     "type": "vector",
     "attribute_count": 5

@@ -12,7 +12,7 @@ part (decision rule, estimator, report schema, compute backend) is one file sele
 by name from the settings file. The settings file has six blocks named after the
 paper's environment frame (object, decision rule, model training, model estimating,
 report schema, model hyperparameters) plus `gates` and `compute`. Running with
-`hyperparameters.json` unchanged reproduces Plunkett on Qwen3-0.6B; every other
+`configs/default.json` unchanged reproduces Plunkett on Qwen3-0.6B; every other
 experiment is one field changed and, for a new rule, the data folder built for it.
 
 `api.ipynb` is Plunkett's original notebook, kept as the base experiment. Nothing
@@ -50,7 +50,8 @@ a box is deleted when it shuts down.
 
 ## Files
 
-**`hyperparameters.json`** is the settings file with Plunkett's values as defaults.
+**`configs/default.json`** is the settings file with Plunkett's values as defaults;
+every other file in `configs/` is it with a few fields changed.
 Six blocks mirror the environment frame, `gates` holds every threshold the pipeline
 checks, and `compute` says where training runs. The table below lists every field.
 
@@ -205,7 +206,7 @@ list such as `["auto", "linear"]` to collect both from one trained model.
 
 ## Run recipes
 
-**Plunkett's replication.** `hyperparameters.json`, no changes: linear rule,
+**Plunkett's replication.** `configs/default.json`, no changes: linear rule,
 `data/plunkett/`, Qwen3-0.6B in 4-bit with LoRA rank 8, 1500 steps with a
 checkpoint every 300, then introspection training in two folds. Stage-one
 checkpoints give Experiment 1 (emergent report), the folds give Experiment 2.
