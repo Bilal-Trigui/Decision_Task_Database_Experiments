@@ -109,9 +109,17 @@ def generate_texts(model, tok, texts, max_new_tokens, temperature, batch_size, d
     with `config.use_cache = False`, which is right for training, and Qwen3 ships no
     value in its generation config, so generation would otherwise fall back to that
     False and rebuild attention over the whole sequence for every token. Report
-    generation is the slowest part of an evaluation, and the fallback measured
-    2.1x slower at 30 new tokens and 2.4x at 120, on Qwen3-0.6B on CPU, with the
-    gap widening as the reply grows.
+    generation is the slowest part of an evaluation, so the fallback does real
+    work for nothing.
+
+    The size of that waste is not established. On CPU at 0.6B the run-to-run
+    spread exceeded the effect: an alternating benchmark gave 1.16x, and a whole
+    pipeline run was slower with the fix than without it. Both are noise at this
+    scale, not evidence against the fix. The fix stays because generation
+    without a cache cannot be faster than generation with one, and because the
+    decode phase where a cache pays is a much larger share of the work on a GPU
+    with 200-token replies than on a CPU with 60-token ones. Measure it there
+    before quoting a number.
     """
     model.eval()
     end_ids = sorted({end_token_id(tok), tok.eos_token_id})
