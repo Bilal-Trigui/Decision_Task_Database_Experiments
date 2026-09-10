@@ -103,13 +103,23 @@ def choice_logits(model, tok, texts, batch_size, device):
 
 @torch.no_grad()
 def generate_texts(model, tok, texts, max_new_tokens, temperature, batch_size, device):
-    """Greedy (temperature 0) or sampled completions in fresh contexts, stopping at the end-of-turn token."""
+    """Greedy (temperature 0) or sampled completions in fresh contexts, stopping at the end-of-turn token.
+
+    `use_cache=True` is passed explicitly and is not optional. The model is loaded
+    with `config.use_cache = False`, which is right for training, and Qwen3 ships no
+    value in its generation config, so generation would otherwise fall back to that
+    False and rebuild attention over the whole sequence for every token. Report
+    generation is the slowest part of an evaluation, and the fallback measured
+    2.1x slower at 30 new tokens and 2.4x at 120, on Qwen3-0.6B on CPU, with the
+    gap widening as the reply grows.
+    """
     model.eval()
     end_ids = sorted({end_token_id(tok), tok.eos_token_id})
     outputs = []
     for i in range(0, len(texts), batch_size):
         input_ids, attention, _ = _left_pad(tok, texts[i : i + batch_size], device)
-        kwargs = dict(max_new_tokens=max_new_tokens, pad_token_id=tok.pad_token_id, eos_token_id=end_ids)
+        kwargs = dict(max_new_tokens=max_new_tokens, pad_token_id=tok.pad_token_id,
+                      eos_token_id=end_ids, use_cache=True)
         if temperature > 0:
             kwargs.update(do_sample=True, temperature=float(temperature), top_p=1.0, top_k=0)
         else:
@@ -201,6 +211,11 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir)
         reported[schema.name], parse[schema.name] = {}, {}
         n_batches = len(schema.batches(personas[persona_indices[0]].names))
         for b_i in range(n_batches):
+            # Batch name, block and key count are the same for every persona; only the
+            # keys' wording differs. Take them from one persona so nothing downstream
+            # depends on the reply loop having run at least once.
+            meta = schema.batches(personas[persona_indices[0]].names)[b_i]
+            batch_name, block = meta.name, meta.block
             texts, index = [], []
             for k in persona_indices:
                 batch = schema.batches(personas[k].names)[b_i]
@@ -228,10 +243,9 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir)
                         **{f"B_attribute_{i+1}": trial.option_B.attributes[i]["value"] for i in range(n)},
                     }
                 )
-            batch_name, block = batch.name, batch.block
             parse[schema.name][batch_name] = (len(parsed_rows), len(texts), block)
             reported[schema.name][block] = {k: np.mean(v, axis=0) for k, v in per_persona.items()}
-            columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(len(batch.keys))]
+            columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(len(meta.keys))]
             header = (
                 ["explaining_model", "version", "scenario"]
                 + [f"report_{c}" for c in columns]
@@ -291,6 +305,9 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
 
     base = {"run_id": run_id, "timestamp": datetime.now().isoformat(timespec="seconds"), **hyperparameter_columns(cfg)}
     rows = []
+    # Chance depends on the rule, the block and the recovered latents, never on the
+    # report schema, so it is computed once per block and reused across schemas.
+    chance_by_block = {}
     for schema in schemas:
         reported = {}
         parse = {}
@@ -322,9 +339,11 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
                 pairs = [(rep[k], rec[k]) for k in rep if k in rec]
                 row["faithfulness"], row["faithfulness_pearson"] = _mean_cosine(pairs), pooled_pearson(pairs)
             if rec and block in rule_slices:
-                row["chance"], row["chance_pearson"] = chance_level(
-                    rule, block, rec, n, me["chance_draws"], cfg["model_hyperparameters"]["seed"]
-                )
+                if block not in chance_by_block:
+                    chance_by_block[block] = chance_level(
+                        rule, block, rec, n, me["chance_draws"], cfg["model_hyperparameters"]["seed"]
+                    )
+                row["chance"], row["chance_pearson"] = chance_by_block[block]
             if rep and hid:
                 pairs = [(hid[k], rep[k]) for k in rep if k in hid]
                 row["hidden_vs_reported"], row["hidden_vs_reported_pearson"] = _mean_cosine(pairs), pooled_pearson(pairs)
