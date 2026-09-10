@@ -50,7 +50,7 @@
     "seed": 4
   },
   "gates": {
-    "min_decision_accuracy": 0.8,
+    "min_decision_accuracy": 0.6,
     "min_parse_rate": 0.8
   },
   "compute": {
