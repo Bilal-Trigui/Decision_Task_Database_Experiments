@@ -103,6 +103,7 @@ def apply_defaults(cfg):
     compute.setdefault("mount_drive", False)
     cfg.setdefault("report_schema", {}).setdefault("max_new_tokens", 200)
     cfg.setdefault("model_estimating", {}).setdefault("chance_draws", 1000)
+    cfg.setdefault("model_hyperparameters", {}).setdefault("gradient_checkpointing", False)
     return cfg
 
 
@@ -171,6 +172,8 @@ def validate(cfg):
         raise SettingsError(f"model_hyperparameters.finetune must be one of {FINETUNE}")
     if mh["quantization"] not in QUANTIZATION:
         raise SettingsError(f"model_hyperparameters.quantization must be one of {QUANTIZATION}")
+    if not isinstance(mh["gradient_checkpointing"], bool):
+        raise SettingsError("model_hyperparameters.gradient_checkpointing must be true or false")
     if mh["finetune"] == "full" and mh["quantization"] != "none":
         raise SettingsError("model_hyperparameters.finetune 'full' needs quantization 'none'; a quantized base cannot be fully trained")
     for field in ("min_decision_accuracy", "min_parse_rate"):
@@ -285,6 +288,7 @@ def hyperparameter_columns(cfg):
         "training_steps": mh["training_steps"],
         "introspection_training": mh["introspection_training"],
         "introspection_steps": mh["introspection_steps"],
+        "gradient_checkpointing": mh["gradient_checkpointing"],
         "seed": mh["seed"],
         "decision_temperature": me["decision_temperature"],
         "samples_per_trial": me["samples_per_trial"],

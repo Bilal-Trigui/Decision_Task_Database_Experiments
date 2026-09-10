@@ -123,8 +123,20 @@ def apply_finetune(model, cfg):
         return model
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
+    # Gradient checkpointing recomputes activations in the backward pass instead
+    # of storing them, roughly a quarter of the activation memory for about a
+    # third more time per step. Off by default so Plunkett's settings are
+    # unchanged; the *_20gb configs turn it on, since a 20 GB MIG slice cannot
+    # hold a 4B model's activations at batch 10 otherwise. Needs use_cache off,
+    # which load_model_and_tokenizer already sets.
+    checkpointing = mh["gradient_checkpointing"]
     if mh["quantization"] != "none":
-        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=checkpointing)
+    elif checkpointing:
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        model.enable_input_require_grads()
+    if checkpointing:
+        print("gradient checkpointing: on")
     lora = LoraConfig(
         r=mh["lora_rank"],
         lora_alpha=mh["lora_alpha"],

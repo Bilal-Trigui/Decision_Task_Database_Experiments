@@ -378,9 +378,17 @@ def append_results(rows, cfg, path="results/results.csv"):
     if path.exists():
         existing = list(pd.read_csv(path, nrows=0).columns)
         if existing != columns:
-            raise RuntimeError(
-                f"{path} has columns {existing} but this pipeline writes {columns}; move the old file aside"
-            )
+            if set(existing) <= set(columns):
+                # A code update added a column. Migrate the file in place rather
+                # than refusing, so a pull mid-session on a rented box never
+                # strands a run behind an error about an old file.
+                old = pd.read_csv(path).reindex(columns=columns)
+                old.to_csv(path, index=False)
+                print(f"note: {path} migrated to {len(columns)} columns (added {sorted(set(columns) - set(existing))})")
+            else:
+                raise RuntimeError(
+                    f"{path} has columns {existing} but this pipeline writes {columns}; move the old file aside"
+                )
         frame.to_csv(path, mode="a", header=False, index=False)
     else:
         frame.to_csv(path, index=False)
