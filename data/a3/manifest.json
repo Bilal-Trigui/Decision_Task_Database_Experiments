@@ -1,0 +1,49 @@
+{
+  "rule": "interaction",
+  "params": {
+    "active_pairs": 1,
+    "zero_pair_main_effects": true,
+    "main_scale": 0.5,
+    "interaction_magnitude": [
+      50,
+      100
+    ]
+  },
+  "seed": 1,
+  "trials_seed": 2,
+  "attribute_count": 5,
+  "instances": 100,
+  "train_trials_per_persona": 50,
+  "val_trials_per_persona": 10,
+  "source": "data/plunkett",
+  "latent_columns": [
+    "attr1",
+    "attr2",
+    "attr3",
+    "attr4",
+    "attr5",
+    "v_1_2",
+    "v_1_3",
+    "v_1_4",
+    "v_1_5",
+    "v_2_3",
+    "v_2_4",
+    "v_2_5",
+    "v_3_4",
+    "v_3_5",
+    "v_4_5"
+  ],
+  "stats": {
+    "interaction_decisive_share": 0.2843333333333333,
+    "interaction_decisive_share_median_persona": 0.2833333333333333,
+    "interaction_decisive_share_min_persona": 0.15
+  },
+  "files": {
+    "candidate_scenarios.json": "1514e4bc8a585e92",
+    "instill_100_prefs.jsonl": "29963267e7a3581c",
+    "instill_100_prefs_val.jsonl": "6b79858f960453c4",
+    "instilled_weights.csv": "7c05e86008dde055",
+    "roles.csv": "68bdfc88b3f6bae7",
+    "scenarios.csv": "6fe133fe557e1c8c"
+  }
+}

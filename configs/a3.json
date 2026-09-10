@@ -4,10 +4,17 @@
     "attribute_count": 5
   },
   "decision_rule": {
-    "type": "linear"
+    "type": "interaction",
+    "active_pairs": 1,
+    "zero_pair_main_effects": true,
+    "main_scale": 0.5,
+    "interaction_magnitude": [
+      50,
+      100
+    ]
   },
   "model_training": {
-    "data_dir": "data/plunkett/",
+    "data_dir": "data/a3/",
     "instances": 100,
     "train_trials_per_persona": 50,
     "val_trials_per_persona": 10,
@@ -21,7 +28,7 @@
     }
   },
   "model_estimating": {
-    "type": "linear",
+    "type": "interaction",
     "decision_temperature": 0.0,
     "samples_per_trial": 1,
     "estimation_trials_per_persona": 50,

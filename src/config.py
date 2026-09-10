@@ -39,6 +39,7 @@ DEFAULT_SEEDS = {
 BACKENDS = ("local", "colab", "azure", "api")
 DEVICES = ("cpu", "cuda")
 FINETUNE = ("lora", "full")
+QUANTIZATION = ("none", "4bit")
 PRECISION = ("no", "fp16", "bf16")
 NUMBER = (int, float)
 
@@ -65,9 +66,8 @@ REQUIRED = {
         "max_new_tokens": int,
     },
     "model_hyperparameters": {
-        "name": str,
-        "quantize": bool,
-        "quant_bits": int,
+        "model_name": str,
+        "quantization": str,
         "finetune": str,
         "lora_rank": int,
         "lora_alpha": NUMBER,
@@ -169,10 +169,10 @@ def validate(cfg):
         raise SettingsError("report_schema.type must be a name or a list of names")
     if mh["finetune"] not in FINETUNE:
         raise SettingsError(f"model_hyperparameters.finetune must be one of {FINETUNE}")
-    if mh["finetune"] == "full" and mh["quantize"]:
-        raise SettingsError("model_hyperparameters.finetune 'full' cannot be combined with quantize: true")
-    if mh["quant_bits"] not in (4, 8):
-        raise SettingsError("model_hyperparameters.quant_bits must be 4 or 8")
+    if mh["quantization"] not in QUANTIZATION:
+        raise SettingsError(f"model_hyperparameters.quantization must be one of {QUANTIZATION}")
+    if mh["finetune"] == "full" and mh["quantization"] != "none":
+        raise SettingsError("model_hyperparameters.finetune 'full' needs quantization 'none'; a quantized base cannot be fully trained")
     for field in ("min_decision_accuracy", "min_parse_rate"):
         if not 0 <= gates[field] <= 1:
             raise SettingsError(f"gates.{field} must be between 0 and 1")
@@ -186,7 +186,10 @@ def validate(cfg):
 
 
 def load(path=None, use_test=False):
-    """Load settings from a JSON file, or the hardcoded TEST dict when use_test is true."""
+    """Load settings from a JSON file, or the hardcoded TEST dict when use_test is true.
+
+    Also checks that the data folder exists and is object.attribute_count wide.
+    """
     if use_test:
         from src.configs.test import TEST
 
@@ -197,6 +200,9 @@ def load(path=None, use_test=False):
         cfg, source = json.loads(Path(path).read_text()), str(path)
     apply_defaults(cfg)
     validate(cfg)
+    from src.data import check_attribute_count
+
+    check_attribute_count(cfg["model_training"]["data_dir"], cfg["object"]["attribute_count"])
     cfg["_source"] = source
     return cfg
 
@@ -269,9 +275,8 @@ def hyperparameter_columns(cfg):
         "instances": mt["instances"],
         "train_trials_per_persona": mt["train_trials_per_persona"],
         "val_trials_per_persona": mt["val_trials_per_persona"],
-        "model_name": mh["name"],
-        "quantize": mh["quantize"],
-        "quant_bits": mh["quant_bits"],
+        "model_name": mh["model_name"],
+        "quantization": mh["quantization"],
         "finetune": mh["finetune"],
         "lora_rank": mh["lora_rank"],
         "lora_alpha": mh["lora_alpha"],

@@ -38,9 +38,8 @@ TEST = {
         "max_new_tokens": 80,
     },
     "model_hyperparameters": {
-        "name": "Qwen/Qwen3-0.6B",
-        "quantize": False,
-        "quant_bits": 4,
+        "model_name": "Qwen/Qwen3-0.6B",
+        "quantization": "none",
         "finetune": "lora",
         "lora_rank": 4,
         "lora_alpha": 4,
