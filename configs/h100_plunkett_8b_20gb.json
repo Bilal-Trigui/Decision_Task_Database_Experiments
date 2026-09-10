@@ -31,7 +31,7 @@
     "type": "auto",
     "report_temperature": 0.0,
     "samples_per_report": 10,
-    "max_new_tokens": 200
+    "max_new_tokens": 96
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",

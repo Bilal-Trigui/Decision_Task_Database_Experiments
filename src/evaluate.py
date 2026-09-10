@@ -128,8 +128,12 @@ def generate_texts(model, tok, texts, max_new_tokens, temperature, batch_size, d
     n_batches = (len(texts) + batch_size - 1) // batch_size
     for b, i in enumerate(range(0, len(texts), batch_size), start=1):
         input_ids, attention, _ = _left_pad(tok, texts[i : i + batch_size], device)
+        # disable_compile: newer transformers may pick a compiled cache path in
+        # generate, and compiling a model on a slow shared slice can take many
+        # minutes per padded shape while holding a great deal of memory. The
+        # plain eager path is what this evaluation was validated on.
         kwargs = dict(max_new_tokens=max_new_tokens, pad_token_id=tok.pad_token_id,
-                      eos_token_id=end_ids, use_cache=True)
+                      eos_token_id=end_ids, use_cache=True, disable_compile=True)
         if temperature > 0:
             kwargs.update(do_sample=True, temperature=float(temperature), top_p=1.0, top_k=0)
         else:

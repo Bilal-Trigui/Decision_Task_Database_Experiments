@@ -31,7 +31,7 @@
     "type": "auto",
     "report_temperature": 0.0,
     "samples_per_report": 3,
-    "max_new_tokens": 200
+    "max_new_tokens": 96
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-0.6B",
@@ -48,7 +48,8 @@
     "introspection_steps": 10,
     "introspection_batch_size": 1,
     "seed": 4,
-    "gradient_checkpointing": false
+    "gradient_checkpointing": false,
+    "micro_batch_size": null
   },
   "gates": {
     "min_decision_accuracy": 0.0,
