@@ -51,6 +51,27 @@ def end_token_id(tok):
     return vocab["<|im_end|>"] if "<|im_end|>" in vocab else tok.eos_token_id
 
 
+def gpu_dtype(cfg, device):
+    """Weight and compute dtype on a GPU, following compute.mixed_precision.
+
+    fp16 is the only half precision a T4 supports, so it stays the default.
+    bf16 needs Ampere or newer and is the better choice on an A100 or H100: it
+    carries fp32's exponent range, so training needs no loss scaling and cannot
+    silently overflow. The gradient scaler below is built for fp16 only, which
+    matches.
+    """
+    if device != "cuda":
+        return torch.float32
+    if cfg["compute"].get("mixed_precision") != "bf16":
+        return torch.float16
+    if not torch.cuda.is_bf16_supported():
+        raise RuntimeError(
+            "compute.mixed_precision is 'bf16' but this GPU does not support it; "
+            "use 'fp16' on Turing cards such as the T4"
+        )
+    return torch.bfloat16
+
+
 def load_model_and_tokenizer(cfg, device):
     """Download the model named in the settings and quantize it if asked. Reads model_hyperparameters, compute."""
     from transformers import AutoTokenizer
@@ -62,6 +83,8 @@ def load_model_and_tokenizer(cfg, device):
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
+    half = gpu_dtype(cfg, device)
+    dtype_name = str(half).replace("torch.", "")
     if mh["quantization"] != "none":
         if device != "cuda":
             raise RuntimeError(
@@ -72,15 +95,15 @@ def load_model_and_tokenizer(cfg, device):
         bnb = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=half,
             bnb_4bit_use_double_quant=True,
         )
-        model = _from_pretrained(name, quantization_config=bnb, device_map={"": 0}, dtype=torch.float16, token=token)
+        model = _from_pretrained(name, quantization_config=bnb, device_map={"": 0}, dtype=half, token=token)
     else:
-        dtype = torch.float32 if (device == "cpu" or mh["finetune"] == "full") else torch.float16
+        dtype = torch.float32 if (device == "cpu" or mh["finetune"] == "full") else half
         model = _from_pretrained(name, dtype=dtype, token=token).to(device)
     model.config.use_cache = False
-    print(f"model: {name} | quantization={mh['quantization']} | device={device}")
+    print(f"model: {name} | quantization={mh['quantization']} | device={device} | dtype={dtype_name}")
     return model, tok
 
 
