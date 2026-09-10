@@ -57,9 +57,8 @@ def test_introspection_training_file():
 # never reads them, and the comparison for a replication is his published numbers.
 # They remain untouched in plunkett-self-interpretability/data if they are wanted back.
 PLUNKETT_FILES = sorted(
-    ["candidate_scenarios.json", "instill_100_prefs.jsonl", "instill_100_prefs_val.jsonl", "instilled_weights.csv",
-     "instilled_weights_100_training.jsonl", "instilled_weights_50_test.jsonl", "instilled_weights_50_test_test_last.jsonl",
-     "instilled_weights_50_training.jsonl", "instilled_weights_50_training_test_last.jsonl", "roles.csv", "scenarios.csv"]
+    ["candidate_scenarios.json", "instill_100_prefs.jsonl", "instill_100_prefs_val.jsonl",
+     "instilled_weights.csv", "instilled_weights_100_training.jsonl", "roles.csv", "scenarios.csv"]
 )
 
 
