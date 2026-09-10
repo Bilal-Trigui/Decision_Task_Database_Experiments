@@ -124,7 +124,9 @@ def generate_texts(model, tok, texts, max_new_tokens, temperature, batch_size, d
     model.eval()
     end_ids = sorted({end_token_id(tok), tok.eos_token_id})
     outputs = []
-    for i in range(0, len(texts), batch_size):
+    t0 = time.time()
+    n_batches = (len(texts) + batch_size - 1) // batch_size
+    for b, i in enumerate(range(0, len(texts), batch_size), start=1):
         input_ids, attention, _ = _left_pad(tok, texts[i : i + batch_size], device)
         kwargs = dict(max_new_tokens=max_new_tokens, pad_token_id=tok.pad_token_id,
                       eos_token_id=end_ids, use_cache=True)
@@ -135,6 +137,10 @@ def generate_texts(model, tok, texts, max_new_tokens, temperature, batch_size, d
         generated = model.generate(input_ids=input_ids, attention_mask=attention, **kwargs)
         new_tokens = generated[:, input_ids.shape[1] :]
         outputs += [tok.decode(row, skip_special_tokens=True).strip() for row in new_tokens]
+        # Generation is the slowest step of an evaluation and otherwise silent,
+        # which on a slow shared GPU is indistinguishable from a hang.
+        if b % 5 == 0 or b == n_batches:
+            print(f"    generating: {len(outputs)}/{len(texts)} replies, {time.time() - t0:.0f}s", flush=True)
     return outputs
 
 
