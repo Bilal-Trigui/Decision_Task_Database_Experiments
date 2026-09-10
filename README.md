@@ -246,6 +246,25 @@ its `_val` file, and writes `manifest.json` with the seed, the rule parameters,
 file hashes, and rule-specific statistics. At load, the pipeline refuses a folder
 whose manifest was built with different rule parameters than the settings say.
 
+## Building the training files from weights you wrote yourself
+
+The rule modules above draw a fresh latent. To test a latent you designed by hand,
+the other direction is `vector_dataset_constructor.py`: it takes a folder's four
+inputs, uses `instilled_weights.csv` exactly as given, and writes the training
+files from it.
+
+```
+python vector_dataset_constructor.py --data data/plunkett                    # his three JSONLs, byte for byte
+python vector_dataset_constructor.py --data data/a3 --rule interaction       # a non-linear rule labels the trials
+python vector_dataset_constructor.py --data data/mine --rule linear          # your own weights
+```
+
+It writes `instill_<N>_prefs.jsonl`, its `_val` file, Plunkett's Experiment 2 file
+`instilled_weights_<N>_training.jsonl`, the `introspection_training.csv` the pipeline
+reads, and a `manifest.json` with a hash of every input and output. The rule is what
+turns weights and a trial into a label, so it must match the columns in the weights
+file; the constructor refuses otherwise. Edit the weights, run this, run the pipeline.
+
 ## Adding a fourth rule
 
 Write `src/rules/<name>.py` (subclass `Rule`: `blocks`, `sample_latent`, `score`,
