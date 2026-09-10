@@ -48,7 +48,7 @@
     "introspection_steps": 150,
     "introspection_batch_size": 1,
     "seed": 4,
-    "micro_batch_size": 5,
+    "micro_batch_size": null,
     "gradient_checkpointing": true
   },
   "gates": {
