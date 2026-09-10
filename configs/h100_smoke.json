@@ -40,14 +40,15 @@
     "lora_rank": 8,
     "lora_alpha": 8,
     "learning_rate": 0.0002,
-    "batch_size": 10,
+    "batch_size": 4,
     "loss_mask_answer_only": true,
     "training_steps": 60,
     "checkpoint_every": 30,
     "introspection_training": true,
     "introspection_steps": 10,
     "introspection_batch_size": 1,
-    "seed": 4
+    "seed": 4,
+    "gradient_checkpointing": false
   },
   "gates": {
     "min_decision_accuracy": 0.0,
@@ -57,7 +58,7 @@
     "backend": "local",
     "device": "cuda",
     "mixed_precision": "bf16",
-    "eval_batch_size": 64,
+    "eval_batch_size": 16,
     "mount_drive": false
   }
 }
