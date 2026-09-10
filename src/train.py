@@ -181,24 +181,30 @@ def collate(encoded, pad_id, device):
     return input_ids.to(device), attention.to(device), labels.to(device)
 
 
-def _accuracies(logits, labels):
-    """First-answer-token accuracy and all-answer-token accuracy from teacher-forced logits.
+def _accuracy_counts(logits, labels):
+    """Per-example first-answer-token hits, plus correct and valid answer-token counts.
 
     Takes the logits in whatever dtype the model produced. Only an argmax is
     needed, so no fp32 copy of the (batch, sequence, vocabulary) tensor is made.
+    Counts rather than means, so micro-batches of one step can be combined.
     """
     pred = logits[:, :-1, :].argmax(-1)
     target = labels[:, 1:]
     valid = target != -100
     correct = (pred == target) & valid
-    answer_acc = correct.sum().item() / max(valid.sum().item(), 1)
     firsts = []
     for i in range(labels.shape[0]):
         positions = torch.nonzero(valid[i]).flatten()
         if len(positions):
             firsts.append(correct[i, positions[0]].item())
+    return firsts, correct.sum().item(), valid.sum().item()
+
+
+def _accuracies(logits, labels):
+    """First-answer-token accuracy and all-answer-token accuracy from teacher-forced logits."""
+    firsts, correct, valid = _accuracy_counts(logits, labels)
     first_acc = float(np.mean(firsts)) if firsts else float("nan")
-    return first_acc, answer_acc
+    return first_acc, correct / max(valid, 1)
 
 
 def _autocast(device, precision):
@@ -264,6 +270,12 @@ def train_stage(
     mh, comp = cfg["model_hyperparameters"], cfg["compute"]
     precision = comp["mixed_precision"] if device == "cuda" else "no"
     mask = mh["loss_mask_answer_only"]
+    # Micro-batching: the optimizer still steps once per `batch_size` examples,
+    # so the hyperparameter is unchanged, but the examples pass through the
+    # model `micro` at a time and gradients accumulate. What it buys is memory:
+    # cross entropy over Qwen3's 152k-token vocabulary needs several full fp32
+    # copies of the logits, and those scale with the micro-batch, not the batch.
+    micro = min(mh["micro_batch_size"] or batch_size, batch_size)
     encoded = [encode_example(tok, e, mask) for e in examples]
     encoded_val = [encode_example(tok, e, mask) for e in val_examples]
     params = [p for p in model.parameters() if p.requires_grad]
@@ -276,7 +288,10 @@ def train_stage(
     model.train()
     t0 = time.time()
     rows = []
-    print(f"training stage '{stage}'{'' if not fold else f' fold {fold}'}: {len(encoded)} examples, {steps} steps, batch {batch_size}")
+    print(
+        f"training stage '{stage}'{'' if not fold else f' fold {fold}'}: {len(encoded)} examples, {steps} steps, "
+        f"batch {batch_size}" + (f" in micro-batches of {micro}" if micro < batch_size else "")
+    )
     for step in range(1, steps + 1):
         if len(order) < batch_size:
             fresh = list(range(len(encoded)))
@@ -284,24 +299,37 @@ def train_stage(
             order += fresh
         batch = [encoded[i] for i in order[:batch_size]]
         order = order[batch_size:]
-        input_ids, attention, labels = collate(batch, tok.pad_token_id, device)
-        with _autocast(device, precision):
-            out = model(input_ids=input_ids, attention_mask=attention, labels=labels)
-        loss = out.loss
+        chunks = [batch[i : i + micro] for i in range(0, len(batch), micro)]
+        loss_value, firsts, answer_correct, answer_valid = 0.0, [], 0, 0
+        for chunk in chunks:
+            input_ids, attention, labels = collate(chunk, tok.pad_token_id, device)
+            with _autocast(device, precision):
+                out = model(input_ids=input_ids, attention_mask=attention, labels=labels)
+            # Each chunk's loss is a mean over its answer tokens; dividing by the
+            # chunk count makes the accumulated gradient the mean over the step.
+            # Exact when chunks hold equal token counts, which decision examples
+            # always do (one letter plus the end token each).
+            loss = out.loss / len(chunks)
+            if scaler is not None:
+                scaler.scale(loss).backward()
+            else:
+                loss.backward()
+            loss_value += loss.item()
+            f, c, v = _accuracy_counts(out.logits.detach(), labels)
+            firsts += f
+            answer_correct += c
+            answer_valid += v
+            # Drop each chunk's outputs at once: the logits are the largest tensor
+            # in the step, and the checkpoint evaluation below is the memory peak.
+            del out, loss
         if scaler is not None:
-            scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
         else:
-            loss.backward()
             optimizer.step()
         optimizer.zero_grad(set_to_none=True)
-        first_acc, answer_acc = _accuracies(out.logits.detach(), labels)
-        loss_value = loss.item()
-        # Drop the step's outputs before any evaluation below. The logits alone are
-        # about 1 GB in bf16 for an 8B model at batch 10, and evaluation at batch 64
-        # is the memory peak of the whole run.
-        del out, loss
+        first_acc = float(np.mean(firsts)) if firsts else float("nan")
+        answer_acc = answer_correct / max(answer_valid, 1)
         row = {
             "run_id": run_id,
             "stage": stage,

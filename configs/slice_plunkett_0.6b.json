@@ -34,7 +34,7 @@
     "max_new_tokens": 200
   },
   "model_hyperparameters": {
-    "model_name": "Qwen/Qwen3-4B",
+    "model_name": "Qwen/Qwen3-0.6B",
     "quantization": "none",
     "finetune": "lora",
     "lora_rank": 8,
@@ -48,8 +48,8 @@
     "introspection_steps": 150,
     "introspection_batch_size": 1,
     "seed": 4,
-    "gradient_checkpointing": true,
-    "micro_batch_size": 2
+    "micro_batch_size": 2,
+    "gradient_checkpointing": false
   },
   "gates": {
     "min_decision_accuracy": 0.6,

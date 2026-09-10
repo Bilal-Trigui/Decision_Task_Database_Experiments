@@ -48,7 +48,8 @@
     "introspection_steps": 150,
     "introspection_batch_size": 1,
     "seed": 4,
-    "gradient_checkpointing": true
+    "gradient_checkpointing": true,
+    "micro_batch_size": 2
   },
   "gates": {
     "min_decision_accuracy": 0.6,

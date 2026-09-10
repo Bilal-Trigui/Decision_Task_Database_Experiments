@@ -104,6 +104,7 @@ def apply_defaults(cfg):
     cfg.setdefault("report_schema", {}).setdefault("max_new_tokens", 200)
     cfg.setdefault("model_estimating", {}).setdefault("chance_draws", 1000)
     cfg.setdefault("model_hyperparameters", {}).setdefault("gradient_checkpointing", False)
+    cfg["model_hyperparameters"].setdefault("micro_batch_size", None)
     return cfg
 
 
@@ -174,6 +175,9 @@ def validate(cfg):
         raise SettingsError(f"model_hyperparameters.quantization must be one of {QUANTIZATION}")
     if not isinstance(mh["gradient_checkpointing"], bool):
         raise SettingsError("model_hyperparameters.gradient_checkpointing must be true or false")
+    micro = mh["micro_batch_size"]
+    if micro is not None and (isinstance(micro, bool) or not isinstance(micro, int) or micro < 1):
+        raise SettingsError("model_hyperparameters.micro_batch_size must be a positive integer or null")
     if mh["finetune"] == "full" and mh["quantization"] != "none":
         raise SettingsError("model_hyperparameters.finetune 'full' needs quantization 'none'; a quantized base cannot be fully trained")
     for field in ("min_decision_accuracy", "min_parse_rate"):
@@ -289,6 +293,7 @@ def hyperparameter_columns(cfg):
         "introspection_training": mh["introspection_training"],
         "introspection_steps": mh["introspection_steps"],
         "gradient_checkpointing": mh["gradient_checkpointing"],
+        "micro_batch_size": mh["micro_batch_size"],
         "seed": mh["seed"],
         "decision_temperature": me["decision_temperature"],
         "samples_per_trial": me["samples_per_trial"],
