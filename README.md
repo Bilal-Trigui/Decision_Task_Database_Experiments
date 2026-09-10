@@ -29,6 +29,7 @@ python run_me.py && pip install -r requirements.txt
 python -m tests.test_plunkett_fidelity      # generators reproduce Plunkett's files byte for byte
 python -m tests.test_loss_mask              # loss is computed on the answer tokens only
 python -m tests.test_estimator_recovery    # each estimator recovers latents its own rule generated
+python -m tests.test_scoring               # known-answer reporters score exactly 1, the recovery figure, and -1
 python -c "from src.config import load; from src.pipeline import run; run(load(use_test=True))"
 ```
 
