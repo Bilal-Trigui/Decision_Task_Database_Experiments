@@ -44,8 +44,8 @@
     "loss_mask_answer_only": true,
     "training_steps": 60,
     "checkpoint_every": 30,
-    "introspection_training": false,
-    "introspection_steps": 150,
+    "introspection_training": true,
+    "introspection_steps": 10,
     "introspection_batch_size": 1,
     "seed": 4
   },

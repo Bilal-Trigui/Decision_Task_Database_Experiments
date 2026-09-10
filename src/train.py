@@ -285,12 +285,17 @@ def train_stage(
             optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         first_acc, answer_acc = _accuracies(out.logits.detach(), labels)
+        loss_value = loss.item()
+        # Drop the step's outputs before any evaluation below. The logits alone are
+        # about 1 GB in bf16 for an 8B model at batch 10, and evaluation at batch 64
+        # is the memory peak of the whole run.
+        del out, loss
         row = {
             "run_id": run_id,
             "stage": stage,
             "fold": fold,
             "step": step,
-            "loss": loss.item(),
+            "loss": loss_value,
             "first_token_accuracy": first_acc,
             "answer_token_accuracy": answer_acc,
             "val_loss": "",
@@ -306,7 +311,7 @@ def train_stage(
             model.save_pretrained(str(ckpt))
             checkpoints.append((step, ckpt))
             print(
-                f"  step {step}/{steps} loss {loss.item():.4f} acc {first_acc:.3f} | val loss {val_loss:.4f} "
+                f"  step {step}/{steps} loss {loss_value:.4f} acc {first_acc:.3f} | val loss {val_loss:.4f} "
                 f"val acc {val_first:.3f} | saved {ckpt} | {time.time() - t0:.0f}s"
             )
             rows.append(row)
@@ -318,7 +323,7 @@ def train_stage(
         else:
             rows.append(row)
             if step % 50 == 0:
-                print(f"  step {step}/{steps} loss {loss.item():.4f} acc {first_acc:.3f} | {time.time() - t0:.0f}s")
+                print(f"  step {step}/{steps} loss {loss_value:.4f} acc {first_acc:.3f} | {time.time() - t0:.0f}s")
     if rows:
         _append_log(log_path, rows)
     return checkpoints

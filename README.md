@@ -62,9 +62,12 @@ for one pipeline.
 
 **`configs/h100_*.json`** are the same experiments sized for an 80 GB Hopper card:
 bf16 instead of fp16, no quantization, and a wider evaluation batch. `h100_smoke`
-is Qwen3-0.6B for sixty steps to prove the CUDA path; `h100_plunkett_8b` and
-`h100_plunkett_14b` are Plunkett's settings otherwise. There is no 32B file: its
-weights alone are past the disk budget a shared box allows.
+is Qwen3-0.6B for sixty steps with ten introspection steps per fold, so it proves
+the CUDA path through both stages, including the adapter snapshot and restore
+between folds, before a large model is loaded. `h100_plunkett_4b`,
+`h100_plunkett_8b` and `h100_plunkett_14b` are Plunkett's settings otherwise.
+There is no 32B file: its weights alone are past the disk budget a shared box
+allows.
 
 **`src/configs/test.py`** holds the hardcoded `TEST` dict the smoke test uses: local
 CPU, Qwen3-0.6B unquantized, LoRA rank 4, ten steps with a checkpoint every five,
