@@ -96,10 +96,13 @@ def run(cfg, results_dir="results", checkpoint_root="checkpoints"):
         all_rows.extend(combined)
 
     make_plots(run_id, results_dir)
-    table = pd.DataFrame(all_rows)[
-        ["stage", "introspection_fold", "checkpoint_step", "report_schema", "block", "decision_accuracy",
-         "recovered_vs_hidden", "faithfulness", "chance", "parse_rate", "hidden_vs_reported"]
-    ]
+    # reindex rather than select: a run where no report ever parsed has no
+    # faithfulness key on any row, and selecting would raise KeyError here, after
+    # every result was already written, and leave the notebook without `rows`.
+    table = pd.DataFrame(all_rows).reindex(columns=[
+        "stage", "introspection_fold", "checkpoint_step", "report_schema", "block", "decision_accuracy",
+        "recovered_vs_hidden", "faithfulness", "chance", "parse_rate", "hidden_vs_reported",
+    ])
     print(f"\nresults for {run_id} ({time.time() - t0:.0f}s), appended to {Path(results_dir) / 'results.csv'}:")
     with pd.option_context("display.width", 200, "display.max_columns", 20, "display.float_format", "{:.3f}".format):
         print(table.to_string(index=False))

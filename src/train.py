@@ -101,7 +101,13 @@ def load_model_and_tokenizer(cfg, device):
         model = _from_pretrained(name, quantization_config=bnb, device_map={"": 0}, dtype=half, token=token)
     else:
         dtype = torch.float32 if (device == "cpu" or mh["finetune"] == "full") else half
-        model = _from_pretrained(name, dtype=dtype, token=token).to(device)
+        if device == "cuda":
+            # Stream the weights straight onto the GPU. Loading on the CPU and then
+            # moving needs the whole model in host RAM first, which a 14B model in
+            # bf16 (about 28 GB) may not get on a shared box.
+            model = _from_pretrained(name, dtype=dtype, device_map={"": 0}, token=token)
+        else:
+            model = _from_pretrained(name, dtype=dtype, token=token).to(device)
     model.config.use_cache = False
     print(f"model: {name} | quantization={mh['quantization']} | device={device} | dtype={dtype_name}")
     return model, tok
@@ -164,7 +170,11 @@ def collate(encoded, pad_id, device):
 
 
 def _accuracies(logits, labels):
-    """First-answer-token accuracy and all-answer-token accuracy from teacher-forced logits."""
+    """First-answer-token accuracy and all-answer-token accuracy from teacher-forced logits.
+
+    Takes the logits in whatever dtype the model produced. Only an argmax is
+    needed, so no fp32 copy of the (batch, sequence, vocabulary) tensor is made.
+    """
     pred = logits[:, :-1, :].argmax(-1)
     target = labels[:, 1:]
     valid = target != -100
@@ -199,7 +209,7 @@ def evaluate_examples(model, tok, encoded, batch_size, device, precision):
         n_tokens = (labels[:, 1:] != -100).sum().item()
         losses.append(out.loss.item() * n_tokens)
         weights.append(n_tokens)
-        first, _ = _accuracies(out.logits.float(), labels)
+        first, _ = _accuracies(out.logits, labels)
         firsts.append(first)
     model.train()
     return sum(losses) / max(sum(weights), 1), float(np.nanmean(firsts)) if firsts else float("nan")
@@ -274,7 +284,7 @@ def train_stage(
             loss.backward()
             optimizer.step()
         optimizer.zero_grad(set_to_none=True)
-        first_acc, answer_acc = _accuracies(out.logits.detach().float(), labels)
+        first_acc, answer_acc = _accuracies(out.logits.detach(), labels)
         row = {
             "run_id": run_id,
             "stage": stage,
