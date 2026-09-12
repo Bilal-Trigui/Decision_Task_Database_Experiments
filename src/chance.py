@@ -13,7 +13,7 @@ import numpy as np
 from src.estimators.base import Estimator, pooled_pearson
 
 
-def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed):
+def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed, estimator=None):
     """Mean cosine and mean pooled Pearson between random latents and the recovered latents of one block.
 
     `recovered_by_persona` maps persona index -> the recovered vector of this
@@ -29,7 +29,8 @@ def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed
         pairs = []
         for k, recovered in recovered_by_persona.items():
             fake = np.asarray(rule.sample_latent(attribute_count, rng), float)[slc]
-            cosines.append(Estimator.distance(fake, recovered))
+            cosines.append(estimator.block_distance(block, fake, recovered) if estimator is not None
+                           else Estimator.distance(fake, recovered))
             pairs.append((fake, recovered))
         pearsons.append(pooled_pearson(pairs))
     return _nanmean(cosines), _nanmean(pearsons)

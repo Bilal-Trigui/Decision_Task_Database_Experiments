@@ -21,6 +21,7 @@ class Batch:
     block: str
     keys: list
     prompt_base: str
+    names: list = None      # the scenario's attribute names, for a batch answered in names
 
 
 def json_number(value):

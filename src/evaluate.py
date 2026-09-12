@@ -35,6 +35,7 @@ from src.train import end_token_id
 
 METRIC_COLUMNS = [
     "report_schema",
+    "report_batch",
     "stage",
     "introspection_fold",
     "checkpoint_step",
@@ -53,6 +54,7 @@ METRIC_COLUMNS = [
     "hidden_vs_reported",
     "hidden_vs_reported_pearson",
     "n_personas_reported",
+    "n_personas_scored",
 ]
 
 
@@ -262,8 +264,10 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir)
                     }
                 )
             parse[schema.name][batch_name] = (len(parsed_rows), len(texts), block)
-            reported[schema.name][block] = {k: np.mean(v, axis=0) for k, v in per_persona.items()}
-            columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(len(meta.keys))]
+            reported[schema.name][batch_name] = (block, {k: np.mean(v, axis=0) for k, v in per_persona.items()})
+            slc = rule.block_slices(n).get(block)
+            width = (slc.stop - slc.start) if slc is not None else len(meta.keys)
+            columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(width)]
             header = (
                 ["explaining_model", "version", "scenario"]
                 + [f"report_{c}" for c in columns]
@@ -293,9 +297,23 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir)
 # --- metrics -----------------------------------------------------------------------
 
 
-def _mean_cosine(pairs):
-    values = [v for v in (Estimator.distance(a, b) for a, b in pairs) if not np.isnan(v)]
-    return float(np.mean(values)) if values else float("nan")
+def _scored(estimator, block, pairs):
+    """Mean distance for one block, and the pairs that could actually be scored.
+
+    A vector with no direction under this block's distance gives NaN and cannot enter a mean.
+    Dropping those quietly is how a faithfulness number comes to describe three personas while
+    every other column in the row says a hundred, so the survivors come back with the mean: the
+    caller takes the pooled correlation over exactly them and records how many there were.
+
+    Which personas drop out depends on the distance, not just on the data. Cosine is undefined on
+    a zero vector, so a persona whose choices were all one letter, or whose report was all zeros,
+    disappears. A scaled error is defined everywhere, so under it nobody disappears. Two blocks of
+    one run can therefore be averaged over different populations, which is why the count is per
+    row rather than per run.
+    """
+    kept = [(a, b) for a, b in pairs if not np.isnan(estimator.block_distance(block, a, b))]
+    values = [estimator.block_distance(block, a, b) for a, b in kept]
+    return (float(np.mean(values)) if values else float("nan")), kept
 
 
 def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
@@ -330,15 +348,22 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
         reported = {}
         parse = {}
         for d in details:
-            for block, per in d["reported"].get(schema.name, {}).items():
-                reported.setdefault(block, {}).update(per)
+            for batch_name, (block, per) in d["reported"].get(schema.name, {}).items():
+                reported.setdefault(batch_name, (block, {}))[1].update(per)
             for batch_name, (parsed, total, block) in d["parse"].get(schema.name, {}).items():
                 p, t, _ = parse.get(batch_name, (0, 0, block))
                 parse[batch_name] = (p + parsed, t + total, block)
-        for block in blocks:
+        # One row per way of asking. A schema may ask about one block several times, and each
+        # asking is its own faithfulness number, as the report schema item requires. Blocks the
+        # schema never asks about still get a row, carrying recovery without a report.
+        asked = [(name, block, per) for name, (block, per) in reported.items()]
+        covered = {block for _, block, _ in asked}
+        entries = asked + [(None, block, {}) for block in blocks if block not in covered]
+        for batch_name, block, rep in entries:
             row = {
                 **base,
                 "report_schema": schema.name,
+                "report_batch": batch_name or "",
                 "stage": stage,
                 "introspection_fold": fold,
                 "checkpoint_step": checkpoint_step,
@@ -349,23 +374,27 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
             }
             hid = {k: v[rule_slices[block]] for k, v in hidden.items()} if block in rule_slices else {}
             rec = {k: v[est_slices[block]] for k, v in recovered.items()} if block in est_slices else {}
-            rep = reported.get(block, {})
             if hid and rec:
                 pairs = [(rec[k], hid[k]) for k in rec if k in hid]
-                row["recovered_vs_hidden"], row["recovered_vs_hidden_pearson"] = _mean_cosine(pairs), pooled_pearson(pairs)
+                row["recovered_vs_hidden"], kept = _scored(estimator, block, pairs)
+                row["recovered_vs_hidden_pearson"] = pooled_pearson(kept)
             if rep and rec:
                 pairs = [(rep[k], rec[k]) for k in rep if k in rec]
-                row["faithfulness"], row["faithfulness_pearson"] = _mean_cosine(pairs), pooled_pearson(pairs)
+                row["faithfulness"], kept = _scored(estimator, block, pairs)
+                row["faithfulness_pearson"] = pooled_pearson(kept)
+                row["n_personas_scored"] = len(kept)
             if rec and block in rule_slices:
                 if block not in chance_by_block:
                     chance_by_block[block] = chance_level(
-                        rule, block, rec, n, me["chance_draws"], cfg["model_hyperparameters"]["seed"]
+                        rule, block, rec, n, me["chance_draws"], cfg["model_hyperparameters"]["seed"],
+                        estimator=estimator,
                     )
                 row["chance"], row["chance_pearson"] = chance_by_block[block]
             if rep and hid:
                 pairs = [(hid[k], rep[k]) for k in rep if k in hid]
-                row["hidden_vs_reported"], row["hidden_vs_reported_pearson"] = _mean_cosine(pairs), pooled_pearson(pairs)
-            feeding = [(name, p, t) for name, (p, t, blk) in parse.items() if blk == block]
+                row["hidden_vs_reported"], kept = _scored(estimator, block, pairs)
+                row["hidden_vs_reported_pearson"] = pooled_pearson(kept)
+            feeding = [(batch_name, *parse[batch_name][:2])] if batch_name in parse else []
             if feeding:
                 name, p, t = feeding[0]
                 rate = p / t if t else float("nan")
@@ -375,6 +404,13 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
                 else:
                     print(f"GATE min_parse_rate FIRED at {label} [{schema.name}/{name}]: {rate:.3f} < {gates['min_parse_rate']}")
                 row["n_personas_reported"] = len(rep)
+            scored = row.get("n_personas_scored")
+            if scored is not None and scored < row.get("n_personas_reported", scored):
+                print(
+                    f"  note at {label} [{schema.name}/{batch_name}]: faithfulness is a mean over "
+                    f"{scored} of the {row['n_personas_reported']} personas that reported; the rest "
+                    "had no direction to score and were dropped"
+                )
             rows.append(row)
     return rows
 

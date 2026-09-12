@@ -39,11 +39,23 @@ class Rule:
     def latent_columns(self, n):
         return [c for cols in self.blocks(n).values() for c in cols]
 
+    def block_aliases(self, n):
+        """Extra names for blocks this rule already has, as alias -> real block.
+
+        An alias is a second way of asking about one slice of the latent, not a second slice. It
+        never appears in `blocks`, so it never widens instilled_weights.csv, and it exists so a
+        report schema can collect the same block under a name that carries its own distance and
+        its own chance level.
+        """
+        return {}
+
     def block_slices(self, n):
         slices, start = {}, 0
         for block, cols in self.blocks(n).items():
             slices[block] = slice(start, start + len(cols))
             start += len(cols)
+        for alias, block in self.block_aliases(n).items():
+            slices[alias] = slices[block]
         return slices
 
     # -- generator side --
@@ -69,11 +81,50 @@ class Rule:
             t.label = self.label(latent, t)
         return trials
 
+    def views(self, scenarios, latents, n):
+        """Extra CSVs to write beside the training files: filename -> list of row dicts.
+
+        A rule whose latent has structure worth reading returns it here and the constructor
+        writes it. The weighted sum has none, so the default is nothing.
+        """
+        return {}
+
+    def audit(self, latents, n, stats):
+        """Lines where an authored latent disagrees with this rule's declared parameters.
+
+        Printed rather than raised, since a latent designed by hand may depart from the draw on
+        purpose. `stats` is whatever dataset_stats returned, so a rule can also warn that its own
+        structure is doing nothing.
+        """
+        return []
+
+    def summarise_draw(self, latents, n):
+        """Lines describing what a draw produced, for the weight generator to print."""
+        return []
+
     def dataset_stats(self, train_trials, val_trials, latents, n):
         """Rule-specific summary written to manifest.json. Empty by default."""
         return {}
 
     # -- dataset builder --
+    def roll_weights(self, scenarios, n, seed):
+        """Draw one latent per scenario from this rule's target distribution, in scenario order.
+
+        Returns the latents and the instilled_weights.csv frame built from them. One RNG is
+        seeded once and consumed in scenario order, which is Plunkett's construction, so the
+        linear rule at his seed reproduces his file. Columns that came out whole are written as
+        integers, as his are.
+        """
+        rng = random.Random(seed)
+        latents = np.vstack([self.sample_latent(n, rng) for _ in scenarios])
+        columns = self.latent_columns(n)
+        weights = pd.DataFrame(latents, columns=columns)
+        for c in columns:
+            if np.all(np.equal(np.mod(weights[c], 1), 0)):
+                weights[c] = weights[c].astype(int)
+        weights.insert(0, "scenario", [sc.short_name for sc in scenarios])
+        return latents, weights
+
     def make_dataset(self, source_dir, out_dir, attribute_count=None, instances=100, seed=1, train=50, val=10, trials_seed=2):
         """Build a data folder for this rule from Plunkett's scenarios.
 
@@ -107,14 +158,8 @@ class Rule:
         scenarios = [D.Scenario(sc.short_name, sc.question, sc.attributes[:n]) for sc in scenarios]
 
         # latents for every scenario row, Plunkett-style (one RNG, scenario order)
-        rng = random.Random(seed)
-        latents = np.vstack([self.sample_latent(n, rng) for _ in scenarios])
+        latents, weights = self.roll_weights(scenarios, n, seed)
         columns = self.latent_columns(n)
-        weights = pd.DataFrame(latents, columns=columns)
-        for c in columns:
-            if np.all(np.equal(np.mod(weights[c], 1), 0)):
-                weights[c] = weights[c].astype(int)
-        weights.insert(0, "scenario", [sc.short_name for sc in scenarios])
         weights.to_csv(out / "instilled_weights.csv", index=False)
 
         # trials for the first `instances` personas
@@ -166,6 +211,21 @@ def check_manifest(data_dir, rule, cfg):
             f"{path} was built with decision_rule parameters {manifest.get('params')} "
             f"but the settings say {rule.params}; rebuild the folder or change the settings"
         )
+    # The manifest already records what each input hashed to when the training files were built.
+    # Checking it is what stops the worst failure in the whole setup: edit instilled_weights.csv,
+    # forget to rebuild, and the model trains on labels from the old latent while every report is
+    # scored against the new one. Nothing else notices, because the labels live in the JSONL.
+    for name, recorded in (manifest.get("inputs") or {}).items():
+        current = Path(data_dir) / name
+        if not current.exists():
+            continue
+        now = hashlib.sha256(current.read_bytes()).hexdigest()[: len(recorded)]
+        if now != recorded:
+            raise D.DataFormatError(
+                f"{current} has changed since {path} was written ({recorded} -> {now}). The trial "
+                f"labels in this folder still describe the previous latent. Rebuild the folder with "
+                f"its dataset constructor, or restore the file."
+            )
 
 
 def _parse_param(text):

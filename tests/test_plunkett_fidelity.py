@@ -64,8 +64,10 @@ PLUNKETT_FILES = sorted(
 
 def test_file_names_are_plunketts():
     present = sorted(p.name for p in PLUNKETT.iterdir() if p.is_file() and not p.name.startswith("."))
+    # The folder keeps Plunkett's inputs. What the constructor writes into it, and the
+    # constructor itself, are tools and outputs rather than data, so they are not compared.
     generated = {D.INTROSPECTION_TRAINING_CSV, "manifest.json"}
-    present = [name for name in present if name not in generated]
+    present = [name for name in present if name not in generated and not name.endswith(".py")]
     assert present == PLUNKETT_FILES, f"data/plunkett file names differ from Plunkett's: {set(present) ^ set(PLUNKETT_FILES)}"
 
 

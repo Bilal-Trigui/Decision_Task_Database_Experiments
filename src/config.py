@@ -86,6 +86,19 @@ REQUIRED = {
 }
 
 
+# Fields a block may carry beyond REQUIRED, because apply_defaults fills them. The three
+# component blocks (decision_rule, model_estimating, report_schema) are deliberately absent:
+# they also carry their component's own parameters, and the component validates those when it
+# is built.
+OPTIONAL = {
+    "object": set(),
+    "model_training": {"seeds"},
+    "model_hyperparameters": {"gradient_checkpointing", "micro_batch_size"},
+    "gates": set(),
+    "compute": {"mount_drive"},
+}
+
+
 class SettingsError(ValueError):
     """A settings file that the pipeline refuses to run."""
 
@@ -127,6 +140,16 @@ def validate(cfg):
             if field not in cfg[block]:
                 raise SettingsError(f"settings are missing {block}.{field}")
             _check_type(block, field, cfg[block][field], expected)
+
+    for block, optional in OPTIONAL.items():
+        known = set(REQUIRED[block]) | optional
+        unknown = set(cfg[block]) - known
+        if unknown:
+            raise SettingsError(
+                f"{block} has no field {sorted(unknown)}; it takes {sorted(known)}. "
+                "A misspelled field would otherwise be ignored, and in a file that extends "
+                "another it would silently leave the parent's value in place."
+            )
 
     obj, mt, me, rs, mh, gates, comp = (
         cfg["object"],
@@ -192,6 +215,39 @@ def validate(cfg):
     return cfg
 
 
+def merge(base, over):
+    """`over` wins field by field. A block merges into a block; anything else replaces outright.
+
+    Merging per field rather than per block is what lets a file name one hyperparameter without
+    restating the other thirteen. Lists replace whole, so a range like [50, 100] behaves the way
+    it reads.
+    """
+    out = dict(base)
+    for key, value in over.items():
+        out[key] = merge(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
+    return out
+
+
+def read_settings(path, _seen=()):
+    """Read a settings file, merged over whatever it extends. Returns the settings and the chain.
+
+    A file names its parent with "extends", resolved relative to its own folder, so each file
+    holds only the fields it changes and a shared default is written once. The chain comes back
+    child first, and goes into `_source` so a results row still says where its settings came from.
+    """
+    path = Path(path)
+    here = path.resolve()
+    if here in _seen:
+        names = " -> ".join(p.name for p in _seen + (here,))
+        raise SettingsError(f"settings files extend each other in a cycle: {names}")
+    cfg = json.loads(path.read_text())
+    parent = cfg.pop("extends", None)
+    if parent is None:
+        return cfg, [str(path)]
+    base, chain = read_settings(path.parent / parent, _seen + (here,))
+    return merge(base, cfg), [str(path)] + chain
+
+
 def load(path=None, use_test=False):
     """Load settings from a JSON file, or the hardcoded TEST dict when use_test is true.
 
@@ -204,7 +260,8 @@ def load(path=None, use_test=False):
     else:
         if path is None:
             raise SettingsError("no settings file given and use_test is false")
-        cfg, source = json.loads(Path(path).read_text()), str(path)
+        cfg, chain = read_settings(path)
+        source = " <- ".join(chain)
     apply_defaults(cfg)
     validate(cfg)
     from src.data import check_attribute_count
@@ -248,7 +305,9 @@ def resolve(cfg):
     n = cfg["object"]["attribute_count"]
     rule_params = {k: v for k, v in cfg["decision_rule"].items() if k != "type"}
     rule = load_component("rules", cfg["decision_rule"]["type"], rule_params)
-    estimator = load_component("estimators", cfg["model_estimating"]["type"], {"attribute_count": n})
+    estimator_params = {k: v for k, v in cfg["model_estimating"].items() if k != "type"}
+    estimator = load_component("estimators", cfg["model_estimating"]["type"], {**estimator_params, "attribute_count": n})
+    schema_params = {k: v for k, v in cfg["report_schema"].items() if k != "type"}
     names = cfg["report_schema"]["type"]
     names = [names] if isinstance(names, str) else list(names)
     names = [rule.name if name == "auto" else name for name in names]
@@ -257,7 +316,7 @@ def resolve(cfg):
         if name in seen:
             continue
         seen.add(name)
-        schemas.append(load_component("reports", name, {"attribute_count": n}))
+        schemas.append(load_component("reports", name, {**schema_params, "attribute_count": n}))
     backend = load_component("compute", cfg["compute"]["backend"], cfg)
     return Components(rule=rule, estimator=estimator, schemas=schemas, backend=backend)
 

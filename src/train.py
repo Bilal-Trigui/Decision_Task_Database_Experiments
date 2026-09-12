@@ -288,6 +288,19 @@ def train_stage(
     model.train()
     t0 = time.time()
     rows = []
+    # Console lines report the mean over the steps since the previous line, so the
+    # accuracy covers hundreds of examples rather than one batch of ten. The
+    # per-step values still go to train_log.csv unchanged.
+    win_loss, win_firsts, win_start = 0.0, [], 1
+
+    def window_text(step):
+        nonlocal win_loss, win_firsts, win_start
+        n = step - win_start + 1
+        acc = float(np.mean(win_firsts)) if win_firsts else float("nan")
+        text = f"loss {win_loss / n:.4f} acc {acc:.3f} [mean of steps {win_start}-{step}]"
+        win_loss, win_firsts, win_start = 0.0, [], step + 1
+        return text
+
     print(
         f"training stage '{stage}'{'' if not fold else f' fold {fold}'}: {len(encoded)} examples, {steps} steps, "
         f"batch {batch_size}" + (f" in micro-batches of {micro}" if micro < batch_size else "")
@@ -330,6 +343,8 @@ def train_stage(
         optimizer.zero_grad(set_to_none=True)
         first_acc = float(np.mean(firsts)) if firsts else float("nan")
         answer_acc = answer_correct / max(answer_valid, 1)
+        win_loss += loss_value
+        win_firsts += firsts
         row = {
             "run_id": run_id,
             "stage": stage,
@@ -351,7 +366,7 @@ def train_stage(
             model.save_pretrained(str(ckpt))
             checkpoints.append((step, ckpt))
             print(
-                f"  step {step}/{steps} loss {loss_value:.4f} acc {first_acc:.3f} | val loss {val_loss:.4f} "
+                f"  step {step}/{steps} {window_text(step)} | val loss {val_loss:.4f} "
                 f"val acc {val_first:.3f} | saved {ckpt} | {time.time() - t0:.0f}s"
             )
             rows.append(row)
@@ -363,7 +378,7 @@ def train_stage(
         else:
             rows.append(row)
             if step % 50 == 0:
-                print(f"  step {step}/{steps} loss {loss_value:.4f} acc {first_acc:.3f} | {time.time() - t0:.0f}s")
+                print(f"  step {step}/{steps} {window_text(step)} | {time.time() - t0:.0f}s")
     if rows:
         _append_log(log_path, rows)
     return checkpoints

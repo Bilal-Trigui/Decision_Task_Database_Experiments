@@ -22,6 +22,7 @@ import pandas as pd
 
 from src import data as D
 from src.config import apply_defaults, resolve, validate
+from src.estimators.base import pooled_pearson
 from src.configs.test import TEST
 from src.evaluate import summarize
 
@@ -60,7 +61,9 @@ def _detail(comps, data, hidden, recovered, decisions, reports):
     return {
         "hidden": hidden,
         "recovered": recovered,
-        "reported": {schema.name: {"main": reports}},
+        # reported is keyed by batch, each carrying the block it reports on, because a schema
+        # may ask about one block more than once and each asking is its own results row.
+        "reported": {schema.name: {"main": ("main", reports)}},
         "parse": {schema.name: {"main": (len(reports), len(reports), "main")}},
         "decisions": decisions,
         "rule_slices": comps.rule.block_slices(n),
@@ -71,6 +74,60 @@ def _detail(comps, data, hidden, recovered, decisions, reports):
 def _row(rows):
     assert len(rows) == 1, f"expected one results row for one schema and one block, got {len(rows)}"
     return rows[0]
+
+
+def test_one_row_per_way_of_asking():
+    """A3 asks about its interaction block three ways, and each asking gets its own row.
+
+    Before the report batch was carried through, two batches naming one block overwrote each
+    other in the reported dict and only the last survived, so a schema could collect a number
+    the results file then threw away.
+    """
+    cfg = copy.deepcopy(TEST)
+    cfg["model_training"].update({"data_dir": "data/a3/", "instances": 4})
+    cfg["decision_rule"] = {"type": "interaction", "active_pairs": 1, "zero_pair_main_effects": True,
+                            "main_scale": 0.5, "interaction_magnitude": [50, 100]}
+    cfg["model_estimating"].update({"type": "interaction", "chance_draws": 3})
+    cfg["report_schema"]["batches"] = ["main", "interaction", "pair_id", "pair_value"]
+    apply_defaults(cfg)
+    validate(cfg)
+    cfg["_source"] = "test"
+    comps = resolve(cfg)
+    data = D.load_data(cfg, comps.rule)
+    n = data.attribute_count
+    rule, est, schema = comps.rule, comps.estimator, comps.schemas[0]
+    personas = data.personas
+    trials = D.fresh_trials(personas, 40, cfg["model_training"]["seeds"]["verification"])
+    hidden, recovered, rows = {}, {}, []
+    for k in range(4):
+        for t in trials[k]:
+            t.label = rule.label(data.latents[k], t)
+        A = np.array([t.option_A.values for t in trials[k]])
+        B = np.array([t.option_B.values for t in trials[k]])
+        recovered[k] = est.fit(A, B, [t.label for t in trials[k]], personas[k].mins, personas[k].maxs)
+        hidden[k] = data.latents[k]
+        rows += [{"persona": k, "selection": t.label, "label": t.label} for t in trials[k]]
+    slices = est.block_slices()
+    reported, parse = {}, {}
+    for batch in schema.batches(personas[0].names):
+        per = {k: recovered[k][slices[batch.block]].copy() for k in recovered}
+        reported[batch.name] = (batch.block, per)
+        parse[batch.name] = (len(per), len(per), batch.block)
+    detail = {
+        "hidden": hidden, "recovered": recovered,
+        "reported": {schema.name: reported}, "parse": {schema.name: parse},
+        "decisions": pd.DataFrame(rows),
+        "rule_slices": rule.block_slices(n), "est_slices": slices,
+    }
+    out = summarize([detail], cfg, comps, data, "t", "decision", 0, 1)
+    by_batch = {r["report_batch"]: r for r in out}
+    assert set(by_batch) == {"main", "interaction", "pair_id", "pair_value"}, sorted(by_batch)
+    assert by_batch["pair_value"]["block"] == "interaction"
+    assert by_batch["pair_id"]["block"] == "pair_id"
+    for name in ("main", "interaction", "pair_value"):
+        assert abs(by_batch[name]["faithfulness"] - 1.0) < 1e-9, (name, by_batch[name]["faithfulness"])
+    assert abs(by_batch["pair_id"]["faithfulness"] - 1.0) < 1e-9, by_batch["pair_id"]["faithfulness"]
+    print(f"four ways of asking gave four rows: {sorted(by_batch)}")
 
 
 def test_perfect_reporter_scores_one():
@@ -96,6 +153,51 @@ def test_negated_reporter_scores_minus_one():
     reports = {k: -v for k, v in recovered.items()}
     row = _row(summarize([_detail(comps, data, hidden, recovered, decisions, reports)], cfg, comps, data, "t", "decision", 0, 1))
     assert abs(row["faithfulness"] + 1.0) < 1e-9, row["faithfulness"]
+
+
+def test_a_persona_that_cannot_be_scored_is_counted_not_hidden():
+    """A persona with no direction drops out of the mean, and the row has to say so.
+
+    The estimator returns zeros for a persona whose choices were all one letter, and cosine is
+    undefined on a zero vector. Dropping it is right; dropping it quietly is not, because the mean
+    then describes a population no column names. The correlation beside the mean has to cover the
+    same personas, since a zero vector carries no NaN and would otherwise stay in it and drag it
+    toward nothing.
+    """
+    cfg, comps, data, hidden, recovered, decisions = _setup()
+    dead = 4
+    for k in range(dead):
+        recovered[k] = np.zeros_like(recovered[k])
+    reports = {k: v.copy() for k, v in hidden.items()}
+    row = _row(summarize([_detail(comps, data, hidden, recovered, decisions, reports)], cfg, comps, data, "t", "decision", 0, 1))
+    assert row["n_personas_reported"] == N_PERSONAS, row["n_personas_reported"]
+    assert row["n_personas_scored"] == N_PERSONAS - dead, row["n_personas_scored"]
+    scorable = [(reports[k], recovered[k]) for k in range(dead, N_PERSONAS)]
+    assert abs(row["faithfulness_pearson"] - pooled_pearson(scorable)) < 1e-9, (
+        row["faithfulness_pearson"], pooled_pearson(scorable))
+    print(f"  {dead} unscorable personas: mean over {row['n_personas_scored']}, "
+          f"reported {row['n_personas_reported']}, correlation over the same {row['n_personas_scored']}")
+
+
+def test_an_all_zero_report_does_not_flatter_the_mean():
+    """A model answering all zeros parses cleanly, so only the scored count reveals it.
+
+    This is the shape an undertrained model collapses to on A3's pair report, whose target is
+    mostly zeros. Without the count, two personas answering well among twenty looks the same as
+    twenty answering well.
+    """
+    cfg, comps, data, hidden, recovered, decisions = _setup()
+    committed = 2
+    reports = {k: (recovered[k].copy() if k < committed else np.zeros_like(recovered[k]))
+               for k in range(N_PERSONAS)}
+    row = _row(summarize([_detail(comps, data, hidden, recovered, decisions, reports)], cfg, comps, data, "t", "decision", 0, 1))
+    assert row["parse_rate"] == 1.0, row["parse_rate"]
+    assert row["n_personas_reported"] == N_PERSONAS, row["n_personas_reported"]
+    assert row["n_personas_scored"] == committed, row["n_personas_scored"]
+    assert abs(row["faithfulness"] - 1.0) < 1e-9, row["faithfulness"]
+    print(f"  {committed} of {N_PERSONAS} personas gave a real answer: faithfulness "
+          f"{row['faithfulness']:.3f} over {row['n_personas_scored']}, parse rate still "
+          f"{row['parse_rate']:.2f}")
 
 
 def test_folds_are_disjoint_and_complete():
@@ -125,6 +227,8 @@ if __name__ == "__main__":
         test_perfect_reporter_scores_one,
         test_hidden_reporter_scores_the_recovery,
         test_negated_reporter_scores_minus_one,
+        test_a_persona_that_cannot_be_scored_is_counted_not_hidden,
+        test_an_all_zero_report_does_not_flatter_the_mean,
         test_folds_are_disjoint_and_complete,
         test_stage_two_targets_are_the_hidden_weights,
     ):

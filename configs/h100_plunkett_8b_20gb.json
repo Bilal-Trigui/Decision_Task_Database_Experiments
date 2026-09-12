@@ -1,65 +1,20 @@
 {
-  "object": {
-    "type": "vector",
-    "attribute_count": 5
-  },
-  "decision_rule": {
-    "type": "linear"
-  },
-  "model_training": {
-    "data_dir": "data/plunkett/",
-    "instances": 100,
-    "train_trials_per_persona": 50,
-    "val_trials_per_persona": 10,
-    "seeds": {
-      "roles": 0,
-      "weights": 1,
-      "trials": 2,
-      "verification": 5,
-      "introspection": 6,
-      "reports": 7
-    }
-  },
-  "model_estimating": {
-    "type": "linear",
-    "decision_temperature": 0.0,
-    "samples_per_trial": 1,
-    "estimation_trials_per_persona": 50,
-    "chance_draws": 1000
-  },
+  "_comment": "Plunkett on Qwen3-8B inside a 20GB budget: 4-bit, gradient checkpointing, micro-batches of two, shorter reports.",
+  "extends": "default.json",
   "report_schema": {
-    "type": "auto",
-    "report_temperature": 0.0,
-    "samples_per_report": 10,
     "max_new_tokens": 96
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",
-    "quantization": "4bit",
-    "finetune": "lora",
-    "lora_rank": 8,
-    "lora_alpha": 8,
-    "learning_rate": 0.0002,
-    "batch_size": 10,
-    "loss_mask_answer_only": true,
-    "training_steps": 1500,
     "checkpoint_every": 500,
-    "introspection_training": true,
-    "introspection_steps": 150,
-    "introspection_batch_size": 1,
-    "seed": 4,
     "gradient_checkpointing": true,
     "micro_batch_size": 2
   },
   "gates": {
-    "min_decision_accuracy": 0.6,
-    "min_parse_rate": 0.8
+    "min_decision_accuracy": 0.6
   },
   "compute": {
     "backend": "local",
-    "device": "cuda",
-    "mixed_precision": "bf16",
-    "eval_batch_size": 16,
-    "mount_drive": false
+    "mixed_precision": "bf16"
   }
 }

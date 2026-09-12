@@ -12,7 +12,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 
 
-def fit_logistic(X, y, sample_weight=None, C=1.0):
+def fit_logistic(X, y, sample_weight=None, C=1.0, with_intercept=False):
     """L2 logistic regression with an intercept.
 
     C = 1.0 makes this the maximum a posteriori fit under Plunkett's N(0, 1)
@@ -21,10 +21,12 @@ def fit_logistic(X, y, sample_weight=None, C=1.0):
     """
     y = np.asarray(y, dtype=int)
     if y.min() == y.max():
-        return np.zeros(X.shape[1])
+        zeros = np.zeros(X.shape[1])
+        return (zeros, 0.0) if with_intercept else zeros
     clf = LogisticRegression(C=C, fit_intercept=True, max_iter=1000)
     clf.fit(X, y, sample_weight=sample_weight)
-    return clf.coef_[0].astype(float)
+    coef = clf.coef_[0].astype(float)
+    return (coef, float(clf.intercept_[0])) if with_intercept else coef
 
 
 def rescale_to_100(coef):
@@ -47,11 +49,17 @@ class Estimator:
     def latent_columns(self):
         return [c for cols in self.blocks().values() for c in cols]
 
+    def block_aliases(self):
+        """Extra names for blocks this estimator already recovers, as alias -> real block. See Rule.block_aliases."""
+        return {}
+
     def block_slices(self):
         slices, start = {}, 0
         for block, cols in self.blocks().items():
             slices[block] = slice(start, start + len(cols))
             start += len(cols)
+        for alias, block in self.block_aliases().items():
+            slices[alias] = slices[block]
         return slices
 
     def features(self, A, B, mins, maxs):
@@ -63,6 +71,15 @@ class Estimator:
         X = self.features(np.asarray(A, float), np.asarray(B, float), np.asarray(mins, float), np.asarray(maxs, float))
         y = np.array([1 if c == "A" else 0 for c in choices])
         return rescale_to_100(fit_logistic(X, y, sample_weight=sample_weight))
+
+    def block_distance(self, block, recovered, other):
+        """Distance for one named block, so an estimator whose blocks are not all directions can say so.
+
+        Cosine everywhere by default, which is right for any block that is a direction. A block
+        holding absolute levels rather than a direction overrides this, and then its chance level
+        moves too, which is why chance is measured per block and never assumed.
+        """
+        return self.distance(recovered, other)
 
     @staticmethod
     def distance(recovered, other):

@@ -1,55 +1,24 @@
 {
-  "object": {
-    "type": "vector",
-    "attribute_count": 5
-  },
-  "decision_rule": {
-    "type": "linear"
-  },
+  "_comment": "Proves the CUDA path through both stages on Qwen3-0.6B in sixty steps, gates off. Not a result.",
+  "extends": "default.json",
   "model_training": {
-    "data_dir": "data/plunkett/",
-    "instances": 10,
-    "train_trials_per_persona": 50,
-    "val_trials_per_persona": 10,
-    "seeds": {
-      "roles": 0,
-      "weights": 1,
-      "trials": 2,
-      "verification": 5,
-      "introspection": 6,
-      "reports": 7
-    }
+    "instances": 10
   },
   "model_estimating": {
-    "type": "linear",
-    "decision_temperature": 0.0,
-    "samples_per_trial": 1,
     "estimation_trials_per_persona": 20,
     "chance_draws": 200
   },
   "report_schema": {
-    "type": "auto",
-    "report_temperature": 0.0,
     "samples_per_report": 3,
     "max_new_tokens": 96
   },
   "model_hyperparameters": {
-    "model_name": "Qwen/Qwen3-0.6B",
     "quantization": "none",
-    "finetune": "lora",
-    "lora_rank": 8,
-    "lora_alpha": 8,
-    "learning_rate": 0.0002,
     "batch_size": 4,
-    "loss_mask_answer_only": true,
     "training_steps": 60,
     "checkpoint_every": 30,
-    "introspection_training": true,
     "introspection_steps": 10,
-    "introspection_batch_size": 1,
-    "seed": 4,
-    "gradient_checkpointing": false,
-    "micro_batch_size": null
+    "gradient_checkpointing": false
   },
   "gates": {
     "min_decision_accuracy": 0.0,
@@ -57,9 +26,6 @@
   },
   "compute": {
     "backend": "local",
-    "device": "cuda",
-    "mixed_precision": "bf16",
-    "eval_batch_size": 16,
-    "mount_drive": false
+    "mixed_precision": "bf16"
   }
 }

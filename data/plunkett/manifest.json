@@ -1,0 +1,29 @@
+{
+  "constructed_by": "vector_dataset_constructor.py",
+  "rule": "linear",
+  "params": {},
+  "schema": "linear",
+  "seeds": {
+    "trials": 2,
+    "introspection": 6
+  },
+  "attribute_count": 5,
+  "instances": 100,
+  "train_trials_per_persona": 50,
+  "val_trials_per_persona": 10,
+  "weights_used_as_given_from": "data/plunkett/instilled_weights.csv",
+  "views": [],
+  "stats": {},
+  "inputs": {
+    "candidate_scenarios.json": "1514e4bc8a585e92",
+    "roles.csv": "68bdfc88b3f6bae7",
+    "scenarios.csv": "6fe133fe557e1c8c",
+    "instilled_weights.csv": "37b6e5c8ab680b00"
+  },
+  "files": {
+    "instill_100_prefs.jsonl": "26eaf368a1d533c5",
+    "instill_100_prefs_val.jsonl": "ee10c5591a319815",
+    "instilled_weights_100_training.jsonl": "9a16c22d4b156fda",
+    "introspection_training.csv": "f487c0b07f3ae81e"
+  }
+}
