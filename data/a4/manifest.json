@@ -1,0 +1,44 @@
+{
+  "constructed_by": "vector_dataset_constructor.py",
+  "rule": "tradeoff",
+  "params": {
+    "active_cuts": 1,
+    "cut_range": [
+      30,
+      70
+    ],
+    "zero_cut_main_effects": true
+  },
+  "schema": "tradeoff",
+  "seeds": {
+    "trials": 2,
+    "introspection": 6
+  },
+  "attribute_count": 5,
+  "instances": 100,
+  "train_trials_per_persona": 50,
+  "val_trials_per_persona": 10,
+  "weights_used_as_given_from": "data/a4/instilled_weights.csv",
+  "views": [
+    "constraint_table.csv"
+  ],
+  "stats": {
+    "screen_decisive_share": 0.228,
+    "screen_decisive_share_median_persona": 0.225,
+    "screen_decisive_share_min_persona": 0.08333333333333333,
+    "option_survival_rate": 0.5010833333333333
+  },
+  "inputs": {
+    "candidate_scenarios.json": "1514e4bc8a585e92",
+    "roles.csv": "68bdfc88b3f6bae7",
+    "scenarios.csv": "6fe133fe557e1c8c",
+    "instilled_weights.csv": "b30aa7a158cfe592"
+  },
+  "files": {
+    "instill_100_prefs.jsonl": "b42d0a417135aacb",
+    "instill_100_prefs_val.jsonl": "3d30f58d5047246e",
+    "instilled_weights_100_training.jsonl": "45cccff06a606693",
+    "introspection_training.csv": "599610e1834ef69b",
+    "constraint_table.csv": "d336acb3151b054b"
+  }
+}

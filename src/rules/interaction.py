@@ -71,6 +71,11 @@ class InteractionRule(Rule):
             "interaction": [pair_column(i, j) for i, j in pairs(n)],
         }
 
+    def block_aliases(self, n):
+        # 'pair_id' asks which pair interacts rather than for all n(n-1)/2 values, so it reports
+        # on the interaction block through a different question. See src/reports/interaction.py.
+        return {"pair_id": "interaction"}
+
     def sample_latent(self, n, rng):
         p = self.params
         all_pairs = pairs(n)
@@ -98,6 +103,89 @@ class InteractionRule(Rule):
             if v != 0:
                 utility += v * centred_product(xhat, i, j)
         return utility
+
+    def views(self, scenarios, latents, n):
+        """The interaction table twice: an n by n block per persona, and one pair per row.
+
+        The matrix carries main effects on the diagonal and pair weights off it, mirrored across
+        it because it reads better that way. The rule scores each pair once over the strict upper
+        triangle, so a value at (i, j) and (j, i) is one coefficient shown twice and not two. The
+        long form is the same numbers in a shape you can join against results.
+        """
+        all_pairs = pairs(n)
+        column_of = {p: n + k for k, p in enumerate(all_pairs)}
+        matrix, longform = [], []
+        for k, sc in enumerate(scenarios):
+            names, latent = sc.names[:n], latents[k]
+            for i in range(n):
+                row = {"scenario": sc.short_name, "position": i + 1, "attribute": names[i]}
+                for j in range(n):
+                    cell = latent[i] if i == j else latent[column_of[(min(i, j), max(i, j))]]
+                    row[f"attr{j + 1}"] = float(cell)
+                matrix.append(row)
+            for i, j in all_pairs:
+                v = float(latent[column_of[(i, j)]])
+                longform.append({
+                    "scenario": sc.short_name,
+                    "i": i + 1,
+                    "j": j + 1,
+                    "attribute_i": names[i],
+                    "attribute_j": names[j],
+                    "pair_column": pair_column(i, j),
+                    "v": v,
+                    "main_i": float(latent[i]),
+                    "main_j": float(latent[j]),
+                    "active": bool(v != 0),
+                })
+        return {"interaction_matrix.csv": matrix, "interaction_pairs.csv": longform}
+
+    def audit(self, latents, n, stats):
+        notes = []
+        all_pairs = pairs(n)
+        active_counts, zeroed, magnitudes = [], True, []
+        for latent in latents:
+            v = latent[n:]
+            active = [k for k in range(len(all_pairs)) if v[k] != 0]
+            active_counts.append(len(active))
+            for k in active:
+                magnitudes.append(abs(float(v[k])))
+                i, j = all_pairs[k]
+                if latent[i] != 0 or latent[j] != 0:
+                    zeroed = False
+        declared = self.params["active_pairs"]
+        if set(active_counts) != {declared}:
+            notes.append(f"decision_rule.active_pairs is {declared} but personas carry {sorted(set(active_counts))} active pairs")
+        if self.params["zero_pair_main_effects"] and not zeroed:
+            notes.append("decision_rule.zero_pair_main_effects is true but some active pair has a nonzero main weight")
+        low, high = self.params["interaction_magnitude"]
+        if magnitudes and not all(low <= m <= high for m in magnitudes):
+            notes.append(
+                f"decision_rule.interaction_magnitude is [{low}, {high}] but |v| runs "
+                f"{min(magnitudes):g} to {max(magnitudes):g}"
+            )
+        if not magnitudes:
+            notes.append("every persona's interaction block is all zero, so this folder tests nothing the linear rule does not")
+        return notes
+
+    def summarise_draw(self, latents, n):
+        all_pairs = pairs(n)
+        v = latents[:, n:]
+        active = (v != 0).sum(axis=1)
+        magnitudes = np.abs(v[v != 0])
+        counts = {}
+        for row in v:
+            for k in np.nonzero(row)[0]:
+                key = f"attr{all_pairs[k][0] + 1} x attr{all_pairs[k][1] + 1}"
+                counts[key] = counts.get(key, 0) + 1
+        top = sorted(counts.items(), key=lambda kv: -kv[1])[:5]
+        mains = latents[:, :n]
+        return [
+            f"active pairs each      {sorted(set(active.tolist()))}",
+            f"|v| of active pairs    {magnitudes.min():.0f} to {magnitudes.max():.0f}, mean {magnitudes.mean():.1f}"
+            if magnitudes.size else "|v| of active pairs    none, every interaction is zero",
+            f"|w| of nonzero mains   {np.abs(mains[mains != 0]).mean():.1f} mean",
+            f"most drawn pairs       {', '.join(f'{k} x{c}' for k, c in top)}",
+        ]
 
     def dataset_stats(self, train_trials, val_trials, latents, n):
         """Share of trials whose label flips when the interaction block is zeroed, overall and per persona."""

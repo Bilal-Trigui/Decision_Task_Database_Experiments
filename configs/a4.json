@@ -1,0 +1,22 @@
+{
+  "_comment": "A4, constrained tradeoff: the tradeoff rule and estimator over data/a4/.",
+  "extends": "default.json",
+  "decision_rule": {
+    "type": "tradeoff",
+    "active_cuts": 1,
+    "cut_range": [
+      30,
+      70
+    ],
+    "zero_cut_main_effects": true
+  },
+  "model_training": {
+    "data_dir": "data/a4/"
+  },
+  "model_estimating": {
+    "type": "tradeoff"
+  },
+  "model_hyperparameters": {
+    "introspection_steps": 300
+  }
+}

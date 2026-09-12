@@ -52,7 +52,32 @@ a box is deleted when it shuts down.
 ## Files
 
 **`configs/default.json`** is the settings file with Plunkett's values as defaults;
-every other file in `configs/` is it with a few fields changed.
+every other file in `configs/` is it with a few fields changed, and says so literally. A file
+names its parent with `extends` and then carries only what it changes:
+
+```json
+{
+  "_comment": "Plunkett on Qwen3-8B inside a 20GB budget: 4-bit, gradient checkpointing, micro-batches of two.",
+  "extends": "default.json",
+  "model_hyperparameters": {"model_name": "Qwen/Qwen3-8B", "checkpoint_every": 500,
+                            "gradient_checkpointing": true, "micro_batch_size": 2},
+  "gates": {"min_decision_accuracy": 0.6},
+  "compute": {"backend": "local", "mixed_precision": "bf16"}
+}
+```
+
+Merging is per field, so naming one hyperparameter keeps the other thirteen, and a list replaces
+whole rather than merging element by element. Chains are allowed and a cycle is refused. `_source`
+records the chain, so a results row still says where its settings came from. The point is that a
+default changed in one place now reaches every file that did not deliberately override it, and
+that what a run actually varies is the only thing written in its file. The lowered
+`min_decision_accuracy` above is a real example: it used to sit among forty-odd restated fields
+and now it is one of eight lines.
+
+Because a misspelled field would otherwise be ignored, and under `extends` would quietly leave the
+parent's value in place, the loader refuses a field that no block has. The three component blocks,
+`decision_rule`, `model_estimating` and `report_schema`, are exempt: they also carry their
+component's own parameters, and the component validates those when it is built.
 Six blocks mirror the environment frame, `gates` holds every threshold the pipeline
 checks, and `compute` says where training runs. The table below lists every field.
 
@@ -94,7 +119,10 @@ a stage-one example.
 the latent's blocks and column names, samples a latent, scores an option, labels a
 trial, and inherits `make_dataset`, which builds a fresh data folder from
 Plunkett's personas and trials. `linear.py` is Plunkett's weighted sum;
-`interaction.py` is A3. A4 (`tradeoff.py`) is not built yet; see the open items in the plan.
+`interaction.py` is A3. `tradeoff.py` is A4, the constrained tradeoff: a screen of per-attribute
+cut points in front of Plunkett's weighted sum, so an option failing any cut loses to one that
+passes and the weighted sum ranks within each group. Its cut points are integer percentages of
+each attribute's range, where 0 means no constraint.
 
 **`src/estimators/`** holds one estimator per file plus `base.py`. An estimator
 builds a design matrix from the two options of each trial, fits an L2 logistic
@@ -221,7 +249,26 @@ training.
 its draw parameters, `model_estimating.type` interaction, `data_dir` `data/a3/`.
 Everything else is Plunkett's. The pair prompt's wording is `PAIR_PROMPT_BASE` in
 `src/reports/interaction.py`; set `LIST_PAIR_KEYS = True` there to spell the pair
-keys out in the prompt.
+keys out in the prompt. `report_schema.batches` chooses which of the four questions
+are asked: `main` is Plunkett's weight report, `interaction` the full pair report,
+`pair_id` asks which two dimensions acted together, and `pair_value` asks that plus
+how strongly. The last two are answered in dimension names rather than numbers and
+are parsed back into the interaction block, so `pair_value` is scored by the same
+cosine as the full report and is directly comparable with it. `pair_id` is scored as
+identification instead, because a report naming the right pair and guessing the sign
+should not score below one that names nothing. All four are taught in introspection
+training, so stage two shows the model its weights and its interaction together.
+
+**A4, constrained tradeoff.** `configs/a4.json`: `decision_rule.type` tradeoff with
+`active_cuts`, `cut_range` and `zero_cut_main_effects`, `model_estimating.type`
+tradeoff, `data_dir` `data/a4/`. The report is 2n slots in two batches, Plunkett's
+weight report and a cut-point report on the same percentage scale the rule uses. The
+estimator fits the screening form by coordinate ascent over the cut grid, refitting
+the weights and the screen gain by logistic regression at each candidate, and a cut
+has to beat a penalty that scales with both the trial count and the width of the grid
+search before it is kept. The cut block is scored by a scaled error rather than by
+cosine, because a cut point is an absolute level and not a direction, and that number
+sits well above zero by construction, so read it against its measured chance column.
 
 **Re-evaluating a saved checkpoint** without retraining:
 `from src.evaluate import evaluate_checkpoint; evaluate_checkpoint(cfg, "checkpoints/<run_id>/decision/step-1500")`.
@@ -249,15 +296,39 @@ whose manifest was built with different rule parameters than the settings say.
 ## Building the training files from weights you wrote yourself
 
 The rule modules above draw a fresh latent. To test a latent you designed by hand,
-the other direction is `data/vector_dataset_constructor.py`: it takes a folder's four
+the other direction is `data/plunkett/vector_dataset_constructor.py`: it takes a folder's four
 inputs, uses `instilled_weights.csv` exactly as given, and writes the training
 files from it.
 
 ```
-python data/vector_dataset_constructor.py --data plunkett                    # his three JSONLs, byte for byte
-python data/vector_dataset_constructor.py --data a3 --rule interaction       # a non-linear rule labels the trials
-python data/vector_dataset_constructor.py --data mine --rule linear          # your own weights
+python data/plunkett/vector_dataset_constructor.py --data plunkett           # his three JSONLs, byte for byte
+python data/a3/a3_dataset_constructor.py                                     # A3, plus the interaction views
+python data/a4/a4_dataset_constructor.py                                     # A4, plus the constraint table
 ```
+
+Two tools serve every experiment, `data/plunkett/vector_dataset_constructor.py` and
+`data/plunkett/vector_weight_generator.py`. The generator writes `instilled_weights.csv` and
+nothing else, the constructor turns that latent into every training file, and the two are
+deliberately separate so a hand-designed latent and a drawn one enter the same way. Each
+experiment folder carries a wrapper that points them at itself, so the familiar command still
+works with no arguments:
+
+```
+python data/a3/a3_weight_generator.py --seed 7             # reroll A3's latent
+python data/a3/a3_dataset_constructor.py                  # rebuild the dataset from it
+python data/a4/a4_weight_generator.py --seed 7 --rebuild  # reroll A4 and rebuild in one step
+python data/plunkett/vector_dataset_constructor.py --data a4   # the same, without the wrapper
+```
+
+A reroll leaves the trial files describing the previous latent, because labels are written into
+the JSONL when it is built and nothing re-reads the weights at training time. The generator says
+so and prints the command to run next.
+
+Nothing in either tool knows which experiment it is running. A rule says what extra tables its
+latent deserves with `views`, what disagreement between an authored latent and its own parameters
+is worth warning about with `audit`, and what a draw produced with `summarise_draw`. All three
+default to nothing, so the weighted sum needs none of them, and a fourth rule gets a constructor
+and a generator without anyone writing either.
 
 It writes `instill_<N>_prefs.jsonl`, its `_val` file, Plunkett's Experiment 2 file
 `instilled_weights_<N>_training.jsonl`, the `introspection_training.csv` the pipeline
@@ -285,6 +356,7 @@ are the same on every run; the file is appended to.
 | run_id, timestamp | `<time>_<rule>_<model>` and when the row was written |
 | config_file … compute_backend | the settings fields, first, so a row is self-describing (data_dir, decision_rule, decision_rule_params, estimator, attribute_count, instances, trial counts, model_name, quantization, finetune, lora_rank, lora_alpha, learning_rate, batch_size, training_steps, introspection_training, introspection_steps, seed, decision_temperature, samples_per_trial, estimation_trials_per_persona, chance_draws, report_temperature, samples_per_report, compute_backend) |
 | report_schema | which schema this row's report came from |
+| report_batch | which of that schema's questions this row's report came from; one row per way of asking, since a schema may ask about one block more than once (A3 asks about its interaction block three ways) |
 | stage | `decision` for stage-one checkpoints, `introspection` after report training |
 | introspection_fold | 0 for stage one; 1, 2, or `both` (the two held-out halves pooled) |
 | checkpoint_step | training step of the checkpoint evaluated |
@@ -303,6 +375,11 @@ are the same on every run; the file is appended to.
 | hidden_vs_reported | cosine between instilled_weights.csv and the report; recorded, not faithfulness |
 | hidden_vs_reported_pearson | the same, pooled Pearson |
 | n_personas_reported | personas with at least one parsed report in this block |
+| n_personas_scored | personas that actually entered the faithfulness mean. A vector with no direction cannot be scored by cosine, so a persona whose choices were all one letter, or whose report was all zeros, drops out. Those reports still parse, so `parse_rate` and `n_personas_reported` stay high while the mean quietly describes far fewer personas. A gap between these two columns is the signal to distrust the row, and the run log prints a note when it opens. `faithfulness_pearson` is taken over the same personas as `faithfulness`, not over everyone |
+
+One row per way of asking, not per block: a schema may ask about one block more than once, and
+A3 does. Two such rows share a block and a checkpoint step and differ only in `report_batch`, so
+anything grouping results by block alone will draw two different questions as one line.
 
 Blocks are never pooled. The main-effect weights and the interaction weights are
 separate rows with their own faithfulness and chance, cosine per block with

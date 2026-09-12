@@ -1,0 +1,501 @@
+scenario,position,attribute,units,weight,cut_column,cut_percent,cut_value,range_min,range_max,active
+loose_leaf_tea,1,caffeine_content,mg per cup,-100.0,cut1,0.0,0.0,0.0,70.0,False
+loose_leaf_tea,2,leaf_size,millimeters,95.0,cut2,0.0,0.0,0.1,10.0,False
+loose_leaf_tea,3,oxidation_level,percent,72.0,cut3,0.0,0.0,0.0,100.0,False
+loose_leaf_tea,4,steeping_time,minutes,0.0,cut4,60.0,5.0,1.0,7.0,True
+loose_leaf_tea,5,resteep_potential,number of steeps,-1.0,cut5,0.0,1.0,1.0,8.0,False
+cutting_board,1,board_thickness,centimeters,32.0,cut1,0.0,1.0,1.0,5.0,False
+cutting_board,2,surface_area,square centimeters,61.0,cut2,0.0,300.0,300.0,1200.0,False
+cutting_board,3,knife_mark_resistance,resistance rating,-86.0,cut3,0.0,1.0,1.0,10.0,False
+cutting_board,4,grip_stability,stability rating,0.0,cut4,68.0,7.0,1.0,10.0,True
+cutting_board,5,ease_of_cleaning,cleaning ease rating,71.0,cut5,0.0,1.0,1.0,10.0,False
+knee_pads,1,padding_thickness,millimeters,0.0,cut1,50.0,20.0,10.0,30.0,True
+knee_pads,2,strap_width,millimeters,-100.0,cut2,0.0,20.0,20.0,50.0,False
+knee_pads,3,ventilation_holes,count,-11.0,cut3,0.0,2.0,2.0,12.0,False
+knee_pads,4,impact_rating,joules,44.0,cut4,0.0,5.0,5.0,20.0,False
+knee_pads,5,coverage_area,square inches,-54.0,cut5,0.0,12.0,12.0,30.0,False
+ice_cream,1,creaminess,percent milk fat,-99.0,cut1,0.0,10.0,10.0,18.0,False
+ice_cream,2,mix_in_density,pieces per scoop,0.0,cut2,57.0,11.0,0.0,20.0,True
+ice_cream,3,serving_size,ounces,9.0,cut3,0.0,4.0,4.0,16.0,False
+ice_cream,4,flavor_intensity,percent strength,93.0,cut4,0.0,20.0,20.0,100.0,False
+ice_cream,5,smoothness,ice crystal size in microns,-25.0,cut5,0.0,10.0,10.0,50.0,False
+painters_tape,1,clean_removal_time,days,51.0,cut1,0.0,7.0,7.0,60.0,False
+painters_tape,2,uv_resistance,days,6.0,cut2,0.0,3.0,3.0,21.0,False
+painters_tape,3,width,millimeters,0.0,cut3,44.0,45.0,24.0,72.0,True
+painters_tape,4,paint_bleed_resistance,rating out of 10,100.0,cut4,0.0,6.0,6.0,10.0,False
+painters_tape,5,roll_length,yards,12.0,cut5,0.0,30.0,30.0,180.0,False
+olive_pitter,1,pitting_speed,olives per minute,39.0,cut1,0.0,10.0,10.0,50.0,False
+olive_pitter,2,splash_containment,percent of juice contained,58.0,cut2,0.0,70.0,70.0,100.0,False
+olive_pitter,3,pit_accuracy,percent of pits successfully removed,100.0,cut3,0.0,90.0,90.0,100.0,False
+olive_pitter,4,olive_damage,percent of olives damaged,94.0,cut4,0.0,0.0,0.0,15.0,False
+olive_pitter,5,handle_comfort,comfort rating,0.0,cut5,36.0,4.0,1.0,10.0,True
+wood_burner,1,max_temperature,degrees fahrenheit,-64.0,cut1,0.0,750.0,750.0,1100.0,False
+wood_burner,2,heat_up_time,seconds,100.0,cut2,0.0,15.0,15.0,120.0,False
+wood_burner,3,tip_varieties,number of tips,73.0,cut3,0.0,5.0,5.0,30.0,False
+wood_burner,4,cord_length,feet,-77.0,cut4,0.0,3.0,3.0,12.0,False
+wood_burner,5,temperature_stability,temperature variance in degrees,0.0,cut5,57.0,31.0,5.0,50.0,True
+hotel,1,distance_to_city_center,miles,2.0,cut1,0.0,0.1,0.1,5.0,False
+hotel,2,room_size,square feet,87.0,cut2,0.0,200.0,200.0,600.0,False
+hotel,3,guest_rating,stars out of 5,-66.0,cut3,0.0,3.0,3.0,5.0,False
+hotel,4,noise_level,decibels,0.0,cut4,62.0,55.0,30.0,70.0,True
+hotel,5,age_of_property,years,100.0,cut5,0.0,0.0,0.0,50.0,False
+hot_glue_sticks,1,stick_length,inches,-30.0,cut1,0.0,4.0,4.0,12.0,False
+hot_glue_sticks,2,holding_strength,pounds per square inch,0.0,cut2,53.0,312.0,100.0,500.0,True
+hot_glue_sticks,3,drying_time,seconds,-6.0,cut3,0.0,10.0,10.0,60.0,False
+hot_glue_sticks,4,flexibility_when_dry,degrees of bend,69.0,cut4,0.0,5.0,5.0,45.0,False
+hot_glue_sticks,5,quantity_per_pack,pieces,-27.0,cut5,0.0,10.0,10.0,100.0,False
+scrunchie,1,scrunchie_diameter,inches,24.0,cut1,0.0,3.0,3.0,6.0,False
+scrunchie,2,elastic_strength,newtons,100.0,cut2,0.0,1.0,1.0,5.0,False
+scrunchie,3,fabric_volume,cubic inches,86.0,cut3,0.0,2.0,2.0,10.0,False
+scrunchie,4,ruffle_depth,inches,-62.0,cut4,0.0,0.5,0.5,3.0,False
+scrunchie,5,fabric_softness,softness rating,0.0,cut5,36.0,4.0,1.0,10.0,True
+rfid_wallet,1,blocking_effectiveness,percent of signals blocked,0.0,cut1,49.0,95.0,90.0,99.9,True
+rfid_wallet,2,card_capacity,number of cards,4.0,cut2,0.0,4.0,4.0,16.0,False
+rfid_wallet,3,expected_lifespan,years,-23.0,cut3,0.0,1.0,1.0,10.0,False
+rfid_wallet,4,thickness,millimeters,-2.0,cut4,0.0,6.0,6.0,25.0,False
+rfid_wallet,5,scratch_resistance,hardness rating,-100.0,cut5,0.0,1.0,1.0,10.0,False
+blush,1,color_intensity,percent pigmentation,42.0,cut1,0.0,10.0,10.0,100.0,False
+blush,2,blend_time,seconds to blend,100.0,cut2,0.0,5.0,5.0,60.0,False
+blush,3,staying_power,hours,19.0,cut3,0.0,2.0,2.0,16.0,False
+blush,4,shimmer_level,percent light reflection,-22.0,cut4,0.0,0.0,0.0,100.0,False
+blush,5,buildability,number of layers possible,0.0,cut5,44.0,2.8,1.0,5.0,True
+cocktail_kit,1,number_of_tools,pieces,100.0,cut1,0.0,6.0,6.0,20.0,False
+cocktail_kit,2,shaker_capacity,ounces,56.0,cut2,0.0,16.0,16.0,32.0,False
+cocktail_kit,3,number_of_recipes,recipes included,8.0,cut3,0.0,25.0,25.0,100.0,False
+cocktail_kit,4,tool_durability,years of expected use,75.0,cut4,0.0,2.0,2.0,10.0,False
+cocktail_kit,5,storage_case_size,cubic inches,0.0,cut5,52.0,512.0,200.0,800.0,True
+security_camera,1,resolution,megapixels,0.0,cut1,54.0,7.0,2.0,12.0,True
+security_camera,2,field_of_view,degrees,17.0,cut2,0.0,90.0,90.0,180.0,False
+security_camera,3,night_vision_range,feet,-9.0,cut3,0.0,15.0,15.0,100.0,False
+security_camera,4,storage_capacity,gigabytes,-51.0,cut4,0.0,32.0,32.0,512.0,False
+security_camera,5,motion_detection_range,feet,11.0,cut5,0.0,10.0,10.0,50.0,False
+shuffleboard_table,1,playing_surface_length,feet,73.0,cut1,0.0,9.0,9.0,22.0,False
+shuffleboard_table,2,climate_adjustability,adjustment points,83.0,cut2,0.0,3.0,3.0,9.0,False
+shuffleboard_table,3,surface_flatness,deviation in millimeters,100.0,cut3,0.0,0.1,0.1,2.0,False
+shuffleboard_table,4,wood_hardness,Janka hardness rating,62.0,cut4,0.0,950.0,950.0,2500.0,False
+shuffleboard_table,5,puck_smoothness,glide rating,0.0,cut5,65.0,7.0,1.0,10.0,True
+reusable_bag,1,load_capacity,pounds,-65.0,cut1,0.0,10.0,10.0,50.0,False
+reusable_bag,2,folded_volume,cubic inches,100.0,cut2,0.0,2.0,2.0,20.0,False
+reusable_bag,3,strap_length,inches,-4.0,cut3,0.0,12.0,12.0,30.0,False
+reusable_bag,4,washability,number of washes before degrading,-30.0,cut4,0.0,20.0,20.0,200.0,False
+reusable_bag,5,water_resistance,minutes in rain before soaking,0.0,cut5,56.0,69.0,5.0,120.0,True
+luggage_tag,1,durability_rating,years of expected life,-10.0,cut1,0.0,1.0,1.0,10.0,False
+luggage_tag,2,visibility_distance,feet,-93.0,cut2,0.0,5.0,5.0,30.0,False
+luggage_tag,3,information_capacity,characters,-100.0,cut3,0.0,50.0,50.0,500.0,False
+luggage_tag,4,water_resistance,hours in rain,25.0,cut4,0.0,1.0,1.0,48.0,False
+luggage_tag,5,attachment_strength,pounds of force to break,0.0,cut5,51.0,28.0,5.0,50.0,True
+inversion_table,1,max_inversion_angle,degrees,0.0,cut1,65.0,128.0,30.0,180.0,True
+inversion_table,2,height_capacity,inches,-100.0,cut2,0.0,48.0,48.0,78.0,False
+inversion_table,3,ankle_cushioning_thickness,inches,-57.0,cut3,0.0,0.5,0.5,3.0,False
+inversion_table,4,frame_thickness,inches,-68.0,cut4,0.0,1.0,1.0,3.0,False
+inversion_table,5,backrest_padding_thickness,inches,18.0,cut5,0.0,1.0,1.0,4.0,False
+shower_curtain,1,pattern_coverage,percent of surface area,0.0,cut1,31.0,31.0,0.0,100.0,True
+shower_curtain,2,transparency,percent light transmission,93.0,cut2,0.0,0.0,0.0,60.0,False
+shower_curtain,3,curtain_width,inches,-72.0,cut3,0.0,70.0,70.0,108.0,False
+shower_curtain,4,curtain_height,inches,100.0,cut4,0.0,70.0,70.0,96.0,False
+shower_curtain,5,weight,ounces,51.0,cut5,0.0,8.0,8.0,24.0,False
+milk_storage_bags,1,storage_capacity,ounces,-16.0,cut1,0.0,4.0,4.0,8.0,False
+milk_storage_bags,2,leak_resistance_rating,rating out of 10,0.0,cut2,52.0,6.0,1.0,10.0,True
+milk_storage_bags,3,freezer_life,months,-74.0,cut3,0.0,3.0,3.0,12.0,False
+milk_storage_bags,4,material_thickness,millimeters,-78.0,cut4,0.0,0.1,0.1,0.5,False
+milk_storage_bags,5,pour_spout_width,millimeters,100.0,cut5,0.0,10.0,10.0,30.0,False
+nail_file,1,grit_level,grit number,-46.0,cut1,0.0,80.0,80.0,1000.0,False
+nail_file,2,file_length,centimeters,-74.0,cut2,0.0,10.0,10.0,25.0,False
+nail_file,3,thickness,millimeters,0.0,cut3,59.0,2.0,0.5,3.0,True
+nail_file,4,flexibility_rating,bend degrees without breaking,100.0,cut4,0.0,5.0,5.0,45.0,False
+nail_file,5,durability_score,uses before replacement,35.0,cut5,0.0,100.0,100.0,1000.0,False
+pasta_maker,1,max_sheet_width,inches,53.0,cut1,0.0,4.0,4.0,10.0,False
+pasta_maker,2,number_thickness_settings,settings,0.0,cut2,46.0,9.0,6.0,12.0,True
+pasta_maker,3,number_cutting_attachments,attachments,-100.0,cut3,0.0,2.0,2.0,8.0,False
+pasta_maker,4,warranty_length,years,-49.0,cut4,0.0,1.0,1.0,10.0,False
+pasta_maker,5,weight,pounds,-41.0,cut5,0.0,2.0,2.0,15.0,False
+washing_machine,1,capacity,cubic feet,0.0,cut1,44.0,4.3,3.0,6.0,True
+washing_machine,2,spin_speed,rpm,100.0,cut2,0.0,800.0,800.0,1600.0,False
+washing_machine,3,energy_efficiency,kwh per year,3.0,cut3,0.0,100.0,100.0,300.0,False
+washing_machine,4,noise_level,decibels,-73.0,cut4,0.0,40.0,40.0,80.0,False
+washing_machine,5,cycle_duration,minutes,26.0,cut5,0.0,30.0,30.0,120.0,False
+easel,1,max_canvas_height,inches,-100.0,cut1,0.0,24.0,24.0,96.0,False
+easel,2,tray_capacity,pounds,-73.0,cut2,0.0,5.0,5.0,25.0,False
+easel,3,height_adjustment_range,inches,45.0,cut3,0.0,20.0,20.0,72.0,False
+easel,4,storage_slots,number of compartments,0.0,cut4,64.0,8.0,2.0,12.0,True
+easel,5,tilt_angle_range,degrees,42.0,cut5,0.0,0.0,0.0,90.0,False
+salmon,1,color_intensity,color score,70.0,cut1,0.0,1.0,1.0,10.0,False
+salmon,2,fat_content,percent,100.0,cut2,0.0,2.0,2.0,12.0,False
+salmon,3,freshness_rating,freshness score,27.0,cut3,0.0,1.0,1.0,10.0,False
+salmon,4,portion_size,ounces,41.0,cut4,0.0,4.0,4.0,16.0,False
+salmon,5,wild_caught_certainty,percent certainty,0.0,cut5,31.0,31.0,0.0,100.0,True
+magnetic_calendar,1,surface_area,square inches,-24.0,cut1,0.0,100.0,100.0,600.0,False
+magnetic_calendar,2,magnetic_strength,pounds of pull force,17.0,cut2,0.0,1.0,1.0,10.0,False
+magnetic_calendar,3,writing_space_per_day,square inches,0.0,cut3,38.0,12.0,4.0,25.0,True
+magnetic_calendar,4,included_magnets,pieces,30.0,cut4,0.0,0.0,0.0,20.0,False
+magnetic_calendar,5,additional_note_space,square inches,-100.0,cut5,0.0,0.0,0.0,100.0,False
+ham,1,curing_time,days,100.0,cut1,0.0,7.0,7.0,90.0,False
+ham,2,smoke_intensity,smoke hours,80.0,cut2,0.0,0.0,0.0,48.0,False
+ham,3,salt_content,percent,0.0,cut3,40.0,4.0,2.0,8.0,True
+ham,4,moisture_content,percent,77.0,cut4,0.0,55.0,55.0,75.0,False
+ham,5,protein_content,grams per 100g,-41.0,cut5,0.0,15.0,15.0,25.0,False
+snow_blower,1,clearing_width,inches,-17.0,cut1,0.0,18.0,18.0,32.0,False
+snow_blower,2,throwing_distance,feet,0.0,cut2,66.0,40.0,20.0,50.0,True
+snow_blower,3,intake_height,inches,-100.0,cut3,0.0,12.0,12.0,24.0,False
+snow_blower,4,runtime,minutes,77.0,cut4,0.0,30.0,30.0,120.0,False
+snow_blower,5,noise_level,decibels,-94.0,cut5,0.0,85.0,85.0,105.0,False
+ecg_monitor,1,battery_life,hours,0.0,cut1,54.0,96.0,12.0,168.0,True
+ecg_monitor,2,recording_duration,minutes,89.0,cut2,0.0,1.0,1.0,30.0,False
+ecg_monitor,3,data_transfer_speed,megabits per second,100.0,cut3,0.0,1.0,1.0,100.0,False
+ecg_monitor,4,display_resolution,pixels,76.0,cut4,0.0,128.0,128.0,1024.0,False
+ecg_monitor,5,storage_capacity,recordings,33.0,cut5,0.0,10.0,10.0,1000.0,False
+dslr_camera,1,sensor_resolution,megapixels,-75.0,cut1,0.0,16.0,16.0,50.0,False
+dslr_camera,2,continuous_shooting_speed,frames per second,-100.0,cut2,0.0,3.0,3.0,14.0,False
+dslr_camera,3,battery_life,shots per charge,18.0,cut3,0.0,500.0,500.0,2000.0,False
+dslr_camera,4,max_iso,ISO,0.0,cut4,36.0,40960.0,6400.0,102400.0,True
+dslr_camera,5,weight,grams,23.0,cut5,0.0,400.0,400.0,1200.0,False
+convertible,1,top_operation_time,seconds,91.0,cut1,0.0,10.0,10.0,30.0,False
+convertible,2,acceleration,seconds 0-60 mph,-23.0,cut2,0.0,4.0,4.0,8.0,False
+convertible,3,trunk_space_top_down,cubic feet,1.0,cut3,0.0,5.0,5.0,12.0,False
+convertible,4,wind_noise,decibels at 60 mph,0.0,cut4,48.0,77.0,70.0,85.0,True
+convertible,5,rollover_protection,maximum force resistance in kN,23.0,cut5,0.0,15.0,15.0,25.0,False
+washi_tape,1,tape_width,millimeters,-99.0,cut1,0.0,3.0,3.0,50.0,False
+washi_tape,2,adhesive_strength,grams per inch,-61.0,cut2,0.0,50.0,50.0,300.0,False
+washi_tape,3,roll_length,meters,0.0,cut3,57.0,19.0,5.0,30.0,True
+washi_tape,4,pattern_repeat_length,centimeters,100.0,cut4,0.0,1.0,1.0,20.0,False
+washi_tape,5,opacity_percentage,percent,58.0,cut5,0.0,20.0,20.0,100.0,False
+dry_bag,1,capacity,liters,-66.0,cut1,0.0,5.0,5.0,40.0,False
+dry_bag,2,waterproof_rating,hours submerged at 1 meter,40.0,cut2,0.0,1.0,1.0,24.0,False
+dry_bag,3,weight,ounces,78.0,cut3,0.0,2.0,2.0,16.0,False
+dry_bag,4,compression_ratio,to 1 ratio,100.0,cut4,0.0,2.0,2.0,6.0,False
+dry_bag,5,strap_length,inches,0.0,cut5,61.0,34.0,12.0,48.0,True
+hair_dryer,1,power_output,watts,58.0,cut1,0.0,1200.0,1200.0,2200.0,False
+hair_dryer,2,cord_length,feet,0.0,cut2,64.0,10.0,6.0,12.0,True
+hair_dryer,3,weight,ounces,-95.0,cut3,0.0,12.0,12.0,32.0,False
+hair_dryer,4,noise_level,decibels,-100.0,cut4,0.0,60.0,60.0,90.0,False
+hair_dryer,5,heat_settings,number of settings,-80.0,cut5,0.0,2.0,2.0,6.0,False
+balance_board,1,platform_diameter,inches,-84.0,cut1,0.0,11.0,11.0,20.0,False
+balance_board,2,max_tilt_angle,degrees,76.0,cut2,0.0,10.0,10.0,40.0,False
+balance_board,3,grip_surface_area,square inches,0.0,cut3,37.0,143.0,80.0,250.0,True
+balance_board,4,weight_capacity,pounds,100.0,cut4,0.0,250.0,250.0,600.0,False
+balance_board,5,platform_thickness,inches,-39.0,cut5,0.0,0.5,0.5,2.0,False
+hoodie,1,fabric_weight,grams per square meter,-46.0,cut1,0.0,200.0,200.0,400.0,False
+hoodie,2,cotton_percentage,percent,0.0,cut2,67.0,87.0,60.0,100.0,True
+hoodie,3,pocket_size,cubic inches,23.0,cut3,0.0,20.0,20.0,100.0,False
+hoodie,4,sleeve_length,inches,100.0,cut4,0.0,24.0,24.0,30.0,False
+hoodie,5,hood_size,inches circumference,85.0,cut5,0.0,20.0,20.0,28.0,False
+loan,1,interest_rate,percent,11.0,cut1,0.0,5.0,5.0,25.0,False
+loan,2,loan_term,months,0.0,cut2,38.0,39.0,12.0,84.0,True
+loan,3,funding_speed,days,-100.0,cut3,0.0,1.0,1.0,10.0,False
+loan,4,payment_flexibility,number of payment date changes allowed per year,-93.0,cut4,0.0,0.0,0.0,12.0,False
+loan,5,early_payoff_penalty,months of interest,79.0,cut5,0.0,0.0,0.0,12.0,False
+mold_test,1,types_detected,mold species,-56.0,cut1,0.0,10.0,10.0,50.0,False
+mold_test,2,lab_processing_time,days,0.0,cut2,66.0,7.0,1.0,10.0,True
+mold_test,3,sample_area_coverage,square feet,100.0,cut3,0.0,100.0,100.0,2000.0,False
+mold_test,4,detection_sensitivity,spores per cubic meter,-43.0,cut4,0.0,1.0,1.0,1000.0,False
+mold_test,5,number_of_samples,samples per kit,25.0,cut5,0.0,1.0,1.0,10.0,False
+boxing_gloves,1,padding_density,scale 1-10,-98.0,cut1,0.0,1.0,1.0,10.0,False
+boxing_gloves,2,wrist_support_length,inches,-55.0,cut2,0.0,3.0,3.0,8.0,False
+boxing_gloves,3,ventilation_rating,scale 1-10,92.0,cut3,0.0,1.0,1.0,10.0,False
+boxing_gloves,4,impact_absorption,scale 1-10,0.0,cut4,47.0,5.0,1.0,10.0,True
+boxing_gloves,5,flexibility_rating,scale 1-10,100.0,cut5,0.0,1.0,1.0,10.0,False
+citrus_juicer,1,juice_yield,percent of total juice extracted,-81.0,cut1,0.0,50.0,50.0,95.0,False
+citrus_juicer,2,pulp_filtration,filtration score,-94.0,cut2,0.0,1.0,1.0,10.0,False
+citrus_juicer,3,max_fruit_diameter,inches,-42.0,cut3,0.0,3.0,3.0,8.0,False
+citrus_juicer,4,stability_rating,stability score,0.0,cut4,37.0,4.0,1.0,10.0,True
+citrus_juicer,5,ease_of_cleaning,cleaning score,-100.0,cut5,0.0,1.0,1.0,10.0,False
+stopwatch,1,display_size,inches,100.0,cut1,0.0,0.5,0.5,2.5,False
+stopwatch,2,memory_capacity,lap times,0.0,cut2,37.0,43.0,10.0,100.0,True
+stopwatch,3,battery_life,hours,-96.0,cut3,0.0,50.0,50.0,500.0,False
+stopwatch,4,water_resistance,meters,88.0,cut4,0.0,1.0,1.0,100.0,False
+stopwatch,5,weight,grams,27.0,cut5,0.0,20.0,20.0,100.0,False
+fins,1,blade_length,centimeters,-14.0,cut1,0.0,20.0,20.0,50.0,False
+fins,2,thrust_power,newtons,52.0,cut2,0.0,20.0,20.0,60.0,False
+fins,3,flexibility_rating,bend degrees,-99.0,cut3,0.0,15.0,15.0,45.0,False
+fins,4,energy_efficiency,meters per kick,0.0,cut4,64.0,2.3,1.0,3.0,True
+fins,5,ventilation_area,square centimeters,-19.0,cut5,0.0,10.0,10.0,40.0,False
+lip_scrub,1,exfoliant_particle_size,micrometers,100.0,cut1,0.0,100.0,100.0,500.0,False
+lip_scrub,2,moisturizing_duration,hours,-50.0,cut2,0.0,2.0,2.0,12.0,False
+lip_scrub,3,scrub_intensity,grams of exfoliant per milliliter,0.0,cut3,32.0,0.23,0.1,0.5,True
+lip_scrub,4,product_longevity,uses per container,-6.0,cut4,0.0,20.0,20.0,100.0,False
+lip_scrub,5,absorption_time,minutes until fully absorbed,-98.0,cut5,0.0,1.0,1.0,10.0,False
+hoe,1,handle_length,inches,-100.0,cut1,0.0,40.0,40.0,72.0,False
+hoe,2,blade_width,inches,61.0,cut2,0.0,4.0,4.0,12.0,False
+hoe,3,handle_grip_comfort,comfort rating,90.0,cut3,0.0,1.0,1.0,10.0,False
+hoe,4,tool_weight,pounds,0.0,cut4,50.0,5.0,2.0,8.0,True
+hoe,5,durability,years of expected use,-38.0,cut5,0.0,2.0,2.0,15.0,False
+pilates_ring,1,ring_diameter,inches,-23.0,cut1,0.0,12.0,12.0,15.0,False
+pilates_ring,2,resistance_level,pounds of force,-100.0,cut2,0.0,5.0,5.0,20.0,False
+pilates_ring,3,padding_thickness,millimeters,0.0,cut3,43.0,9.0,5.0,15.0,True
+pilates_ring,4,grip_quality,grip rating,23.0,cut4,0.0,1.0,1.0,10.0,False
+pilates_ring,5,flexibility_rating,flex score,-10.0,cut5,0.0,1.0,1.0,10.0,False
+oven,1,capacity,cubic feet,73.0,cut1,0.0,2.0,2.0,6.0,False
+oven,2,max_temperature,degrees fahrenheit,71.0,cut2,0.0,450.0,450.0,550.0,False
+oven,3,preheat_time,minutes,0.0,cut3,46.0,10.0,5.0,15.0,True
+oven,4,rack_positions,positions,94.0,cut4,0.0,3.0,3.0,7.0,False
+oven,5,self_clean_duration,hours,-8.0,cut5,0.0,2.0,2.0,5.0,False
+sparkling_water,1,carbonation_level,volumes of CO2,0.0,cut1,58.0,3.3,1.0,5.0,True
+sparkling_water,2,mineral_content,parts per million,-91.0,cut2,0.0,50.0,50.0,500.0,False
+sparkling_water,3,bottle_size,fluid ounces,-94.0,cut3,0.0,8.0,8.0,33.0,False
+sparkling_water,4,flavor_intensity,rating out of 10,-44.0,cut4,0.0,1.0,1.0,10.0,False
+sparkling_water,5,bubble_size,microns,100.0,cut5,0.0,100.0,100.0,1000.0,False
+gas_can,1,capacity,gallons,0.0,cut1,50.0,3.0,1.0,5.0,True
+gas_can,2,flow_rate,gallons per minute,16.0,cut2,0.0,0.5,0.5,3.0,False
+gas_can,3,durability_rating,years of expected life,-35.0,cut3,0.0,2.0,2.0,15.0,False
+gas_can,4,spout_length,inches,-58.0,cut4,0.0,6.0,6.0,18.0,False
+gas_can,5,empty_weight,pounds,100.0,cut5,0.0,1.0,1.0,5.0,False
+golf_cart,1,max_speed,miles per hour,0.0,cut1,64.0,20.0,12.0,25.0,True
+golf_cart,2,battery_life,hours,69.0,cut2,0.0,2.0,2.0,8.0,False
+golf_cart,3,seat_comfort,comfort rating,19.0,cut3,0.0,1.0,1.0,10.0,False
+golf_cart,4,storage_capacity,cubic feet,100.0,cut4,0.0,2.0,2.0,8.0,False
+golf_cart,5,turning_radius,feet,-60.0,cut5,0.0,5.0,5.0,12.0,False
+tongs,1,grip_length,inches,27.0,cut1,0.0,3.0,3.0,8.0,False
+tongs,2,total_length,inches,75.0,cut2,0.0,9.0,9.0,16.0,False
+tongs,3,grip_cushioning,millimeters of padding,-100.0,cut3,0.0,0.0,0.0,8.0,False
+tongs,4,spring_tension,newtons,0.0,cut4,34.0,5.0,2.0,10.0,True
+tongs,5,heat_resistance,degrees fahrenheit,76.0,cut5,0.0,200.0,200.0,600.0,False
+sippy_cup,1,capacity,fluid ounces,-47.0,cut1,0.0,6.0,6.0,12.0,False
+sippy_cup,2,spout_size,millimeters,75.0,cut2,0.0,8.0,8.0,15.0,False
+sippy_cup,3,handle_length,inches,0.0,cut3,61.0,2.4,1.5,3.0,True
+sippy_cup,4,spill_resistance,resistance score,-98.0,cut4,0.0,1.0,1.0,10.0,False
+sippy_cup,5,grip_texture,texture rating,-100.0,cut5,0.0,1.0,1.0,10.0,False
+windshield_cover,1,water_resistance,hours before leaking,-8.0,cut1,0.0,2.0,2.0,24.0,False
+windshield_cover,2,insulation_rating,thermal resistance R-value,90.0,cut2,0.0,1.0,1.0,5.0,False
+windshield_cover,3,uv_protection,percent of UV rays blocked,-100.0,cut3,0.0,70.0,70.0,99.0,False
+windshield_cover,4,fold_compactness,cubic inches when folded,70.0,cut4,0.0,50.0,50.0,300.0,False
+windshield_cover,5,wind_resistance,maximum wind speed in mph,0.0,cut5,41.0,36.0,20.0,60.0,True
+console,1,storage_capacity,gigabytes,-88.0,cut1,0.0,250.0,250.0,2000.0,False
+console,2,exclusive_games,number of exclusive titles,-96.0,cut2,0.0,5.0,5.0,50.0,False
+console,3,processing_power,teraflops,-98.0,cut3,0.0,4.0,4.0,15.0,False
+console,4,online_players,million monthly active users,100.0,cut4,0.0,20.0,20.0,100.0,False
+console,5,warranty_length,months,0.0,cut5,68.0,28.0,12.0,36.0,True
+stapler,1,staple_capacity,staples,-44.0,cut1,0.0,50.0,50.0,500.0,False
+stapler,2,max_sheet_capacity,sheets,84.0,cut2,0.0,10.0,10.0,100.0,False
+stapler,3,grip_comfort,comfort rating,0.0,cut3,69.0,7.0,1.0,10.0,True
+stapler,4,jam_resistance,jam resistance rating,88.0,cut4,0.0,1.0,1.0,10.0,False
+stapler,5,durability,years of expected use,-100.0,cut5,0.0,1.0,1.0,10.0,False
+jewelry_kit,1,tool_quantity,count,75.0,cut1,0.0,3.0,3.0,15.0,False
+jewelry_kit,2,findings_quantity,count,0.0,cut2,49.0,270.0,50.0,500.0,True
+jewelry_kit,3,storage_compartments,count,84.0,cut3,0.0,4.0,4.0,24.0,False
+jewelry_kit,4,plier_grip_length,inches,60.0,cut4,0.0,3.0,3.0,6.0,False
+jewelry_kit,5,organization_rating,rating out of 100,47.0,cut5,0.0,1.0,1.0,100.0,False
+antenna,1,reception_range,miles,0.0,cut1,58.0,98.0,25.0,150.0,True
+antenna,2,number_of_channels_received,channels,-100.0,cut2,0.0,20.0,20.0,100.0,False
+antenna,3,signal_strength,decibels,63.0,cut3,0.0,40.0,40.0,100.0,False
+antenna,4,weather_resistance,mph wind resistance,49.0,cut4,0.0,30.0,30.0,120.0,False
+antenna,5,size_compactness,inches diagonal,-72.0,cut5,0.0,10.0,10.0,40.0,False
+house,1,lot_size,acres,88.0,cut1,0.0,0.1,0.1,2.0,False
+house,2,square_footage,square feet,14.0,cut2,0.0,1000.0,1000.0,4000.0,False
+house,3,age_of_house,years,12.0,cut3,0.0,0.0,0.0,100.0,False
+house,4,distance_to_school,miles,0.0,cut4,51.0,2.6,0.1,5.0,True
+house,5,energy_efficiency,energy rating,-13.0,cut5,0.0,1.0,1.0,100.0,False
+electric_grill,1,cooking_surface_area,square inches,0.0,cut1,33.0,232.0,100.0,500.0,True
+electric_grill,2,max_temperature,degrees fahrenheit,-3.0,cut2,0.0,400.0,400.0,600.0,False
+electric_grill,3,heat_up_time,minutes,62.0,cut3,0.0,5.0,5.0,20.0,False
+electric_grill,4,power_rating,watts,91.0,cut4,0.0,1200.0,1200.0,2400.0,False
+electric_grill,5,cord_length,feet,100.0,cut5,0.0,3.0,3.0,10.0,False
+tea,1,caffeine_content,mg per cup,40.0,cut1,0.0,0.0,0.0,70.0,False
+tea,2,steeping_time,minutes,17.0,cut2,0.0,1.0,1.0,10.0,False
+tea,3,antioxidant_level,mg per cup,0.0,cut3,55.0,243.0,50.0,400.0,True
+tea,4,aroma_intensity,intensity score,-75.0,cut4,0.0,1.0,1.0,10.0,False
+tea,5,astringency,astringency score,100.0,cut5,0.0,1.0,1.0,10.0,False
+lint_roller,1,sheet_count,sheets per roll,16.0,cut1,0.0,30.0,30.0,120.0,False
+lint_roller,2,roller_width,inches,-80.0,cut2,0.0,2.0,2.0,6.0,False
+lint_roller,3,adhesive_strength,grams of force,0.0,cut3,62.0,143.0,50.0,200.0,True
+lint_roller,4,handle_length,inches,-3.0,cut4,0.0,4.0,4.0,12.0,False
+lint_roller,5,grip_comfort,comfort rating,-78.0,cut5,0.0,1.0,1.0,10.0,False
+diaper_bag,1,storage_volume,liters,91.0,cut1,0.0,10.0,10.0,35.0,False
+diaper_bag,2,number_of_pockets,count,98.0,cut2,0.0,4.0,4.0,20.0,False
+diaper_bag,3,strap_length,inches,0.0,cut3,61.0,40.0,25.0,50.0,True
+diaper_bag,4,bag_weight,ounces,32.0,cut4,0.0,12.0,12.0,48.0,False
+diaper_bag,5,water_resistance,hours of water protection,-64.0,cut5,0.0,1.0,1.0,8.0,False
+sponges,1,durability,days until replacement needed,41.0,cut1,0.0,7.0,7.0,90.0,False
+sponges,2,scrubbing_power,abrasiveness rating out of 10,100.0,cut2,0.0,1.0,1.0,10.0,False
+sponges,3,absorption_capacity,milliliters,0.0,cut3,44.0,99.0,20.0,200.0,True
+sponges,4,bacteria_resistance,hours before bacterial growth,-36.0,cut4,0.0,24.0,24.0,168.0,False
+sponges,5,drying_speed,minutes until dry,24.0,cut5,0.0,30.0,30.0,240.0,False
+popcorn,1,serving_size,cups,-100.0,cut1,0.0,2.0,2.0,8.0,False
+popcorn,2,fiber_content,grams per serving,0.0,cut2,49.0,5.0,2.0,8.0,True
+popcorn,3,butter_content,grams per serving,3.0,cut3,0.0,0.0,0.0,15.0,False
+popcorn,4,sodium_content,milligrams per serving,84.0,cut4,0.0,0.0,0.0,300.0,False
+popcorn,5,calories_per_serving,calories,-75.0,cut5,0.0,30.0,30.0,160.0,False
+recliner,1,recline_angle,degrees,-60.0,cut1,0.0,120.0,120.0,180.0,False
+recliner,2,seat_width,inches,-60.0,cut2,0.0,20.0,20.0,30.0,False
+recliner,3,cushion_thickness,inches,16.0,cut3,0.0,4.0,4.0,12.0,False
+recliner,4,lumbar_support,support rating,0.0,cut4,68.0,7.0,1.0,10.0,True
+recliner,5,footrest_length,inches,60.0,cut5,0.0,12.0,12.0,24.0,False
+arrows,1,straightness,thousandths of an inch,-100.0,cut1,0.0,2.0,2.0,6.0,False
+arrows,2,spine_stiffness,spine rating,0.0,cut2,46.0,438.0,300.0,600.0,True
+arrows,3,weight_grains,grains,26.0,cut3,0.0,350.0,350.0,500.0,False
+arrows,4,durability_rating,durability score,3.0,cut4,0.0,1.0,1.0,10.0,False
+arrows,5,fletching_length,inches,-30.0,cut5,0.0,2.0,2.0,4.0,False
+pattern_weights,1,weight_per_piece,ounces,-17.0,cut1,0.0,2.0,2.0,16.0,False
+pattern_weights,2,stability,stability rating,100.0,cut2,0.0,1.0,1.0,10.0,False
+pattern_weights,3,fabric_protection,protection rating,50.0,cut3,0.0,1.0,1.0,10.0,False
+pattern_weights,4,pieces_per_set,count,0.0,cut4,70.0,15.0,4.0,20.0,True
+pattern_weights,5,ease_of_placement,ease rating,-1.0,cut5,0.0,1.0,1.0,10.0,False
+wheelbarrow,1,load_capacity,pounds,0.0,cut1,46.0,476.0,200.0,800.0,True
+wheelbarrow,2,tray_volume,cubic feet,3.0,cut2,0.0,4.0,4.0,10.0,False
+wheelbarrow,3,tire_diameter,inches,-73.0,cut3,0.0,12.0,12.0,20.0,False
+wheelbarrow,4,handle_grip_comfort,comfort rating,50.0,cut4,0.0,1.0,1.0,10.0,False
+wheelbarrow,5,stability_rating,rating,-100.0,cut5,0.0,1.0,1.0,10.0,False
+soil,1,nutrient_content,rating,28.0,cut1,0.0,1.0,1.0,10.0,False
+soil,2,moisture_retention,rating,-51.0,cut2,0.0,1.0,1.0,10.0,False
+soil,3,organic_matter,percent,90.0,cut3,0.0,0.0,0.0,100.0,False
+soil,4,drainage_rating,rating,100.0,cut4,0.0,1.0,1.0,10.0,False
+soil,5,ph_level,pH,0.0,cut5,35.0,5.4,4.0,8.0,True
+sleeping_bag,1,temperature_rating,degrees fahrenheit,-12.0,cut1,0.0,0.0,0.0,50.0,False
+sleeping_bag,2,packed_volume,liters,90.0,cut2,0.0,2.0,2.0,15.0,False
+sleeping_bag,3,insulation_loft,inches,100.0,cut3,0.0,1.0,1.0,5.0,False
+sleeping_bag,4,interior_length,inches,0.0,cut4,55.0,82.0,72.0,90.0,True
+sleeping_bag,5,shoulder_girth,inches,64.0,cut5,0.0,58.0,58.0,76.0,False
+paper_towel,1,sheet_size,square inches,0.0,cut1,57.0,78.0,36.0,110.0,True
+paper_towel,2,sheets_per_roll,number of sheets,-38.0,cut2,0.0,45.0,45.0,160.0,False
+paper_towel,3,absorption_capacity,milliliters per sheet,-81.0,cut3,0.0,20.0,20.0,50.0,False
+paper_towel,4,wet_strength,pounds of force,89.0,cut4,0.0,1.0,1.0,3.0,False
+paper_towel,5,thickness,millimeters,100.0,cut5,0.0,0.3,0.3,0.8,False
+outdoor_tv_cover,1,water_resistance,millimeters water column,26.0,cut1,0.0,1000.0,1000.0,5000.0,False
+outdoor_tv_cover,2,uv_protection,UPF rating,-24.0,cut2,0.0,30.0,30.0,100.0,False
+outdoor_tv_cover,3,material_thickness,millimeters,-100.0,cut3,0.0,0.2,0.2,1.0,False
+outdoor_tv_cover,4,ventilation_holes,number of holes,-54.0,cut4,0.0,2.0,2.0,12.0,False
+outdoor_tv_cover,5,ease_of_installation,rating out of 10,0.0,cut5,30.0,4.0,1.0,10.0,True
+tamper,1,base_diameter,millimeters,97.0,cut1,0.0,49.0,49.0,58.0,False
+tamper,2,handle_length,millimeters,0.0,cut2,46.0,98.0,80.0,120.0,True
+tamper,3,total_weight,grams,17.0,cut3,0.0,300.0,300.0,600.0,False
+tamper,4,surface_smoothness,roughness score,-99.0,cut4,0.0,1.0,1.0,10.0,False
+tamper,5,grip_comfort,ergonomic rating,100.0,cut5,0.0,1.0,1.0,10.0,False
+garment_steamer,1,water_capacity,milliliters,-100.0,cut1,0.0,100.0,100.0,2000.0,False
+garment_steamer,2,heat_up_time,seconds,-73.0,cut2,0.0,15.0,15.0,120.0,False
+garment_steamer,3,steam_time,minutes,0.0,cut3,58.0,38.0,8.0,60.0,True
+garment_steamer,4,cord_length,feet,-77.0,cut4,0.0,5.0,5.0,15.0,False
+garment_steamer,5,steam_output,grams per minute,29.0,cut5,0.0,15.0,15.0,40.0,False
+alcohol_markers,1,color_count,number of colors,0.0,cut1,43.0,107.0,24.0,216.0,True
+alcohol_markers,2,ink_capacity,milliliters,65.0,cut2,0.0,1.0,1.0,5.0,False
+alcohol_markers,3,tip_firmness,durometer rating,100.0,cut3,0.0,50.0,50.0,90.0,False
+alcohol_markers,4,bleed_resistance,layers before bleeding,10.0,cut4,0.0,2.0,2.0,8.0,False
+alcohol_markers,5,stroke_smoothness,smoothness rating,-2.0,cut5,0.0,1.0,1.0,10.0,False
+rabbit,1,life_expectancy,years,0.0,cut1,66.0,12.0,8.0,14.0,True
+rabbit,2,adult_weight,pounds,-30.0,cut2,0.0,2.0,2.0,20.0,False
+rabbit,3,grooming_needs,hours per week,-55.0,cut3,0.0,1.0,1.0,5.0,False
+rabbit,4,sociability,interaction hours per day,-100.0,cut4,0.0,2.0,2.0,8.0,False
+rabbit,5,activity_level,hours of exercise needed per day,78.0,cut5,0.0,2.0,2.0,6.0,False
+bracelet,1,band_width,millimeters,52.0,cut1,0.0,2.0,2.0,20.0,False
+bracelet,2,weight,grams,0.0,cut2,34.0,41.0,10.0,100.0,True
+bracelet,3,flexibility,degrees of bend,98.0,cut3,0.0,45.0,45.0,360.0,False
+bracelet,4,surface_shine,percent light reflected,55.0,cut4,0.0,10.0,10.0,95.0,False
+bracelet,5,clasp_strength,pounds of force to open,100.0,cut5,0.0,0.5,0.5,5.0,False
+adapter,1,power_output,watts,0.0,cut1,0.0,30.0,30.0,140.0,False
+adapter,2,number_of_ports,ports,38.0,cut2,0.0,1.0,1.0,6.0,False
+adapter,3,cord_length,feet,-100.0,cut3,0.0,3.0,3.0,10.0,False
+adapter,4,weight,ounces,2.0,cut4,0.0,3.0,3.0,16.0,False
+adapter,5,charging_speed,minutes to full charge,0.0,cut5,50.0,105.0,30.0,180.0,True
+night_light,1,brightness,lumens,-100.0,cut1,0.0,1.0,1.0,100.0,False
+night_light,2,coverage_angle,degrees,-12.0,cut2,0.0,60.0,60.0,180.0,False
+night_light,3,sensor_distance,feet,-10.0,cut3,0.0,5.0,5.0,30.0,False
+night_light,4,auto_shutoff_delay,seconds,-39.0,cut4,0.0,10.0,10.0,300.0,False
+night_light,5,projected_area,square feet,0.0,cut5,61.0,13.0,2.0,20.0,True
+travel_wallet,1,passport_slots,number of slots,-78.0,cut1,0.0,1.0,1.0,6.0,False
+travel_wallet,2,card_capacity,number of cards,84.0,cut2,0.0,4.0,4.0,20.0,False
+travel_wallet,3,document_compartments,number of compartments,-24.0,cut3,0.0,2.0,2.0,12.0,False
+travel_wallet,4,water_resistance,minutes in rain,11.0,cut4,0.0,5.0,5.0,120.0,False
+travel_wallet,5,thickness_when_empty,millimeters,0.0,cut5,62.0,20.0,5.0,30.0,True
+central_vacuum,1,suction_power,air watts,-69.0,cut1,0.0,500.0,500.0,1200.0,False
+central_vacuum,2,noise_level,decibels,97.0,cut2,0.0,55.0,55.0,85.0,False
+central_vacuum,3,dirt_capacity,gallons,0.0,cut3,40.0,8.0,3.0,15.0,True
+central_vacuum,4,hose_reach,feet,4.0,cut4,0.0,30.0,30.0,50.0,False
+central_vacuum,5,filtration_efficiency,percent,100.0,cut5,0.0,85.0,85.0,99.9,False
+microwave_cover,1,diameter,inches,-17.0,cut1,0.0,8.0,8.0,14.0,False
+microwave_cover,2,vent_holes,number of holes,56.0,cut2,0.0,4.0,4.0,24.0,False
+microwave_cover,3,collapse_height,inches,-100.0,cut3,0.0,0.5,0.5,3.0,False
+microwave_cover,4,heat_resistance,degrees fahrenheit,9.0,cut4,0.0,150.0,150.0,450.0,False
+microwave_cover,5,transparency,percent,0.0,cut5,57.0,57.0,0.0,100.0,True
+porch_swing,1,seating_capacity,number of adults,0.0,cut1,61.0,3.2,2.0,4.0,True
+porch_swing,2,back_support_angle,degrees from vertical,-35.0,cut2,0.0,10.0,10.0,30.0,False
+porch_swing,3,seat_depth,inches,26.0,cut3,0.0,18.0,18.0,30.0,False
+porch_swing,4,chain_strength,pounds of tension strength,100.0,cut4,0.0,500.0,500.0,1500.0,False
+porch_swing,5,weather_resistance,years of outdoor durability,42.0,cut5,0.0,5.0,5.0,20.0,False
+stability_ball,1,ball_diameter,centimeters,100.0,cut1,0.0,45.0,45.0,85.0,False
+stability_ball,2,burst_resistance,pounds,0.0,cut2,70.0,1550.0,500.0,2000.0,True
+stability_ball,3,surface_grip_rating,friction coefficient,96.0,cut3,0.0,0.3,0.3,0.9,False
+stability_ball,4,material_thickness,millimeters,-43.0,cut4,0.0,1.0,1.0,4.0,False
+stability_ball,5,anti_burst_rating,pounds per square inch,-98.0,cut5,0.0,100.0,100.0,300.0,False
+ink_cartridge,1,ink_capacity,milliliters,65.0,cut1,0.0,0.5,0.5,3.0,False
+ink_cartridge,2,flow_consistency,hours without skipping,-24.0,cut2,0.0,2.0,2.0,24.0,False
+ink_cartridge,3,drying_time,seconds,-54.0,cut3,0.0,3.0,3.0,60.0,False
+ink_cartridge,4,color_saturation,percent,-75.0,cut4,0.0,70.0,70.0,100.0,False
+ink_cartridge,5,shelf_life,months,0.0,cut5,30.0,23.0,12.0,48.0,True
+wood_glue,1,open_time,minutes,-40.0,cut1,0.0,5.0,5.0,30.0,False
+wood_glue,2,clamp_time,hours,0.0,cut2,59.0,14.0,0.5,24.0,True
+wood_glue,3,water_resistance,rating out of 10,56.0,cut3,0.0,1.0,1.0,10.0,False
+wood_glue,4,bond_strength,psi,100.0,cut4,0.0,2000.0,2000.0,4000.0,False
+wood_glue,5,temperature_resistance,degrees Fahrenheit,12.0,cut5,0.0,120.0,120.0,200.0,False
+sleep_sack,1,warmth_rating,TOG rating,73.0,cut1,0.0,0.5,0.5,3.5,False
+sleep_sack,2,length,inches,-3.0,cut2,0.0,24.0,24.0,36.0,False
+sleep_sack,3,zipper_length,inches,-7.0,cut3,0.0,8.0,8.0,20.0,False
+sleep_sack,4,neck_circumference,inches,-100.0,cut4,0.0,10.0,10.0,14.0,False
+sleep_sack,5,fabric_weight,ounces per square yard,0.0,cut5,57.0,8.0,3.0,12.0,True
+mixer,1,motor_power,watts,-99.0,cut1,0.0,250.0,250.0,1000.0,False
+mixer,2,bowl_capacity,quarts,0.0,cut2,35.0,5.0,3.0,8.0,True
+mixer,3,speed_settings,number of speeds,-13.0,cut3,0.0,3.0,3.0,12.0,False
+mixer,4,attachment_compatibility,number of compatible attachments,-78.0,cut4,0.0,3.0,3.0,15.0,False
+mixer,5,kneading_efficiency,minutes to knead standard bread dough,49.0,cut5,0.0,3.0,3.0,10.0,False
+dominoes,1,domino_size,millimeters length,-34.0,cut1,0.0,35.0,35.0,75.0,False
+dominoes,2,pip_visibility,viewing distance in feet,65.0,cut2,0.0,1.0,1.0,5.0,False
+dominoes,3,tile_weight,grams,0.0,cut3,47.0,16.0,8.0,25.0,True
+dominoes,4,case_durability,years of expected life,-100.0,cut4,0.0,2.0,2.0,15.0,False
+dominoes,5,impact_resistance,drop height in inches,-100.0,cut5,0.0,12.0,12.0,48.0,False
+crochet_hook,1,handle_length,inches,-100.0,cut1,0.0,4.0,4.0,8.0,False
+crochet_hook,2,grip_cushioning,millimeters of padding,46.0,cut2,0.0,0.0,0.0,5.0,False
+crochet_hook,3,handle_diameter,millimeters,95.0,cut3,0.0,8.0,8.0,15.0,False
+crochet_hook,4,weight,grams,37.0,cut4,0.0,10.0,10.0,30.0,False
+crochet_hook,5,grip_texture_depth,millimeters,0.0,cut5,33.0,0.7,0.1,2.0,True
+sawhorse,1,weight_capacity,pounds,-100.0,cut1,0.0,500.0,500.0,2500.0,False
+sawhorse,2,height,inches,46.0,cut2,0.0,25.0,25.0,36.0,False
+sawhorse,3,folded_thickness,inches,64.0,cut3,0.0,3.0,3.0,8.0,False
+sawhorse,4,support_beam_width,inches,95.0,cut4,0.0,2.0,2.0,6.0,False
+sawhorse,5,leg_spread_width,inches,0.0,cut5,44.0,33.0,24.0,45.0,True
+stockings,1,denier_thickness,denier,-45.0,cut1,0.0,5.0,5.0,100.0,False
+stockings,2,stretch_factor,percent stretch,0.0,cut2,46.0,28.0,10.0,50.0,True
+stockings,3,durability_rating,wears before running,-7.0,cut3,0.0,1.0,1.0,30.0,False
+stockings,4,compression_level,mmHg,-100.0,cut4,0.0,8.0,8.0,30.0,False
+stockings,5,length,inches,46.0,cut5,0.0,20.0,20.0,40.0,False
+fabric_markers,1,number_of_colors,colors,99.0,cut1,0.0,6.0,6.0,36.0,False
+fabric_markers,2,tip_width,millimeters,44.0,cut2,0.0,0.5,0.5,5.0,False
+fabric_markers,3,color_vibrancy,percent of original color after 10 washes,73.0,cut3,0.0,40.0,40.0,95.0,False
+fabric_markers,4,bleed_resistance,millimeters of spread,-100.0,cut4,0.0,0.1,0.1,2.0,False
+fabric_markers,5,drying_time,minutes,0.0,cut5,55.0,17.0,1.0,30.0,True
+cherry_pitter,1,pitting_speed,cherries per minute,-59.0,cut1,0.0,10.0,10.0,60.0,False
+cherry_pitter,2,splash_radius,inches,0.0,cut2,67.0,8.0,0.0,12.0,True
+cherry_pitter,3,pit_accuracy,percent of pits successfully removed,84.0,cut3,0.0,85.0,85.0,100.0,False
+cherry_pitter,4,fruit_damage,percent of cherries damaged,92.0,cut4,0.0,0.0,0.0,20.0,False
+cherry_pitter,5,cleaning_time,seconds,-100.0,cut5,0.0,10.0,10.0,120.0,False
+amusement_park,1,number_of_rides,rides,-14.0,cut1,0.0,15.0,15.0,100.0,False
+amusement_park,2,thrill_rides,number of rides,100.0,cut2,0.0,5.0,5.0,30.0,False
+amusement_park,3,park_size,acres,55.0,cut3,0.0,20.0,20.0,500.0,False
+amusement_park,4,shade_coverage,percent of walkways,26.0,cut4,0.0,20.0,20.0,80.0,False
+amusement_park,5,daily_shows,number of shows,0.0,cut5,40.0,15.0,5.0,30.0,True
+snow_brush,1,brush_length,inches,-100.0,cut1,0.0,24.0,24.0,60.0,False
+snow_brush,2,scraper_width,inches,0.0,cut2,37.0,7.0,4.0,12.0,True
+snow_brush,3,foam_grip_thickness,millimeters,60.0,cut3,0.0,5.0,5.0,25.0,False
+snow_brush,4,brush_bristle_density,bristles per square inch,-38.0,cut4,0.0,100.0,100.0,400.0,False
+snow_brush,5,durability_rating,rating out of 10,69.0,cut5,0.0,1.0,1.0,10.0,False
+safety_pins,1,pin_length,millimeters,55.0,cut1,0.0,19.0,19.0,70.0,False
+safety_pins,2,spring_strength,newtons of closing force,56.0,cut2,0.0,1.0,1.0,5.0,False
+safety_pins,3,rust_resistance,hours in humid conditions,-49.0,cut3,0.0,24.0,24.0,1000.0,False
+safety_pins,4,clasp_security,newtons to accidentally open,0.0,cut4,36.0,5.0,2.0,10.0,True
+safety_pins,5,bend_resistance,newtons before deformation,-26.0,cut5,0.0,5.0,5.0,25.0,False
+sewing_machine,1,max_sewing_speed,stitches per minute,0.0,cut1,61.0,1110.0,500.0,1500.0,True
+sewing_machine,2,throat_space,inches,-95.0,cut2,0.0,6.0,6.0,12.0,False
+sewing_machine,3,number_of_stitches,stitch types,65.0,cut3,0.0,10.0,10.0,100.0,False
+sewing_machine,4,noise_level,decibels,-100.0,cut4,0.0,60.0,60.0,85.0,False
+sewing_machine,5,bobbin_capacity,yards of thread,53.0,cut5,0.0,50.0,50.0,200.0,False
+pressure_cooker,1,capacity,quarts,44.0,cut1,0.0,4.0,4.0,12.0,False
+pressure_cooker,2,max_pressure,psi,68.0,cut2,0.0,12.0,12.0,15.0,False
+pressure_cooker,3,heat_up_time,minutes,0.0,cut3,37.0,9.0,5.0,15.0,True
+pressure_cooker,4,warranty_length,years,24.0,cut4,0.0,1.0,1.0,10.0,False
+pressure_cooker,5,weight,pounds,-34.0,cut5,0.0,3.0,3.0,8.0,False
+necklace_stand,1,display_height,inches,35.0,cut1,0.0,8.0,8.0,24.0,False
+necklace_stand,2,number_of_hooks,count,0.0,cut2,44.0,8.0,3.0,15.0,True
+necklace_stand,3,base_stability,stability rating,-85.0,cut3,0.0,1.0,1.0,10.0,False
+necklace_stand,4,hook_spacing,inches,-82.0,cut4,0.0,1.0,1.0,4.0,False
+necklace_stand,5,rotation_smoothness,smoothness rating,-15.0,cut5,0.0,1.0,1.0,10.0,False
+soccer_ball,1,water_resistance,water resistance rating,-100.0,cut1,0.0,1.0,1.0,10.0,False
+soccer_ball,2,durability,months of regular use,-82.0,cut2,0.0,6.0,6.0,36.0,False
+soccer_ball,3,air_retention,days between inflation needed,0.0,cut3,51.0,34.0,7.0,60.0,True
+soccer_ball,4,shape_retention,shape retention rating,-42.0,cut4,0.0,1.0,1.0,10.0,False
+soccer_ball,5,visibility,visibility rating,-18.0,cut5,0.0,1.0,1.0,10.0,False
