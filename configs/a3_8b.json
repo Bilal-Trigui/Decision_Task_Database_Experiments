@@ -1,0 +1,32 @@
+{
+  "_comment": "A3 at Qwen3-8B on a 20GB card. The interaction rule over data/a3/, all four report questions, 200 estimation trials because the pair block needs them.",
+  "extends": "h100_plunkett_8b_20gb.json",
+  "decision_rule": {
+    "type": "interaction",
+    "active_pairs": 1,
+    "zero_pair_main_effects": true,
+    "main_scale": 0.5,
+    "interaction_magnitude": [
+      50,
+      100
+    ]
+  },
+  "model_training": {
+    "data_dir": "data/a3/"
+  },
+  "model_estimating": {
+    "type": "interaction",
+    "estimation_trials_per_persona": 200
+  },
+  "report_schema": {
+    "batches": [
+      "main",
+      "interaction",
+      "pair_id",
+      "pair_value"
+    ]
+  },
+  "model_hyperparameters": {
+    "introspection_steps": 600
+  }
+}

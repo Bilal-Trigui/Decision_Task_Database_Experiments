@@ -1,0 +1,23 @@
+{
+  "_comment": "A4 at Qwen3-8B on a 20GB card. The constrained tradeoff over data/a4/, 200 estimation trials because the cut search needs them.",
+  "extends": "h100_plunkett_8b_20gb.json",
+  "decision_rule": {
+    "type": "tradeoff",
+    "active_cuts": 1,
+    "cut_range": [
+      30,
+      70
+    ],
+    "zero_cut_main_effects": true
+  },
+  "model_training": {
+    "data_dir": "data/a4/"
+  },
+  "model_estimating": {
+    "type": "tradeoff",
+    "estimation_trials_per_persona": 200
+  },
+  "model_hyperparameters": {
+    "introspection_steps": 300
+  }
+}
