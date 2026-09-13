@@ -236,6 +236,13 @@ def read_settings(path, _seen=()):
     child first, and goes into `_source` so a results row still says where its settings came from.
     """
     path = Path(path)
+    if not path.exists():
+        with_json = path.with_suffix(".json")
+        if with_json.exists():
+            raise SettingsError(f"no settings file at '{path}'; did you mean '{with_json}'?")
+        folder = path.parent if path.parent.is_dir() else Path("configs")
+        listed = ", ".join(sorted(q.name for q in folder.glob("*.json"))) or "none"
+        raise SettingsError(f"no settings file at '{path}'. Files in {folder}/: {listed}")
     here = path.resolve()
     if here in _seen:
         names = " -> ".join(p.name for p in _seen + (here,))
