@@ -23,6 +23,6 @@
     "checkpoint_every": 500
   },
   "report_schema": {
-    "max_new_tokens": 200
+    "max_new_tokens": 400
   }
 }
