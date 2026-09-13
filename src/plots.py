@@ -47,9 +47,12 @@ def _checkpoint_x(res):
     gap past the last of them reads the way the experiment ran: the curve across training, then
     what report training did to it.
     """
-    decision = res[res["stage"] == "decision"]["checkpoint_step"]
-    last = int(decision.max()) if not decision.empty else 0
-    gap = max(int(decision.diff().dropna().min()) if len(decision) > 1 else last or 1, 1)
+    # distinct steps only: a schema with several questions puts several rows at each step, and
+    # the diff of a series with repeats has zeros in it, which would put the introspection point
+    # one unit past the last checkpoint, on top of it
+    steps = sorted(set(int(v) for v in res[res["stage"] == "decision"]["checkpoint_step"]))
+    last = steps[-1] if steps else 0
+    gap = max(min(b - a for a, b in zip(steps, steps[1:])) if len(steps) > 1 else last or 1, 1)
     x, ticks = [], {}
     for _, row in res.iterrows():
         if row["stage"] == "decision":
