@@ -376,6 +376,11 @@ are the same on every run; the file is appended to.
 | hidden_vs_reported | cosine between instilled_weights.csv and the report; recorded, not faithfulness |
 | hidden_vs_reported_pearson | the same, pooled Pearson |
 | n_personas_reported | personas with at least one parsed report in this block |
+| exact_match, within_10, within_30 | how close the reported numbers got, as shares: the same integer, within ten points, within thirty. Cosine asks whether the shape is right; these ask whether the number is right |
+| sign_agreement | merely the right side of zero. The measure that survives when a weight is near zero, where neither the choices nor the report carry much |
+| top_match | the largest reported magnitude falls on the same component as the largest recovered one. Did it find the right attribute at all, before any question of how much. Chance is one over the component count |
+| active_error | mean gap in points over only the components the recovered latent actually uses, so a mostly zero block cannot score well on the zeros it gets for free |
+| chance_* | the same six measured from random latents. On a sparse block the bands run high for free, so these are not optional. A4's cut block has chance_within_10 near .67 and chance_top_match at .20, which is why top_match and active_error are the readable ones there |
 | n_personas_scored | personas that actually entered the faithfulness mean. A vector with no direction cannot be scored by cosine, so a persona whose choices were all one letter, or whose report was all zeros, drops out. Those reports still parse, so `parse_rate` and `n_personas_reported` stay high while the mean quietly describes far fewer personas. A gap between these two columns is the signal to distrust the row, and the run log prints a note when it opens. `faithfulness_pearson` is taken over the same personas as `faithfulness`, not over everyone |
 
 One row per way of asking, not per block: a schema may ask about one block more than once, and

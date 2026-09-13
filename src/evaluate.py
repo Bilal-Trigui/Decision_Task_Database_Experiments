@@ -29,6 +29,7 @@ import torch
 
 from src import data as D
 from src.chance import chance_level
+from src.estimators.base import AGREEMENT_COLUMNS, agreement
 from src.config import hyperparameter_columns
 from src.estimators.base import Estimator, pooled_pearson
 from src.train import end_token_id
@@ -56,7 +57,7 @@ METRIC_COLUMNS = [
     "hidden_vs_reported_pearson",
     "n_personas_reported",
     "n_personas_scored",
-]
+] + list(AGREEMENT_COLUMNS) + [f"chance_{c}" for c in AGREEMENT_COLUMNS]
 
 
 def results_columns(cfg):
@@ -385,13 +386,16 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
                 row["faithfulness"], kept = _scored(estimator, block, pairs)
                 row["faithfulness_pearson"] = pooled_pearson(kept)
                 row["n_personas_scored"] = len(kept)
+                # how close, not just how well shaped, over the same personas the mean covers
+                row.update(agreement(kept, absolute=estimator.block_is_absolute(block)))
             if rec and block in rule_slices:
                 if block not in chance_by_block:
                     chance_by_block[block] = chance_level(
                         rule, block, rec, n, me["chance_draws"], cfg["model_hyperparameters"]["seed"],
                         estimator=estimator,
                     )
-                row["chance"], row["chance_pearson"] = chance_by_block[block]
+                row["chance"], row["chance_pearson"], chance_bands = chance_by_block[block]
+                row.update({f"chance_{k}": v for k, v in chance_bands.items()})
             if rep and hid:
                 pairs = [(hid[k], rep[k]) for k in rep if k in hid]
                 row["hidden_vs_reported"], kept = _scored(estimator, block, pairs)

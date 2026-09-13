@@ -139,6 +139,9 @@ class TradeoffEstimator(Estimator):
         coef, best = self._fit_at(xa, xb, y, cuts, sample_weight)
         return np.concatenate([rescale_to_100(coef[:n]), cuts])
 
+    def block_is_absolute(self, block):
+        return block == "cut"
+
     def block_distance_name(self, block):
         return "scaled_error" if block == "cut" else "cosine"
 

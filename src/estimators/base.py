@@ -72,6 +72,15 @@ class Estimator:
         y = np.array([1 if c == "A" else 0 for c in choices])
         return rescale_to_100(fit_logistic(X, y, sample_weight=sample_weight))
 
+    def block_is_absolute(self, block):
+        """True when a block holds levels rather than a direction, so its scale is part of the object.
+
+        A weight vector is a direction: doubling it means the same preference, so it is normalised
+        before the agreement bands are measured. A4's cut points are levels: doubling them means a
+        different screen, so they are compared as they stand.
+        """
+        return False
+
     def block_distance_name(self, block):
         """What `block_distance` measures for this block, recorded in every results row.
 
@@ -98,6 +107,68 @@ class Estimator:
         if na == 0 or nb == 0 or a.shape != b.shape:
             return float("nan")
         return float(np.dot(a, b) / (na * nb))
+
+
+TOLERANCES = (10, 30)
+AGREEMENT_COLUMNS = ("exact_match", "within_10", "within_30", "sign_agreement", "top_match", "active_error")
+
+
+def _blank():
+    return {c: float("nan") for c in AGREEMENT_COLUMNS}
+
+
+def agreement(pairs, absolute=False):
+    """Six ways of asking how close a report got, where cosine only asks whether the shape is right.
+
+    Each answers a different question, and on a sparse block they can disagree sharply:
+
+      exact_match     the same integer after rescaling
+      within_10       within ten points on the -100 to 100 scale, a twentieth of the range
+      within_30       within thirty, about a sixth of the range
+      sign_agreement  merely the right side of zero, the measure that survives when a value is
+                      near zero and neither the choices nor the report carry much about it
+      top_match       the largest magnitude falls on the same component: did it find the right
+                      attribute at all, before any question of how much
+      active_error    mean gap in points over only the components the recovered latent actually
+                      uses, so a mostly zero block cannot score well on zeros it got for free
+
+    Whether to rescale first depends on what the block holds, and getting it wrong destroys the
+    measurement either way. A weight vector is a direction, its scale is not part of the object,
+    and reports come off the model at a median peak of 87 against a recovered vector always
+    peaked at exactly 100, so without Plunkett's rescaling the bands would count that gap as
+    disagreement. A cut point is an absolute level, and rescaling a sparse cut vector maps every
+    single-screen report onto the same normalised vector, so a cut reported at 30 and one at 60
+    would both score a perfect match. Pass `absolute` for those blocks; the estimator says which
+    they are.
+
+    Read each against its chance column. On a sparse block a wide band is high for free.
+    """
+    if not pairs:
+        return _blank()
+    norm = (lambda v: np.asarray(v, float).ravel()) if absolute else (lambda v: rescale_to_100(np.asarray(v, float).ravel()))
+    rows = [(norm(x), norm(y)) for x, y in pairs]
+    rows = [(x, y) for x, y in rows if x.shape == y.shape and x.size]
+    if not rows:
+        return _blank()
+    a = np.concatenate([x for x, _ in rows])
+    b = np.concatenate([y for _, y in rows])
+    keep = ~(np.isnan(a) | np.isnan(b))
+    a, b = a[keep], b[keep]
+    if not a.size:
+        return _blank()
+    gap = np.abs(a - b)
+    out = {"exact_match": float(np.mean(gap < 0.5)),
+           "sign_agreement": float(np.mean(np.sign(a) == np.sign(b)))}
+    for t in TOLERANCES:
+        out[f"within_{t}"] = float(np.mean(gap <= t))
+    # did the report put its biggest number where the recovered latent puts its biggest number
+    tops = [int(np.any(x) and np.argmax(np.abs(x)) == np.argmax(np.abs(y))) for x, y in rows if np.any(y)]
+    out["top_match"] = float(np.mean(tops)) if tops else float("nan")
+    # and how far off is it where the latent is actually doing something
+    live = [np.abs(x - y)[np.asarray(y) != 0] for x, y in rows]
+    live = np.concatenate([v for v in live if v.size]) if any(v.size for v in live) else np.array([])
+    out["active_error"] = float(np.mean(live)) if live.size else float("nan")
+    return out
 
 
 def pooled_pearson(pairs):
