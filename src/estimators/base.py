@@ -72,6 +72,15 @@ class Estimator:
         y = np.array([1 if c == "A" else 0 for c in choices])
         return rescale_to_100(fit_logistic(X, y, sample_weight=sample_weight))
 
+    def block_distance_name(self, block):
+        """What `block_distance` measures for this block, recorded in every results row.
+
+        Rows carrying different measures land in one `faithfulness` column, so without this the
+        column cannot be read or averaged safely: cosine on most blocks, a scaled error on A4's
+        cut points, an identification score on A3's pair question.
+        """
+        return "cosine"
+
     def block_distance(self, block, recovered, other):
         """Distance for one named block, so an estimator whose blocks are not all directions can say so.
 

@@ -80,10 +80,12 @@ class TradeoffEstimator(Estimator):
         """The main-effect half of the design matrix, Plunkett's normalized differences.
 
         The screen column depends on the cut vector being tested, so the full design matrix is
-        assembled inside `fit`. This method exists so the estimator still answers the base
-        class's question about its linear features.
+        assembled inside `fit`. This returns the half that does not, and it returns the same thing
+        every other estimator's `features` returns, a difference between the two options, so a
+        caller reaching it through the base class gets a design matrix rather than one option's
+        levels wearing the shape of one.
         """
-        return (A - mins) / (maxs - mins)
+        return (A - mins) / (maxs - mins) - (B - mins) / (maxs - mins)
 
     def _design(self, xa, xb, cuts):
         """Main-effect differences with the screen difference appended as the last column."""
@@ -136,6 +138,9 @@ class TradeoffEstimator(Estimator):
                 break
         coef, best = self._fit_at(xa, xb, y, cuts, sample_weight)
         return np.concatenate([rescale_to_100(coef[:n]), cuts])
+
+    def block_distance_name(self, block):
+        return "scaled_error" if block == "cut" else "cosine"
 
     def block_distance(self, block, a, b):
         """Cosine on the weights, a scaled error on the cut points. See the module docstring."""

@@ -26,6 +26,9 @@ class InteractionEstimator(Estimator):
     def block_aliases(self):
         return {"pair_id": "interaction"}
 
+    def block_distance_name(self, block):
+        return "identification" if block == "pair_id" else "cosine"
+
     def block_distance(self, block, recovered, other):
         """'pair_id' is scored as identification: did the report name the pair that actually carries the weight.
 

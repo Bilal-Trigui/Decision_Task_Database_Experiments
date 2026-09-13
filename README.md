@@ -361,6 +361,7 @@ are the same on every run; the file is appended to.
 | introspection_fold | 0 for stage one; 1, 2, or `both` (the two held-out halves pooled) |
 | checkpoint_step | training step of the checkpoint evaluated |
 | block | which part of the latent the row scores: `main` for the attribute weights, `interaction` for the pair weights |
+| distance | what this row measured with. Cosine on most blocks, a scaled error on A4 cut points, an identification score on A3 pair_id. Rows carrying different measures share one faithfulness column, so never average that column across rules without checking this one |
 | n_personas | personas evaluated |
 | decision_accuracy | share of verification trials where the model's choice matched the hidden latent's label |
 | decision_gate | whether decision_accuracy cleared gates.min_decision_accuracy; the log names the gate that fired |

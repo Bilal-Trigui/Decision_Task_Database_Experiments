@@ -1,7 +1,7 @@
 """Base class for report schemas: the exact format and wording a report is collected under.
 
 A schema splits its slots into one or more batches, each collected in its own
-prompt (Plunkett's five-slot report is one batch; A3 uses two). A batch names
+prompt (Plunkett's five-slot report is one batch; A3 uses four). A batch names
 the block of the latent it reports on, the JSON keys in order, and the prompt
 text placed before the trial. `parse` applies Plunkett's acceptance rule and
 returns the values in key order or None.
