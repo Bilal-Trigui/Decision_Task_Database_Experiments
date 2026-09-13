@@ -18,6 +18,11 @@
     "estimation_trials_per_persona": 200
   },
   "model_hyperparameters": {
-    "introspection_steps": 300
+    "introspection_steps": 300,
+    "training_steps": 3000,
+    "checkpoint_every": 500
+  },
+  "report_schema": {
+    "max_new_tokens": 200
   }
 }

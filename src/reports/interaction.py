@@ -68,16 +68,22 @@ def _word(n):
     return _NUMBER_WORDS.get(n, str(n))
 
 
-def pair_prompt_base(n, keys):
-    listed = (" The pairs are: " + ", ".join(keys) + ".") if LIST_PAIR_KEYS else ""
+def pair_prompt_base(n, keys, list_keys=None):
+    listed = (" The pairs are: " + ", ".join(keys) + ".") if (LIST_PAIR_KEYS if list_keys is None else list_keys) else ""
     return PAIR_PROMPT_BASE.format(word=_word(n), count=len(keys), keys=listed)
 
 
 class InteractionSchema(Schema):
     name = "interaction"
 
-    def __init__(self, attribute_count, batches=None):
+    def __init__(self, attribute_count, batches=None, list_pair_keys=None):
         super().__init__(attribute_count)
+        # Whether the pair prompt spells its ten keys out. Left off, a model asked for "the
+        # dimension pairs" has to invent the key format, and the one run we have shows it does
+        # not: it answers the five-slot weight question instead, and every reply is rejected for
+        # having five keys where ten were asked for. This is the report schema's scaffolding
+        # dial, so it belongs in the settings file rather than in a constant here.
+        self.list_pair_keys = list_pair_keys
         chosen = list(batches) if batches else list(ALL_BATCHES)
         unknown = [b for b in chosen if b not in ALL_BATCHES]
         if unknown:
@@ -91,7 +97,7 @@ class InteractionSchema(Schema):
             "main": Batch(name="main", block="main", keys=names,
                           prompt_base=introspection_prompt_base(self.n), names=names),
             "interaction": Batch(name="interaction", block="interaction", keys=keys,
-                                 prompt_base=pair_prompt_base(self.n, keys), names=names),
+                                 prompt_base=pair_prompt_base(self.n, keys, self.list_pair_keys), names=names),
             "pair_id": Batch(name="pair_id", block="pair_id", keys=ID_KEYS,
                              prompt_base=PAIR_ID_PROMPT_BASE.format(word=_word(self.n)), names=names),
             "pair_value": Batch(name="pair_value", block="interaction", keys=VALUE_KEYS,
@@ -149,4 +155,5 @@ class InteractionSchema(Schema):
 
 
 def build(params):
-    return InteractionSchema(params["attribute_count"], batches=params.get("batches"))
+    return InteractionSchema(params["attribute_count"], batches=params.get("batches"),
+                             list_pair_keys=params.get("list_pair_keys"))
