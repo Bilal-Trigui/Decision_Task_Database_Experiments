@@ -1,4 +1,4 @@
-"""A3 estimator: logistic regression on attribute differences plus centred product differences.
+"""Interaction estimator: logistic regression on attribute differences plus centred product differences.
 
 The design matrix has n main-effect features, Plunkett's d_i, and n(n-1)/2
 interaction features, z_ij(A) - z_ij(B) with z_ij = 4 (xhat_i - 0.5)(xhat_j - 0.5),

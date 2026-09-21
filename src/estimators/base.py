@@ -86,7 +86,7 @@ class Estimator:
 
         Rows carrying different measures land in one `faithfulness` column, so without this the
         column cannot be read or averaged safely: cosine on most blocks, a scaled error on A4's
-        cut points, an identification score on A3's pair question.
+        cut points, an identification score on the interaction schema's pair question.
         """
         return "cosine"
 

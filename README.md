@@ -85,14 +85,12 @@ checks, and `compute` says where training runs. The table below lists every fiel
 `introspection_training` false: the Atkinson et al. variant, high steps and no
 report training. The two baseline papers are two settings files for one pipeline.
 
-**`configs/h100_*.json`** are the same experiments sized for an 80 GB Hopper card:
-bf16 instead of fp16, no quantization, and a wider evaluation batch. `h100_smoke`
-is Qwen3-0.6B for sixty steps with ten introspection steps per fold, so it proves
-the CUDA path through both stages, including the adapter snapshot and restore
-between folds, before a large model is loaded. `h100_plunkett_4b`,
-`h100_plunkett_8b` and `h100_plunkett_14b` are Plunkett's settings otherwise.
-There is no 32B file: its weights alone are past the disk budget a shared box
-allows.
+**`configs/linear-4b_20gb.json`** and **`configs/linear-8b_20gb.json`** are Plunkett's
+settings at Qwen3-4B and Qwen3-8B inside a 20 GB budget, which is what a MIG slice of a
+Hopper card gives: bf16 instead of fp16, gradient checkpointing, micro-batches of two and
+96-token reports, with the 4B file unquantized and the 8B file left at the default 4-bit.
+**`configs/a4_8b.json`** is the constrained tradeoff at Qwen3-8B for 3000 steps, and it is
+the one file that extends another experiment's settings rather than the default.
 
 **`src/configs/test.py`** holds the hardcoded `TEST` dict the smoke test uses: local
 CPU, Qwen3-0.6B unquantized, LoRA rank 4, ten steps with a checkpoint every five,
@@ -243,7 +241,7 @@ expected result, not a bug.
 **Atkinson's variant.** `configs/atkinson.json`: 3000 steps, no introspection
 training.
 
-**A4, constrained tradeoff.** `configs/a4.json`: `decision_rule.type` tradeoff with
+**A4, constrained tradeoff.** `configs/a4_8b.json`: `decision_rule.type` tradeoff with
 `active_cuts`, `cut_range` and `zero_cut_main_effects`, `model_estimating.type`
 tradeoff, `data_dir` `data/a4/`. The report is 2n slots in two batches, Plunkett's
 weight report and a cut-point report on the same percentage scale the rule uses. The

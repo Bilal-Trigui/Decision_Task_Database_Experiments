@@ -1,8 +1,8 @@
-"""A3 report: Plunkett's weight report plus three ways of asking about the interaction.
+"""Interaction report: Plunkett's weight report plus three ways of asking about the interaction.
 
 Four batches, each collected in its own conversation, each producing its own faithfulness number
 because each is a different way of asking. Which of them run is set in the settings file, under
-report_schema.batches, so the extra questions belong to the A3 experiment and nothing else.
+report_schema.batches, so the extra questions belong to this schema and nothing else.
 
   main         Plunkett's n-slot weight report, his introspection prompt verbatim. Block 'main'.
   interaction  the full n(n-1)/2-slot pair report, every pair given a value. Block 'interaction'.
@@ -13,7 +13,7 @@ report_schema.batches, so the extra questions belong to the A3 experiment and no
   pair_value   the same two names plus how strongly they acted together. Block 'interaction', so
                its cosine is directly comparable with the full pair report above it.
 
-The last two ask about one pair, which is the A3 draw with active_pairs at 1. Under a denser
+The last two ask about one pair, which is the draw with active_pairs at 1. Under a denser
 draw they still parse, and the training answer names the pair carrying the largest magnitude,
 but the question stops being well posed and the two batches should be switched off.
 

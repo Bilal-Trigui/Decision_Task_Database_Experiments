@@ -1,4 +1,4 @@
-"""A3: Plunkett's weighted sum plus pairwise interaction terms over attribute pairs (strict upper triangle).
+"""Plunkett's weighted sum plus pairwise interaction terms over attribute pairs (strict upper triangle).
 
     U(x) = sum_k w_k * xhat_k  +  sum_{i<j} v_ij * z_ij,    z_ij = 4 * (xhat_i - 0.5) * (xhat_j - 0.5)
 
@@ -215,4 +215,4 @@ def build(params):
 
 
 if __name__ == "__main__":
-    cli(build, "Build an A3 data folder: Plunkett's personas and trials, latents rerolled under the interaction rule.")
+    cli(build, "Build an interaction data folder: Plunkett's personas and trials, latents rerolled under the interaction rule.")

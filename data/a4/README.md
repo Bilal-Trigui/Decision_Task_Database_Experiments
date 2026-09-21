@@ -43,13 +43,13 @@ python data/a4/a4_weight_generator.py --seed 1     # draw a fresh hidden latent
 python data/a4/a4_dataset_constructor.py           # build the training files from it
 ```
 
-Then set `SETTINGS_FILE = "configs/a4.json"` in the notebook and run. The folder ships already
+Then set `SETTINGS_FILE = "configs/a4_8b.json"` in the notebook and run. The folder ships already
 built at seed 1. A reroll leaves the trial files describing the previous latent until
 the constructor runs again, and `--rebuild` chains the two.
 
 ## The draw
 
-Set in `configs/a4.json` under `decision_rule`.
+Set in `configs/a4_8b.json` under `decision_rule`.
 
 | field | default | what it does |
 |---|---|---|
