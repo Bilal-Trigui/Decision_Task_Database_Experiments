@@ -5,9 +5,9 @@ say what the choices are and what hidden latent drives them, and the generated f
 the pipeline actually trains on. This document says what each file is, what writes
 it, how the three module kinds bind together, and the ways a folder fails quietly.
 
-`data/plunkett/` is the reference folder. `data/a3/` is the interaction rule and
-`data/a4/` the constrained tradeoff rule, each built from Plunkett's scenarios with
-a different latent. This folder holds no data of its own.
+`data/plunkett/` is the reference folder. `data/a4/` is the constrained tradeoff
+rule, built from Plunkett's scenarios with a different latent. This folder holds no
+data of its own.
 
 ## The four authored files
 
@@ -90,9 +90,9 @@ Draw a fresh latent under a rule and build everything:
 
 ```
 python -m src.rules.linear      --source data/plunkett --out data/plunkett_regen
-python -m src.rules.interaction --source data/plunkett --out data/a3 --seed 1
+python -m src.rules.interaction --source data/plunkett --out data/interaction --seed 1
 python -m src.rules.tradeoff    --source data/plunkett --out data/a4 --seed 1
-python -m src.rules.interaction --source data/plunkett --out data/a3_dense \
+python -m src.rules.interaction --source data/plunkett --out data/interaction_dense \
     --param active_pairs=10 --param zero_pair_main_effects=false
 ```
 
@@ -101,17 +101,14 @@ Rebuild the training files from the weights already in a folder, never rerolling
 ```
 python data/plunkett/vector_dataset_constructor.py --data data/plunkett
 python data/plunkett/vector_dataset_constructor.py --data data/mine --rule linear
-python data/a3/a3_dataset_constructor.py
 python data/a4/a4_dataset_constructor.py
 ```
 
-The A3 and A4 constructors wrap the general one with their rule as the default and
-add a readable view of the extra block. A3 writes `interaction_matrix.csv`, an N by
-N block per persona with main effects on the diagonal and pair weights off it, plus
-`interaction_pairs.csv` for joining. A4 writes `constraint_table.csv`, one row per
+The A4 constructor wraps the general one with its rule as the default and adds a
+readable view of the extra block. A4 writes `constraint_table.csv`, one row per
 persona and attribute carrying the weight beside the cut point in both percent and
-the attribute's own units. Both audit the authored weights against the declared rule
-parameters and print warnings rather than failing, since a hand-designed latent may
+the attribute's own units. It audits the authored weights against the declared rule
+parameters and prints warnings rather than failing, since a hand-designed latent may
 depart from the draw deliberately.
 
 The loop for testing a latent you designed is: edit `instilled_weights.csv`, run the

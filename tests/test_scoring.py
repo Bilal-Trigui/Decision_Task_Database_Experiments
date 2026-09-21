@@ -76,60 +76,6 @@ def _row(rows):
     return rows[0]
 
 
-def test_one_row_per_way_of_asking():
-    """A3 asks about its interaction block three ways, and each asking gets its own row.
-
-    Before the report batch was carried through, two batches naming one block overwrote each
-    other in the reported dict and only the last survived, so a schema could collect a number
-    the results file then threw away.
-    """
-    cfg = copy.deepcopy(TEST)
-    cfg["model_training"].update({"data_dir": "data/a3/", "instances": 4})
-    cfg["decision_rule"] = {"type": "interaction", "active_pairs": 1, "zero_pair_main_effects": True,
-                            "main_scale": 0.5, "interaction_magnitude": [50, 100]}
-    cfg["model_estimating"].update({"type": "interaction", "chance_draws": 3})
-    cfg["report_schema"]["batches"] = ["main", "interaction", "pair_id", "pair_value"]
-    apply_defaults(cfg)
-    validate(cfg)
-    cfg["_source"] = "test"
-    comps = resolve(cfg)
-    data = D.load_data(cfg, comps.rule)
-    n = data.attribute_count
-    rule, est, schema = comps.rule, comps.estimator, comps.schemas[0]
-    personas = data.personas
-    trials = D.fresh_trials(personas, 40, cfg["model_training"]["seeds"]["verification"])
-    hidden, recovered, rows = {}, {}, []
-    for k in range(4):
-        for t in trials[k]:
-            t.label = rule.label(data.latents[k], t)
-        A = np.array([t.option_A.values for t in trials[k]])
-        B = np.array([t.option_B.values for t in trials[k]])
-        recovered[k] = est.fit(A, B, [t.label for t in trials[k]], personas[k].mins, personas[k].maxs)
-        hidden[k] = data.latents[k]
-        rows += [{"persona": k, "selection": t.label, "label": t.label} for t in trials[k]]
-    slices = est.block_slices()
-    reported, parse = {}, {}
-    for batch in schema.batches(personas[0].names):
-        per = {k: recovered[k][slices[batch.block]].copy() for k in recovered}
-        reported[batch.name] = (batch.block, per)
-        parse[batch.name] = (len(per), len(per), batch.block)
-    detail = {
-        "hidden": hidden, "recovered": recovered,
-        "reported": {schema.name: reported}, "parse": {schema.name: parse},
-        "decisions": pd.DataFrame(rows),
-        "rule_slices": rule.block_slices(n), "est_slices": slices,
-    }
-    out = summarize([detail], cfg, comps, data, "t", "decision", 0, 1)
-    by_batch = {r["report_batch"]: r for r in out}
-    assert set(by_batch) == {"main", "interaction", "pair_id", "pair_value"}, sorted(by_batch)
-    assert by_batch["pair_value"]["block"] == "interaction"
-    assert by_batch["pair_id"]["block"] == "pair_id"
-    for name in ("main", "interaction", "pair_value"):
-        assert abs(by_batch[name]["faithfulness"] - 1.0) < 1e-9, (name, by_batch[name]["faithfulness"])
-    assert abs(by_batch["pair_id"]["faithfulness"] - 1.0) < 1e-9, by_batch["pair_id"]["faithfulness"]
-    print(f"four ways of asking gave four rows: {sorted(by_batch)}")
-
-
 def test_perfect_reporter_scores_one():
     cfg, comps, data, hidden, recovered, decisions = _setup()
     reports = {k: v.copy() for k, v in recovered.items()}
@@ -182,7 +128,7 @@ def test_a_persona_that_cannot_be_scored_is_counted_not_hidden():
 def test_an_all_zero_report_does_not_flatter_the_mean():
     """A model answering all zeros parses cleanly, so only the scored count reveals it.
 
-    This is the shape an undertrained model collapses to on A3's pair report, whose target is
+    This is the shape an undertrained model collapses to on a sparse report whose target is
     mostly zeros. Without the count, two personas answering well among twenty looks the same as
     twenty answering well.
     """

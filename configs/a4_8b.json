@@ -1,6 +1,6 @@
 {
-  "_comment": "A4 at Qwen3-8B, 3000 steps. The constrained tradeoff over data/a4/, 200 estimation trials because the cut search needs them, and the same report budget as A3.",
-  "extends": "h100_plunkett_8b_20gb.json",
+  "_comment": "A4 at Qwen3-8B, 3000 steps. The constrained tradeoff over data/a4/, 200 estimation trials because the cut search needs them, and a 400 token report budget.",
+  "extends": "linear-4b_8b_20gb.json",
   "decision_rule": {
     "type": "tradeoff",
     "active_cuts": 1,

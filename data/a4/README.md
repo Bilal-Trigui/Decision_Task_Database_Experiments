@@ -44,7 +44,7 @@ python data/a4/a4_dataset_constructor.py           # build the training files fr
 ```
 
 Then set `SETTINGS_FILE = "configs/a4.json"` in the notebook and run. The folder ships already
-built at seed 1. As with A3, a reroll leaves the trial files describing the previous latent until
+built at seed 1. A reroll leaves the trial files describing the previous latent until
 the constructor runs again, and `--rebuild` chains the two.
 
 ## The draw

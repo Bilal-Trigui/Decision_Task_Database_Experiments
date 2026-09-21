@@ -2,7 +2,7 @@
 """Build the training files from a data folder's four inputs, using its weights as given.
 
     python data/plunkett/vector_dataset_constructor.py --data data/plunkett                 # Plunkett's files, byte for byte
-    python data/plunkett/vector_dataset_constructor.py --data data/a3 --rule interaction    # a non-linear rule
+    python data/plunkett/vector_dataset_constructor.py --data data/a4 --rule tradeoff       # a non-linear rule
     python data/plunkett/vector_dataset_constructor.py --data data/mine --rule linear       # your own weights
 
 Run from the repo root. --data also accepts a bare folder name inside data/.
@@ -122,7 +122,7 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
 
 
 def resolve_data_dir(data_dir):
-    """`--data a3` means data/a3, so a folder can be named without its path."""
+    """`--data a4` means data/a4, so a folder can be named without its path."""
     data_dir = Path(data_dir)
     if not data_dir.exists() and (REPO / "data" / data_dir).exists():
         return REPO / "data" / data_dir

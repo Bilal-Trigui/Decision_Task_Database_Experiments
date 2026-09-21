@@ -98,27 +98,10 @@ def test_a_field_no_block_has_is_refused():
     print("  four misspelled fields each refused by name")
 
 
-def test_component_blocks_still_take_their_own_parameters():
-    """decision_rule, model_estimating and report_schema carry component parameters, so they are
-    not field-checked here; the component validates them when it is built."""
-    cfg = load("configs/a3.json")
-    assert cfg["decision_rule"]["active_pairs"] == 1
-    assert cfg["report_schema"]["batches"] == ["main", "interaction", "pair_id", "pair_value"]
-    resolve(cfg)
-    cfg["decision_rule"]["not_a_rule_parameter"] = 1
-    try:
-        resolve(cfg)
-    except ValueError as err:
-        assert "not_a_rule_parameter" in str(err), err
-        print(f"  a bad rule parameter is refused by the rule: {str(err)[:70]}")
-        return
-    raise AssertionError("an unknown decision_rule parameter was accepted")
-
-
 if __name__ == "__main__":
     for test in (test_every_config_loads_and_resolves, test_merge_is_per_field,
                  test_a_list_replaces_whole, test_extends_chain_and_source, test_a_cycle_is_refused,
-                 test_a_field_no_block_has_is_refused, test_component_blocks_still_take_their_own_parameters):
+                 test_a_field_no_block_has_is_refused):
         test()
         print(f"ok  {test.__name__}")
     print("all settings checks passed")

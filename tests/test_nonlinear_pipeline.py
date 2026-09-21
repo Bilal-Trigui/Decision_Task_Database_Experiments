@@ -1,4 +1,4 @@
-"""A3 and A4 through the full collection and scoring path, with a scripted model in place of a real one.
+"""A4 through the full collection and scoring path, with a scripted model in place of a real one.
 
 `collect` is the function every result passes through and the one hardest to test, because it
 normally needs a loaded model. Here the two places it touches the model, the choice logits and the
@@ -15,7 +15,7 @@ Everything between those stubs is the real pipeline: the verification trials, th
 the estimator, the schema's parse, the per-persona averaging, the block slicing and the distances.
 A persona or attribute misalignment anywhere in that chain breaks case 2.
 
-Run with `python -m tests.test_nonlinear_pipeline`. Needs data/a3 and data/a4 built.
+Run with `python -m tests.test_nonlinear_pipeline`. Needs data/a4 built.
 """
 import copy
 import tempfile
@@ -121,19 +121,6 @@ def _check(name, cfg, expect_batches):
     return by_batch
 
 
-def test_a3_every_question_scores_and_agrees():
-    cfg = _settings("data/a3/", {"type": "interaction", "active_pairs": 1, "zero_pair_main_effects": True,
-                                 "main_scale": 0.5, "interaction_magnitude": [50, 100]}, "interaction",
-                    batches=["main", "interaction", "pair_id", "pair_value"])
-    by_batch = _check("A3", cfg, ["main", "interaction", "pair_id", "pair_value"])
-    assert by_batch["pair_value"]["block"] == "interaction"
-    assert by_batch["pair_id"]["block"] == "pair_id"
-    # naming the pair is scored as identification, so a perfect reporter is exactly 1.0
-    assert abs(by_batch["pair_id"]["faithfulness"] - 1.0) < 1e-9, by_batch["pair_id"]["faithfulness"]
-    # and its chance is the one-in-ten of picking a pair at random, not a cosine near zero
-    assert 0.0 <= by_batch["pair_id"]["chance"] <= 0.4, by_batch["pair_id"]["chance"]
-
-
 def test_a4_both_blocks_score():
     cfg = _settings("data/a4/", {"type": "tradeoff", "active_cuts": 1, "cut_range": [30, 70],
                                  "zero_cut_main_effects": True}, "tradeoff")
@@ -144,23 +131,8 @@ def test_a4_both_blocks_score():
     assert by_batch["cut"]["chance"] > 0.3, by_batch["cut"]["chance"]
 
 
-def test_a3_batch_selection_is_honoured():
-    """Narrowing report_schema.batches drops those questions and leaves the rest untouched."""
-    cfg = _settings("data/a3/", {"type": "interaction", "active_pairs": 1, "zero_pair_main_effects": True,
-                                 "main_scale": 0.5, "interaction_magnitude": [50, 100]}, "interaction",
-                    batches=["main", "pair_value"])
-    comps, rows = _run(cfg)
-    asked = {r["report_batch"] for r in rows if r["report_batch"]}
-    assert asked == {"main", "pair_value"}, sorted(asked)
-    # the interaction block still gets a row, carrying recovery with no report against it
-    blocks = {r["block"] for r in rows}
-    assert "interaction" in blocks, sorted(blocks)
-    print(f"  A3 narrowed  asked {sorted(asked)}, blocks present {sorted(blocks)}")
-
-
 if __name__ == "__main__":
-    for test in (test_a3_every_question_scores_and_agrees, test_a4_both_blocks_score,
-                 test_a3_batch_selection_is_honoured):
+    for test in (test_a4_both_blocks_score,):
         test()
         print(f"ok  {test.__name__}")
     print("all non-linear pipeline checks passed")

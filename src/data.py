@@ -160,7 +160,7 @@ def check_attribute_count(data_dir, attribute_count):
             raise DataFormatError(
                 f"model_training.data_dir '{data_dir}' lacks {name}; a data folder must hold Plunkett's four files "
                 f"({SCENARIO_DEFINITIONS}, scenarios.csv, roles.csv, instilled_weights.csv). Build one with a rule "
-                "module, for example `python -m src.rules.interaction --source data/plunkett --out data/a3`."
+                "module, for example `python -m src.rules.interaction --source data/plunkett --out data/interaction`."
             )
     for name in ("scenarios.csv", "instilled_weights.csv"):
         width = attribute_width(data_dir / name)

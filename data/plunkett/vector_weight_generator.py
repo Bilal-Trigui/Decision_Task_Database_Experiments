@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Reroll a data folder's instilled_weights.csv under its rule, and nothing else.
 
-    python data/plunkett/vector_weight_generator.py --data a3 --seed 7
-    python data/a3/a3_weight_generator.py --seed 7              # the same, defaulting to that folder
+    python data/plunkett/vector_weight_generator.py --data a4 --seed 7
+    python data/a4/a4_weight_generator.py --seed 7              # the same, defaulting to that folder
     python data/a4/a4_weight_generator.py --seed 7 --rebuild    # reroll, then rebuild the dataset
 
 This writes one file. The constructor turns the latent it writes into the training files, and the
