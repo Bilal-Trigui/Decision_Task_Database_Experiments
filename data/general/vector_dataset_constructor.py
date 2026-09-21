@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build the training files from a data folder's four inputs, using its weights as given.
 
-    python data/plunkett/vector_dataset_constructor.py --data data/plunkett                 # Plunkett's files, byte for byte
-    python data/plunkett/vector_dataset_constructor.py --data data/a4 --rule tradeoff       # a non-linear rule
-    python data/plunkett/vector_dataset_constructor.py --data data/mine --rule linear       # your own weights
+    python data/general/vector_dataset_constructor.py --data data/plunkett                 # Plunkett's files, byte for byte
+    python data/general/vector_dataset_constructor.py --data data/a4 --rule tradeoff       # a non-linear rule
+    python data/general/vector_dataset_constructor.py --data data/mine --rule linear       # your own weights
 
 Run from the repo root. --data also accepts a bare folder name inside data/.
 
@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO))   # this file lives in data/plunkett/; src/ is two levels up
+sys.path.insert(0, str(REPO))   # this file lives in data/general/; src/ is two levels up
 
 import pandas as pd  # noqa: E402
 

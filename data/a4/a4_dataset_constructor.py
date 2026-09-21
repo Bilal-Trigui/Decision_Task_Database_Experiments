@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the A4 training files from this folder's four inputs. See data/a4/README.md.
 
-This folder's entry point. The work happens in data/plunkett/vector_dataset_constructor.py, which is shared by every
+This folder's entry point. The work happens in data/general/vector_dataset_constructor.py, which is shared by every
 experiment; the tradeoff rule supplies whatever is specific to this one. Run it with no arguments.
 
     python data/a4/a4_dataset_constructor.py
@@ -12,7 +12,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
-sys.path.insert(0, str(HERE.parent / "plunkett"))       # the shared tool lives there
+sys.path.insert(0, str(HERE.parent / "general"))        # the shared tool lives there
 
 from vector_dataset_constructor import main  # noqa: E402
 

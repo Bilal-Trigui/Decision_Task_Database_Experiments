@@ -7,7 +7,8 @@ it, how the three module kinds bind together, and the ways a folder fails quietl
 
 `data/plunkett/` is the reference folder. `data/a4/` is the constrained tradeoff
 rule, built from Plunkett's scenarios with a different latent. This folder holds no
-data of its own.
+data of its own: it carries this document and the two tools every experiment builds
+with, `vector_dataset_constructor.py` and `vector_weight_generator.py`.
 
 ## The four authored files
 
@@ -92,16 +93,27 @@ Draw a fresh latent under a rule and build everything:
 python -m src.rules.linear      --source data/plunkett --out data/plunkett_regen
 python -m src.rules.interaction --source data/plunkett --out data/interaction --seed 1
 python -m src.rules.tradeoff    --source data/plunkett --out data/a4 --seed 1
-python -m src.rules.interaction --source data/plunkett --out data/interaction_dense \
-    --param active_pairs=10 --param zero_pair_main_effects=false
+python -m src.rules.interaction --source data/plunkett --out data/interaction_dense --seed 1 \
+    --param active_pairs=10 --param main_scale=1.0 --param zero_pair_main_effects=false
 ```
+
+The output folder keeps `candidate_scenarios.json`, `roles.csv` and `scenarios.csv`
+(truncated when `--attribute-count` is smaller than the source), rerolls
+`instilled_weights.csv` under the rule with `--seed` (columns `attr1..attrN` first,
+then the rule's extra latent columns), regenerates Plunkett's trials with
+`--trials-seed` 2 and relabels them into `instill_<instances>_prefs.jsonl` and its
+`_val` file, and writes `manifest.json` with the seed, the rule parameters, file
+hashes and rule statistics. At load, the pipeline refuses a folder whose manifest was
+built with different rule parameters than the settings say.
 
 Rebuild the training files from the weights already in a folder, never rerolling:
 
 ```
-python data/plunkett/vector_dataset_constructor.py --data data/plunkett
-python data/plunkett/vector_dataset_constructor.py --data data/mine --rule linear
-python data/a4/a4_dataset_constructor.py
+python data/general/vector_dataset_constructor.py --data data/plunkett      # his three JSONLs, byte for byte
+python data/general/vector_dataset_constructor.py --data data/mine --rule linear
+python data/general/vector_dataset_constructor.py --data a4                 # a bare folder name works too
+python data/a4/a4_dataset_constructor.py                                    # the same, through the wrapper
+python data/a4/a4_weight_generator.py --seed 7 --rebuild                    # reroll A4 and rebuild in one step
 ```
 
 The A4 constructor wraps the general one with its rule as the default and adds a
@@ -110,6 +122,22 @@ persona and attribute carrying the weight beside the cut point in both percent a
 the attribute's own units. It audits the authored weights against the declared rule
 parameters and prints warnings rather than failing, since a hand-designed latent may
 depart from the draw deliberately.
+
+The two tools live in this folder and serve every experiment. The generator writes
+`instilled_weights.csv` and nothing else, the constructor turns that latent into every
+training file, and the two are deliberately separate so a hand-designed latent and a
+drawn one enter the same way. Each experiment folder carries a wrapper that points them
+at itself, so the familiar command still works with no arguments.
+
+Nothing in either tool knows which experiment it is running. A rule says what extra
+tables its latent deserves with `views`, what disagreement between an authored latent
+and its own parameters is worth warning about with `audit`, and what a draw produced
+with `summarise_draw`. All three default to nothing, so the weighted sum needs none of
+them, and a fourth rule gets a constructor and a generator without anyone writing either.
+
+A reroll leaves the trial files describing the previous latent, because labels are
+written into the JSONL when it is built and nothing re-reads the weights at training
+time. The generator says so and prints the command to run next.
 
 The loop for testing a latent you designed is: edit `instilled_weights.csv`, run the
 constructor, run the pipeline.
@@ -131,7 +159,7 @@ behave differently and that difference is the finding.
 |---|---|---|---|
 | linear | `main` | linear | 5, one batch |
 | interaction | `main`, `interaction` | interaction | 15, two batches |
-| tradeoff | `main`, `cut` | not built yet | 10, two batches |
+| tradeoff | `main`, `cut` | tradeoff | 10, two batches |
 
 Every vector rule calls its weight block `main`. A report schema splits its slots
 into batches, each collected in its own prompt, and a batch names the block it

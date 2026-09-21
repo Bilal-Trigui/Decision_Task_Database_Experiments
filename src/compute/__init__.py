@@ -1,1 +1,1 @@
-"""Compute backends: local, colab, azure, api. Selected by compute.backend."""
+"""Compute backends: local, colab, api. Selected by compute.backend."""

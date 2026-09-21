@@ -16,7 +16,7 @@ class ApiBackend(Backend):
         raise NotImplementedError(
             "compute.backend 'api' is where a hosted fine-tuning API (Plunkett's OpenAI "
             "path) would plug in: upload the JSONL built by src/data.py, create a job, poll "
-            "it, and query the resulting model. Not implemented; use local, colab or azure."
+            "it, and query the resulting model. Not implemented; use local or colab."
         )
 
 

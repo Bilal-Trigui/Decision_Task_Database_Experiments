@@ -36,7 +36,7 @@ DEFAULT_SEEDS = {
     "reports": 7,
 }
 
-BACKENDS = ("local", "colab", "azure", "api")
+BACKENDS = ("local", "colab", "api")
 DEVICES = ("cpu", "cuda")
 FINETUNE = ("lora", "full")
 QUANTIZATION = ("none", "4bit")

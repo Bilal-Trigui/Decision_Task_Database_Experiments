@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reroll a data folder's instilled_weights.csv under its rule, and nothing else.
 
-    python data/plunkett/vector_weight_generator.py --data a4 --seed 7
+    python data/general/vector_weight_generator.py --data a4 --seed 7
     python data/a4/a4_weight_generator.py --seed 7              # the same, defaulting to that folder
     python data/a4/a4_weight_generator.py --seed 7 --rebuild    # reroll, then rebuild the dataset
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "data" / "plunkett"))
+sys.path.insert(0, str(REPO / "data" / "general"))
 
 from src import data as D  # noqa: E402
 from src.config import load_component  # noqa: E402
@@ -57,7 +57,7 @@ def generate(data_dir, rule_name=None, out_dir=None, seed=1, params=None, rebuil
     else:
         print()
         print("the training files in this folder now describe the previous latent. rebuild them with:")
-        print(f"  python data/plunkett/vector_dataset_constructor.py --data {data_dir}")
+        print(f"  python data/general/vector_dataset_constructor.py --data {data_dir}")
     return latents
 
 
