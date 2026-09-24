@@ -501,11 +501,9 @@ files a researcher writes, the files that are generated from them, the two ways 
 build a folder, how the modules connect through block names, and the mistakes that
 allow a folder to run without error while producing meaningless results.
 
-**A new decision rule.** A new rule requires three files: `src/rules/<name>.py`,
-`src/estimators/<name>.py` and `src/reports/<name>.py`. A data folder is then built
-with the new rule module, and a settings file names the three components and the
-`data_dir`. No other file needs to change. `data/general/README.md` lists the
-methods each file must provide and two optional additions.
+**A new decision rule.** A new rule consists of three matching files, one each in
+`src/rules/`, `src/estimators/` and `src/reports/`, and no other file changes. The
+procedure is given in section 6 of `data/general/README.md`.
 
 **A new compute backend.** A new backend is one file in `src/compute/` that provides
 `build(cfg)`.
@@ -539,7 +537,4 @@ Three further points apply to the implementation.
    statement that the model never sees `instilled_weights.csv` therefore holds for
    stage one only, exactly as in Plunkett's study.
 
-`data/plunkett/` holds the inputs of Plunkett's experiment with his file names and
-columns unchanged. His recorded GPT-4o and GPT-4o-mini outputs are not included,
-because the pipeline never reads them and a replication is compared with his
-published figures. Those outputs remain in `plunkett-self-interpretability/data`.
+The reference inputs are described in `data/plunkett/README.md`.

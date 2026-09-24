@@ -28,8 +28,8 @@ files can be rebuilt from the authored files with:
 python data/general/vector_dataset_constructor.py --data data/plunkett
 ```
 
-The rebuilt files are identical, byte for byte, to Plunkett's.
-`tests/test_plunkett_fidelity.py` confirms this. The definition of every file, and the
+The rebuilt files are identical, byte for byte, to Plunkett's; section 12 of the top
+`README.md` explains how this is tested. The definition of every file, and the
 errors to avoid when editing them, are given in `data/general/README.md`.
 
 Plunkett's recorded GPT-4o and GPT-4o-mini outputs are not kept here. The pipeline

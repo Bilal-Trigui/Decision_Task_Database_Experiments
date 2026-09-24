@@ -205,7 +205,8 @@ screen at all. This loss of information is the reason the tradeoff estimator exi
 
 This section summarises the full report on run 20260913-193919 (Qwen3-8B, prepared on
 21 September 2026). The full report is `A4_full_report(1).docx`, kept in the project's
-`PDFs/` folder.
+`PDFs/` folder. This section is a fixed summary of that run. If the report is revised,
+the report takes precedence, and this section should be updated or removed.
 
 ### 8.1 Design of the run
 
