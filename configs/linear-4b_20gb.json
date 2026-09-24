@@ -1,5 +1,5 @@
 {
-  "_comment": "Plunkett on Qwen3-4B inside a 20GB budget: unquantized, gradient checkpointing, micro-batches of two, shorter reports.",
+  "_comment": "Plunkett's experiment on Qwen3-4B within 20 GB of GPU memory: no compression, gradient checkpointing, micro-batches of two, and shorter reports.",
   "extends": "default.json",
   "report_schema": {
     "max_new_tokens": 96

@@ -1,5 +1,5 @@
 {
-  "_comment": "Plunkett on Qwen3-8B inside a 20GB budget: 4-bit, gradient checkpointing, micro-batches of two, shorter reports.",
+  "_comment": "Plunkett's experiment on Qwen3-8B within 20 GB of GPU memory: 4-bit compression, gradient checkpointing, micro-batches of two, and shorter reports.",
   "extends": "default.json",
   "report_schema": {
     "max_new_tokens": 96
