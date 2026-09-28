@@ -33,6 +33,7 @@ from src.estimators.base import AGREEMENT_COLUMNS, agreement
 from src.config import hyperparameter_columns
 from src.estimators.base import Estimator, pooled_pearson
 from src.train import end_token_id
+from src.uncertainty import bootstrap_mean_distance, screen_correlation_row
 
 METRIC_COLUMNS = [
     "report_schema",
@@ -49,6 +50,8 @@ METRIC_COLUMNS = [
     "recovered_vs_hidden_pearson",
     "faithfulness",
     "faithfulness_pearson",
+    "faithfulness_ci_low",
+    "faithfulness_ci_high",
     "chance",
     "chance_pearson",
     "parse_rate",
@@ -224,6 +227,20 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir)
     pd.DataFrame(
         [{"scenario": personas[k].short_name, **{f"b_{c}": v for c, v in zip(estimator.latent_columns(), recovered[k])}} for k in persona_indices]
     ).to_csv(out_dir / f"recovered_{tag}.csv", index=False)
+    # 3b. A4 only: how tangled the screen column is with the attribute it screens on, per persona,
+    # at the hidden cuts (the task) and at the recovered cuts (what the fit worked on).
+    if hasattr(estimator, "_design") and "cut" in rule_slices:
+        corr_rows = []
+        for k in persona_indices:
+            rows = decisions[decisions["persona"] == k]
+            sc = personas[k]
+            A = rows[[f"A_attribute_{i+1}" for i in range(n)]].to_numpy(float)
+            B = rows[[f"B_attribute_{i+1}" for i in range(n)]].to_numpy(float)
+            for which, cuts in (("hidden", data.latents[k][rule_slices["cut"]]), ("recovered", recovered[k][est_slices["cut"]])):
+                if np.any(np.asarray(cuts) > 0):
+                    corr_rows.append({"scenario": sc.short_name, "cuts_from": which,
+                                      **screen_correlation_row(estimator, A, B, sc.mins, sc.maxs, cuts, persona=k)})
+        pd.DataFrame(corr_rows).to_csv(out_dir / f"design_correlation_{tag}.csv", index=False)
     print(f"  decisions: {len(decisions)} rows, accuracy {(decisions['selection'] == decisions['label']).mean():.3f}, {time.time() - t0:.0f}s")
 
     # 4. reports in fresh contexts, one freshly drawn option pair per sample
@@ -385,6 +402,10 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step):
                 pairs = [(rep[k], rec[k]) for k in rep if k in rec]
                 row["faithfulness"], kept = _scored(estimator, block, pairs)
                 row["faithfulness_pearson"] = pooled_pearson(kept)
+                # how sure we are of that mean, resampling the personas it was taken over
+                ci = bootstrap_mean_distance(estimator, block, kept, n_boot=me.get("bootstrap_draws", 2000),
+                                             seed=cfg["model_hyperparameters"]["seed"])
+                row["faithfulness_ci_low"], row["faithfulness_ci_high"] = ci["ci_low"], ci["ci_high"]
                 row["n_personas_scored"] = len(kept)
                 # how close, not just how well shaped, over the same personas the mean covers
                 row.update(agreement(kept, absolute=estimator.block_is_absolute(block)))
