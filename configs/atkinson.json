@@ -1,0 +1,8 @@
+{
+  "_comment": "The Atkinson et al. variant: 3000 training steps and no introspection training.",
+  "extends": "default.json",
+  "model_hyperparameters": {
+    "training_steps": 3000,
+    "introspection_training": false
+  }
+}

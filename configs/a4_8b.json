@@ -1,0 +1,28 @@
+{
+  "_comment": "A4 at Qwen3-8B, 3000 steps. The constrained tradeoff over data/a4/, 200 estimation trials because the cut search needs them, and a 400 token report budget.",
+  "extends": "linear-8b_20gb.json",
+  "decision_rule": {
+    "type": "tradeoff",
+    "active_cuts": 1,
+    "cut_range": [
+      30,
+      70
+    ],
+    "zero_cut_main_effects": true
+  },
+  "model_training": {
+    "data_dir": "data/a4/"
+  },
+  "model_estimating": {
+    "type": "tradeoff",
+    "estimation_trials_per_persona": 200
+  },
+  "model_hyperparameters": {
+    "introspection_steps": 300,
+    "training_steps": 3000,
+    "checkpoint_every": 500
+  },
+  "report_schema": {
+    "max_new_tokens": 400
+  }
+}
