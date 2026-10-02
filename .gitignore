@@ -1,6 +1,7 @@
 # training outputs
 checkpoints/
 results/
+results_rerun/
 hf_cache/
 
 # model weights of any kind
