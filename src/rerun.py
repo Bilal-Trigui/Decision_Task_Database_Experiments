@@ -9,7 +9,8 @@ whatever configs/ holds today, and it has to write somewhere the original run's 
 1. `load_run_settings` reads the settings.json a run wrote into its results folder (the merged
    settings, after "extends" and defaults) and puts it through the same checks `config.load`
    applies to a file in configs/, so a field today's code no longer accepts stops here rather
-   than midway through an 8B evaluation.
+   than midway through an 8B evaluation. A settings.json that only "extends" a config, written
+   to score the base model with no run behind it, is labelled by the files it extends.
 2. `settings_drift` lists every field where the saved settings differ from a settings file as it
    loads today, so a changed config is seen rather than silently rerun under.
 3. `fresh_results_dir` gives the rerun its own results folder. The new evaluation code adds
@@ -32,6 +33,7 @@ Reads all eight blocks through config.load, and model_training.instances for the
 """
 import argparse
 import json
+import os
 import random
 from pathlib import Path
 
@@ -45,16 +47,27 @@ STAGE_DIRS = {"decision": ("decision", 0), "introspection-fold1": ("introspectio
 
 
 def load_run_settings(run_dir):
-    """The settings a finished run was trained with, validated by today's code."""
+    """The settings a finished run was trained with, validated by today's code.
+
+    A settings.json the pipeline wrote carries the `_source` of the run that trained. One with
+    none was written by hand to score the base model alone, as the notebook's control does, so
+    its label names the files it extends instead. The label lands in every row's config_file.
+    """
     path = Path(run_dir) / "settings.json"
     if not path.exists():
         raise FileNotFoundError(
             f"no settings.json in {run_dir}; the pipeline writes one into results/<run_id>/ at the "
             "start of every run, so pull the run's results folder back first"
         )
-    original = json.loads(path.read_text()).get("_source", "unknown")
+    original = json.loads(path.read_text()).get("_source")
     cfg = load(str(path))
-    cfg["_source"] = f"{path} (trained from {original})"
+    if original:
+        cfg["_source"] = f"{path} (trained from {original})"
+    else:
+        # cfg["_source"] is this file first, then each file it extends, as paths taken through
+        # the run folder ("results/x/../../configs/..."); normpath folds them back to the repo's.
+        extended = [os.path.normpath(p) for p in cfg["_source"].split(" <- ")[1:]]
+        cfg["_source"] = f"{path} (base model, extends {' <- '.join(extended) or 'nothing'})"
     return cfg
 
 
