@@ -37,6 +37,11 @@ The smoke test loads Qwen3-0.6B in fp32 (about 2.5 GB) and takes two to three
 minutes on an Apple-silicon CPU. Run one at a time: two at once on an 8 GB machine
 swap and crawl.
 
+On Linux Mint or Ubuntu, where the system Python refuses `pip install`, replace the
+first two lines with `python3 run_me_mint.py && source .venv/bin/activate`. It builds
+`.venv/` with the torch build that fits the GPU (cu126 at most on pre-Volta cards
+such as a GTX 1080) and leaves `requirements.txt` unchanged.
+
 Real runs: open `run_experiment.ipynb` in Colab or on a rented GPU box, set
 `USE_TEST_CONFIG = False` and `SETTINGS_FILE` in the first cell, and run all
 cells. The setup cell clones this branch, runs `run_me.py`, and installs
