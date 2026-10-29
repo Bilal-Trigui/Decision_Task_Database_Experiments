@@ -62,9 +62,11 @@ def plot_training(train_log, run_id, out_dir):
     return path
 
 
-# the line each stage is drawn as, and its marker: the untrained model is a star at step 0
-SERIES = {"decision": "", "chance_level": " chance-level baseline"}
-MARKERS = {"": "o", " chance-level baseline": "*", " after introspection": "s"}
+# the line each stage is drawn as, and its marker: the base model, untrained, is a star at step 0
+SERIES = {"decision": "", "base_model": " base model (untrained)"}
+MARKERS = {"": "o", " base model (untrained)": "*", " after introspection": "s"}
+# the base model's rows were called chance_level before; results written then are read as base_model
+OLD_STAGE_NAMES = {"chance_level": "base_model"}
 
 
 def _checkpoint_x(res):
@@ -77,8 +79,7 @@ def _checkpoint_x(res):
 
     A row that names the decision step its introspection branched from (introspection_from_step)
     goes at that step instead, so a run with several introspection points draws an "after
-    introspection" curve alongside the decision curve. The chance-level baseline, the untrained
-    model, goes at step 0.
+    introspection" curve alongside the decision curve. The base model, untrained, goes at step 0.
     """
     # distinct steps only: a schema with several questions puts several rows at each step, and
     # the diff of a series with repeats has zeros in it, which would put the introspection point
@@ -91,7 +92,7 @@ def _checkpoint_x(res):
     for i, (_, row) in enumerate(res.iterrows()):
         if row["stage"] == "decision":
             x.append(row["checkpoint_step"])
-        elif row["stage"] == "chance_level":
+        elif row["stage"] == "base_model":
             x.append(0)
         elif origins is not None and pd.notna(origins.iloc[i]):
             x.append(int(origins.iloc[i]))
@@ -118,7 +119,7 @@ def plot_checkpoints(results, run_id, out_dir):
     res["report_batch"] = res["report_batch"].fillna("")
     # stage two is reported per fold and pooled over both; the pooled row is the result
     folds = res["introspection_fold"].astype(str)
-    res = res[res["stage"].isin(["decision", "chance_level"]) | (folds == "both")]
+    res = res[res["stage"].isin(["decision", "base_model"]) | (folds == "both")]
     if res.empty:
         return None
     res["_x"], ticks = _checkpoint_x(res)
@@ -172,14 +173,14 @@ def plot_estimation_trials(results, run_id, out_dir):
     """How many trials it takes to find the rule: recovery and faithfulness against the trial count.
 
     Drawn only for a run that swept estimation_trials_per_persona. One line per decision checkpoint
-    (and the chance-level baseline), on two rows of panels: cosine, and the centred cosine whose
+    (and the base model, untrained), on two rows of panels: cosine, and the centred cosine whose
     chance is near 0. Each panel is one block, or for faithfulness one question.
     """
     res = results[results["run_id"] == run_id].copy()
     if res.empty or "estimation_trials" not in res.columns:
         return None
     res["estimation_trials"] = pd.to_numeric(res["estimation_trials"], errors="coerce")
-    res = res[res["stage"].isin(["decision", "chance_level"]) & res["estimation_trials"].notna()]
+    res = res[res["stage"].isin(["decision", "base_model"]) & res["estimation_trials"].notna()]
     if res["estimation_trials"].nunique() < 2:
         return None
     for column in ("recovered_vs_hidden_centred", "faithfulness_centred"):
@@ -192,12 +193,12 @@ def plot_estimation_trials(results, run_id, out_dir):
         left, right = axes[row]
         for (block, stage, step), part in res.groupby(["block", "stage", "checkpoint_step"], sort=True):
             part = part.drop_duplicates("estimation_trials").sort_values("estimation_trials")
-            name = "untrained" if stage == "chance_level" else f"step {int(step)}"
+            name = "base model" if stage == "base_model" else f"step {int(step)}"
             left.plot(part["estimation_trials"], part[f"recovered_vs_hidden{suffix}"], marker="o", label=f"{block} {name}")
         asked = res[res["report_batch"] != ""]
         for (batch, stage, step), part in asked.groupby(["report_batch", "stage", "checkpoint_step"], sort=True):
             part = part.sort_values("estimation_trials")
-            name = "untrained" if stage == "chance_level" else f"step {int(step)}"
+            name = "base model" if stage == "base_model" else f"step {int(step)}"
             right.plot(part["estimation_trials"], part[f"faithfulness{suffix}"], marker="o", label=f"{batch} {name}")
         left.set(title=f"recovered vs hidden ({measure})", ylabel=measure, ylim=(-1.05, 1.05))
         right.set(title=f"faithfulness ({measure})", ylabel=measure, ylim=(-1.05, 1.05))
@@ -270,6 +271,7 @@ def make_plots(run_id, results_dir="results"):
         made.append(plot_training(pd.read_csv(log_path), run_id, out_dir))
     if res_path.exists():
         results = pd.read_csv(res_path)
+        results["stage"] = results["stage"].replace(OLD_STAGE_NAMES)
         made.append(plot_checkpoints(results, run_id, out_dir))
         made.append(plot_estimation_trials(results, run_id, out_dir))
     made += plot_scatter(results_dir / run_id, run_id, out_dir)

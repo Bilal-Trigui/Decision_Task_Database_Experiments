@@ -10,7 +10,7 @@ exactly as it would have without the branch.
   3. Undoing a branch is exact: training after it matches training that never branched.
   4. train_log.csv written by older code is migrated to the new column rather than misaligned.
   5. The plots place each branch at the step it came from, and still read older results.
-  6. The chance-level baseline: on by default, refused unless true or false, drawn at step 0.
+  6. The base model, untrained: on by default, refused unless true or false, drawn at step 0.
   7. Stage two never reads the first token: it is measured over every answer token.
 
 Run with `python -m tests.test_introspection_points`.
@@ -46,8 +46,14 @@ def test_the_setting():
     assert introspection_points(load("configs/atkinson.json")) == []
     assert introspection_points(load("configs/minimum_threshold_8b.json")) == [1500, 2500, 3000]
     assert introspection_points(_load_with(introspection_at_steps=[900, 300, 1500])) == [300, 900, 1500]
+    # a range: start, start + every, ..., and end always included
+    assert introspection_points(_load_with(introspection_at_steps={"start": 300, "end": 1500, "every": 600})) == [300, 900, 1500]
+    assert introspection_points(_load_with(introspection_at_steps={"start": 300, "end": 1400, "every": 600})) == [300, 900, 1400]
+    assert introspection_points(_load_with(introspection_at_steps={"start": 600, "end": 1500})) == [600, 1500]
     for bad, says in (([], "non-empty list"), ([0], "outside"), ([1501], "outside"), ([300, 300], "twice"),
-                      ([True], "non-empty list"), (300, "non-empty list"), ([300.0], "non-empty list")):
+                      ([True], "non-empty list"), (300, "non-empty list"), ([300.0], "non-empty list"),
+                      ({"start": 0, "end": 900}, "outside"), ({"start": 900, "end": 300}, "start <= end"),
+                      ({"start": 300, "end": 900, "every": 0}, "every at least 1"), ({"from": 300}, "as a range takes")):
         try:
             _load_with(introspection_at_steps=bad)
         except SettingsError as err:
@@ -60,7 +66,7 @@ def test_the_setting():
         assert "introspection_training is false" in str(err), str(err)
     else:
         raise AssertionError("introspection_at_steps was accepted with introspection_training off")
-    print("  null is the last step, lists are sorted, seven bad lists and a switched-off stage refused")
+    print("  null is the last step, lists are sorted, ranges expand, eleven bad values and a switched-off stage refused")
 
 
 def test_branch_names():
@@ -132,7 +138,7 @@ def test_an_old_train_log_is_migrated():
 
 
 def _results(with_origin=True):
-    rows = [{"stage": "chance_level", "introspection_fold": "0", "checkpoint_step": 0}]
+    rows = [{"stage": "base_model", "introspection_fold": "0", "checkpoint_step": 0}]
     for step in (1500, 2500, 3000):
         rows.append({"stage": "decision", "introspection_fold": "0", "checkpoint_step": step})
         rows.append({"stage": "introspection", "introspection_fold": "both", "checkpoint_step": 300,
@@ -169,7 +175,7 @@ def test_the_plots_place_each_branch():
     print("  each branch sits at its decision step, and results without the column still plot")
 
 
-def test_the_chance_level_baseline():
+def test_the_base_model():
     assert load("configs/default.json")["model_hyperparameters"]["baseline_before_training"] is True
     assert _load_with(baseline_before_training=False)["model_hyperparameters"]["baseline_before_training"] is False
     for bad in ("yes", 1, None):
@@ -179,8 +185,8 @@ def test_the_chance_level_baseline():
             assert "baseline_before_training" in str(err), str(err)
             continue
         raise AssertionError(f"baseline_before_training {bad!r} was accepted")
-    assert stage_label("chance_level") == "chance_level"
-    print("  on by default, off when set false, three bad values refused, tagged chance_level_step-0")
+    assert stage_label("base_model") == "base_model"
+    print("  on by default, off when set false, three bad values refused, tagged base_model_step-0")
 
 
 class _Echo(torch.nn.Module):
@@ -217,7 +223,7 @@ def test_stage_two_never_reads_the_first_token():
 if __name__ == "__main__":
     for test in (test_the_setting, test_branch_names, test_undoing_a_branch_is_exact,
                  test_an_old_train_log_is_migrated, test_the_plots_place_each_branch,
-                 test_the_chance_level_baseline, test_stage_two_never_reads_the_first_token):
+                 test_the_base_model, test_stage_two_never_reads_the_first_token):
         test()
         print(f"ok  {test.__name__}")
     print("all introspection point checks passed")

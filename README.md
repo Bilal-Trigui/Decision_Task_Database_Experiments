@@ -93,7 +93,8 @@ Hopper card gives: bf16 instead of fp16, gradient checkpointing, micro-batches o
 96-token reports, with the 4B file unquantized and the 8B file left at the default 4-bit.
 **`configs/minimum_threshold_8b.json`** is the minimum threshold rule at Qwen3-8B for 3000 steps, with three
 options (A, B, or C for neither). **`configs/paper_minimum_threshold_8b.json`** extends it with the paper's
-draw and four report questions. These two extend another experiment's settings rather than the default.
+draw and four report questions, and **`configs/paper_minimum_threshold_0.6b.json`** is that run at
+Qwen3-0.6B with only the model changed. These extend another experiment's settings rather than the default.
 
 **`src/configs/test.py`** holds the hardcoded `TEST` dict the smoke test uses: local
 CPU, Qwen3-0.6B unquantized, LoRA rank 4, ten steps with a checkpoint every five,
@@ -230,11 +231,11 @@ no Plunkett equivalent.
 | model_hyperparameters.introspection_training | true | Experiment 2 |
 | model_hyperparameters.introspection_steps | 150 | 3 epochs of 50 examples at batch 1 |
 | model_hyperparameters.introspection_batch_size | 1 | OpenAI's default for his introspection training |
-| model_hyperparameters.baseline_before_training | true | new; before any training, the untrained model is asked everything a checkpoint is asked, and scored the same way, as the `chance_level` rows at step 0. It is the base-model control: what the model answers having learned nothing. Its random state is put back afterwards, so training is unchanged |
+| model_hyperparameters.baseline_before_training | true | new; before any training, the untrained model is asked everything a checkpoint is asked, and scored the same way, as the `base_model` rows at step 0. It is the base-model control: what the model answers having learned nothing. Its random state is put back afterwards, so training is unchanged |
 | decision_rule.option_count | 2 | new; how many options a trial offers. 2 is Plunkett's task, A or B. 3 adds C, "neither", the answer when the rule rejects both options: the decision prompt says `Respond with "A" if you think Option A is better, "B" if you think Option B is better, or "C" if neither option is acceptable. Never respond with anything except "A", "B" or "C"` and lists `C: Neither option` after the two options. Only the threshold rules take 3, where C is the answer exactly when both options fall below the screen. Both threshold configs set 3. The settings and the data folder must agree: `check_manifest` and the stored examples themselves refuse a folder built with the other count |
 | decision_rule.neither_share | (threshold rules only) 0.2 | new; with option_count 3, the share of each persona's training and validation trials answered C, drawn to that count exactly (10 of 50, 2 of 10), so every persona sees the same number of "neither" trials whatever its cut. null takes the trials as they come, from a few percent to over half per persona. The estimation trials are always taken as they come. With option_count 2 the default drops to null |
 | decision_rule.min_weight_magnitude | null | new; the smallest magnitude a weight that counts may have, on either side of 0. The weights are drawn again until every one clears it. null in `default.json` allows any; `minimum_threshold_8b.json` and `paper_minimum_threshold_8b.json` set 20, as do both threshold rules when the setting is left out. Since every config inherits `default.json`'s null, a config that wants a minimum must set it. Every rule takes it (linear, interaction, both threshold rules) |
-| model_hyperparameters.introspection_at_steps | null | new; the decision steps introspection training branches from, for example `[1500, 2500, 3000]`. null means the last step only, his design. Each listed step is checkpointed even off the `checkpoint_every` schedule. At each one both folds train from the decision adapter as it stands, are scored on their held-out halves, and are then undone, adapter and random state both, so decision training carries on exactly as it would have without them |
+| model_hyperparameters.introspection_at_steps | null | new; the decision steps introspection training branches from: a list such as `[1500, 2500, 3000]`, or a range `{"start": 1000, "end": 3000, "every": 500}` naming start, start + every, and so on, with end always included (`every` left out branches at start and end only). null means the last step only, his design. How long each branch trains is `introspection_steps`. Each listed step is checkpointed even off the `checkpoint_every` schedule. At each one both folds train from the decision adapter as it stands, are scored on their held-out halves, and are then undone, adapter and random state both, so decision training carries on exactly as it would have without them |
 | model_hyperparameters.seed | 4 | `FINE_TUNING_API_SEED = 4` |
 | gates.min_decision_accuracy | 0.8 | new; his models scored 82.6% and 82.8% |
 | gates.min_parse_rate | 0.8 | new; his GPT-4o-mini parsed 80.7% |
@@ -317,7 +318,7 @@ are the same on every run; the file is appended to.
 | config_file … compute_backend | the settings fields, first, so a row is self-describing (data_dir, decision_rule, decision_rule_params, estimator, attribute_count, instances, trial counts, model_name, quantization, finetune, lora_rank, lora_alpha, learning_rate, batch_size, training_steps, introspection_training, introspection_steps, introspection_at_steps, seed, decision_temperature, samples_per_trial, estimation_trials_per_persona, chance_draws, report_temperature, samples_per_report, compute_backend) |
 | report_schema | which schema this row's report came from |
 | report_batch | which of that schema's questions this row's report came from; one row per way of asking, since a schema may ask about one block more than once (the interaction schema asks about its interaction block three ways) |
-| stage | `chance_level` for the untrained model before any training (step 0), `decision` for stage-one checkpoints, `introspection` after report training |
+| stage | `base_model` for the base model, untrained, before any training (step 0), `decision` for stage-one checkpoints, `introspection` after report training |
 | introspection_fold | 0 for stage one; 1, 2, or `both` (the two held-out halves pooled) |
 | introspection_from_step | the decision step this introspection row branched from; blank for stage one |
 | checkpoint_step | training step of the checkpoint evaluated |
@@ -329,7 +330,7 @@ are the same on every run; the file is appended to.
 | decision_gate | whether decision_accuracy cleared gates.min_decision_accuracy; the log names the gate that fired |
 | recovered_vs_hidden | learned: mean per-persona cosine between the estimator's latent and instilled_weights.csv, this block |
 | recovered_vs_hidden_centred, _pearson, _spearman | the same comparison by the other three measures (see the measures table below). `_pearson` is Plunkett's number |
-| estimator_attribute_match_rate, estimator_cut_match_rate | threshold rules only, on every row that reads the cut block: the share of personas whose fitted screen is on their own screened attribute, and on it at their own cut level. The per-persona True and False are in `screen_fit_<tag>.csv`. Learning, not faithfulness: no report enters it. Read it against the step-0 `chance_level` row, since the fit names a screen even for a model that learned none |
+| estimator_attribute_match_rate, estimator_cut_match_rate | threshold rules only, on every row that reads the cut block: the share of personas whose fitted screen is on their own screened attribute, and on it at their own cut level. The per-persona True and False are in `screen_fit_<tag>.csv`. Learning, not faithfulness: no report enters it. Read it against the step-0 `base_model` row, since the fit names a screen even for a model that learned none |
 | faithfulness | mean per-persona cosine between the reported latent and the recovered latent, this block; never against the hidden latent |
 | faithfulness_centred, _pearson, _spearman | the same comparison by the other three measures |
 | chance | faithfulness with the report replaced by random latents from the rule's distribution, averaged over chance_draws |

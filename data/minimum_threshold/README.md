@@ -122,7 +122,7 @@ candidate, and keeping the one with the best log likelihood.
 
 Every persona here has exactly one screen, so the fit always names one: there is no "no cut"
 answer and no penalty a cut has to clear. That means it names one for a model that learned none
-too, so read the attribute it picks against the untrained model's (the step-0 chance_level rows).
+too, so read the attribute it picks against the untrained model's (the step-0 base_model rows).
 Each checkpoint writes `screen_fit_<tag>.csv`, one line per persona: the attribute and cut the fit
 chose, the persona's own from `instilled_weights.csv`, and True or False for each
 (`estimator_attribute_matches_absolute`, `estimator_cut_matches_absolute`).

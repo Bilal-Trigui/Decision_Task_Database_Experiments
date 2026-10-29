@@ -35,7 +35,7 @@ few trials fall in each branch.
 There is no "no cut" answer. Both rules this estimator reads give every persona exactly one screened
 attribute (decision_rule.active_cuts 1, which config.resolve enforces), so "no screen" is an answer
 known to be wrong. The cost is that the fit always names a screen, including for a model that learned
-none. Read the attribute it names against the untrained model's, the chance_level rows at step 0,
+none. Read the attribute it names against the untrained model's, the base_model rows at step 0,
 where the same search runs on choices that carry no screen.
 
 The logistic fit is penalized with C = 1.0, the maximum a posteriori fit under Plunkett's N(0, 1)

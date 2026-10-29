@@ -25,7 +25,7 @@ from src.train import (
 )
 
 
-CHANCE_LEVEL = "chance_level"   # the stage name of the rows that score the untrained model
+BASE_MODEL = "base_model"   # the stage name of the rows that score the base model, untrained, before decision training
 
 
 def make_run_id(cfg):
@@ -110,13 +110,13 @@ def run(cfg, results_dir="results", checkpoint_root="checkpoints"):
         restore(model, state)
         set_rng_state(generators)
 
-    # the chance-level baseline: the model before any training, asked everything a checkpoint is asked
+    # the base model: the model before any training, asked everything a checkpoint is asked
     if mh["baseline_before_training"]:
         # A fresh LoRA adapter adds exactly zero, so this is the base model. Its random state is put
         # back afterwards, so decision training is the same with or without this row.
         generators = rng_state()
-        print("chance-level baseline: the untrained model, before decision training")
-        rows, _ = evaluate_model(model, tok, cfg, comps, data, device, run_id, CHANCE_LEVEL, 0, 0, all_personas, results_dir)
+        print("base model: the untrained model, scored before decision training")
+        rows, _ = evaluate_model(model, tok, cfg, comps, data, device, run_id, BASE_MODEL, 0, 0, all_personas, results_dir)
         all_rows.extend(rows)
         set_rng_state(generators)
 

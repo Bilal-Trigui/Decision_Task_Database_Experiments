@@ -223,8 +223,7 @@ def validate(cfg):
         raise SettingsError(f"model_estimating.estimation_trials_per_persona lists a count twice: {trials}")
     at = mh["introspection_at_steps"]
     if at is not None:
-        if not isinstance(at, list) or not at or any(isinstance(s, bool) or not isinstance(s, int) for s in at):
-            raise SettingsError("model_hyperparameters.introspection_at_steps must be a non-empty list of decision steps, or null")
+        at = _introspection_steps(at)
         if not mh["introspection_training"]:
             raise SettingsError(
                 "model_hyperparameters.introspection_at_steps is set but introspection_training is false; "
@@ -373,16 +372,56 @@ def resolve(cfg):
     return Components(rule=rule, estimator=estimator, schemas=schemas, backend=backend)
 
 
+RANGE_KEYS = ("start", "end", "every")
+
+
+def _is_step(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _introspection_steps(at):
+    """introspection_at_steps as the list of decision steps it names, refusing anything else.
+
+    Two forms: a list of steps, [1500, 2500, 3000], or a range, {"start": 1000, "end": 3000,
+    "every": 500}, which names start, start + every, ... up to and including end. "every" may be
+    left out of a range to branch at start and end only.
+    """
+    if isinstance(at, dict):
+        unknown = set(at) - set(RANGE_KEYS)
+        if unknown or "start" not in at or "end" not in at:
+            raise SettingsError(
+                "model_hyperparameters.introspection_at_steps as a range takes "
+                '{"start": <step>, "end": <step>, "every": <steps>}, "every" optional; '
+                f"got {at}"
+            )
+        start, end, every = at["start"], at["end"], at.get("every", at["end"] - at["start"] or 1)
+        if not (_is_step(start) and _is_step(end) and _is_step(every)) or every < 1 or end < start:
+            raise SettingsError(
+                f"model_hyperparameters.introspection_at_steps range {at} needs whole numbers with start <= end "
+                "and every at least 1"
+            )
+        steps = list(range(start, end + 1, every))
+        return steps if steps[-1] == end else steps + [end]
+    if not isinstance(at, list) or not at or any(not _is_step(s) for s in at):
+        raise SettingsError(
+            "model_hyperparameters.introspection_at_steps must be a non-empty list of decision steps, "
+            '{"start": ..., "end": ..., "every": ...}, or null'
+        )
+    return list(at)
+
+
 def introspection_points(cfg):
     """The decision steps that introspection training branches from, in order. Reads model_hyperparameters.
 
     Empty when introspection_training is off. introspection_at_steps null means the final step
-    only, which is the original design: stage two once, after all of stage one.
+    only, which is the original design: stage two once, after all of stage one. A list names the
+    steps; a range {"start", "end", "every"} names start, start + every, ... and always end.
     """
     mh = cfg["model_hyperparameters"]
     if not mh["introspection_training"]:
         return []
-    return sorted(mh.get("introspection_at_steps") or [mh["training_steps"]])
+    at = mh.get("introspection_at_steps")
+    return sorted(_introspection_steps(at)) if at is not None else [mh["training_steps"]]
 
 
 def estimation_counts(cfg):
