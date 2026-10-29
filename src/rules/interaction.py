@@ -1,4 +1,5 @@
 """Plunkett's weighted sum plus pairwise interaction terms over attribute pairs (strict upper triangle).
+This is A3! (15 interactions)
 
     U(x) = sum_k w_k * xhat_k  +  sum_{i<j} v_ij * z_ij,    z_ij = 4 * (xhat_i - 0.5) * (xhat_j - 0.5)
 
@@ -13,6 +14,8 @@ Target distribution, all parameters in the decision_rule block:
   active_pairs           how many of the n(n-1)/2 pairs carry a nonzero v (default 1; n(n-1)/2 gives Doc-26's dense draw)
   zero_pair_main_effects whether an active pair's own main weights are set to 0 (default true: they matter only jointly)
   main_scale             multiplier on Plunkett's main weights before rounding (default 0.5)
+  min_weight_magnitude   the smallest magnitude a main weight that still counts may have, after
+                         main_scale; the draw repeats until every one clears it (default null: any)
   interaction_magnitude  [low, high] integer range for |v|, sign random (default [50, 100])
 Reads decision_rule, object.attribute_count.
 """
@@ -20,7 +23,8 @@ import itertools
 
 import numpy as np
 
-from .base import Rule, cli
+from .base import MAX_REDRAWS, Rule, check_min_weight_magnitude, clears_floor, floor_unreachable
+from .build import cli
 from .linear import generate_weights, normalized
 
 PAIR_KEY_SEPARATOR = " × "
@@ -52,6 +56,7 @@ class InteractionRule(Rule):
         "zero_pair_main_effects": True,
         "main_scale": 0.5,
         "interaction_magnitude": [50, 100],
+        "min_weight_magnitude": None,   # as linear.py: the main weights that still count, after main_scale
     }
 
     def __init__(self, **params):
@@ -64,6 +69,7 @@ class InteractionRule(Rule):
             raise ValueError("decision_rule.main_scale must be in (0, 1]")
         if isinstance(p["active_pairs"], bool) or not isinstance(p["active_pairs"], int) or p["active_pairs"] < 1:
             raise ValueError("decision_rule.active_pairs must be a positive integer")
+        check_min_weight_magnitude(p["min_weight_magnitude"])
 
     def blocks(self, n):
         return {
@@ -81,16 +87,22 @@ class InteractionRule(Rule):
         all_pairs = pairs(n)
         if p["active_pairs"] > len(all_pairs):
             raise ValueError(f"decision_rule.active_pairs is {p['active_pairs']} but {n} attributes have only {len(all_pairs)} pairs")
-        w = [round(x * p["main_scale"]) for x in generate_weights(n, rng)]
-        active = rng.sample(range(len(all_pairs)), p["active_pairs"])
-        v = [0] * len(all_pairs)
-        lo, hi = p["interaction_magnitude"]
-        for idx in active:
-            i, j = all_pairs[idx]
-            if p["zero_pair_main_effects"]:
-                w[i], w[j] = 0, 0
-            v[idx] = rng.choice([-1, 1]) * rng.randint(lo, hi)
-        return np.array(w + v, dtype=float)
+        for _ in range(MAX_REDRAWS):   # with no minimum, one draw, as before
+            w = [round(x * p["main_scale"]) for x in generate_weights(n, rng)]
+            active = rng.sample(range(len(all_pairs)), p["active_pairs"])
+            v = [0] * len(all_pairs)
+            lo, hi = p["interaction_magnitude"]
+            zeroed = set()
+            for idx in active:
+                i, j = all_pairs[idx]
+                if p["zero_pair_main_effects"]:
+                    w[i], w[j] = 0, 0
+                    zeroed |= {i, j}
+                v[idx] = rng.choice([-1, 1]) * rng.randint(lo, hi)
+            # the minimum is on the main weights that still count, after main_scale
+            if clears_floor(w, p["min_weight_magnitude"], skip=zeroed):
+                return np.array(w + v, dtype=float)
+        raise floor_unreachable(p["min_weight_magnitude"])
 
     def score(self, latent, values, mins, maxs):
         n = len(values)

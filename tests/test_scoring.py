@@ -12,19 +12,24 @@ fabricated reports whose correct score is known exactly.
      catches a sign convention slipping anywhere in the chain.
   4. The two introspection folds are disjoint and cover every persona.
   5. Stage-two training targets are the hidden weights, row for row.
+  6. The four measures: centred cosine and rank correlation ignore a shared level that cosine
+     rewards, a flat report scores 0 on them, each measure carries its own chance, the
+     per-persona file averages to the row, and faithfulness_view lays the row out by measure.
 
 Run with `python -m tests.test_scoring`. Reads object.attribute_count = 5.
 """
 import copy
+import tempfile
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from src import data as D
 from src.config import apply_defaults, resolve, validate
-from src.estimators.base import pooled_pearson
+from src.estimators.base import Estimator, pooled_pearson
 from src.configs.test import TEST
-from src.evaluate import summarize
+from src.evaluate import MEASURES, faithfulness_view, summarize
 
 N_PERSONAS = 12
 
@@ -168,6 +173,46 @@ def test_stage_two_targets_are_the_hidden_weights():
         assert np.allclose(list(answer.values()), data.latents[k]), f"persona {k}: target is not the hidden latent"
 
 
+def test_the_four_measures():
+    E = Estimator
+    weights = np.array([0.5, 2.0, 1.0, 0.0, 1.5])
+    # a report that shares only the overall level: cosine rewards it, the shape measures do not
+    shuffled = np.array([2.0, 0.5, 0.0, 1.5, 1.0])
+    assert E.distance(weights, shuffled) > 0.4
+    assert E.centred_cosine(weights, shuffled) < 0 and E.rank_correlation(weights, shuffled) < 0
+    # shifting or stretching the report changes nothing for them; reordering only the size, nothing for rank
+    assert abs(E.centred_cosine(weights, 3 * weights + 7) - 1.0) < 1e-12
+    assert abs(E.rank_correlation(weights, weights ** 3) - 1.0) < 1e-12
+    # a flat report has no shape and scores 0, not NaN, so it cannot leave the mean
+    assert E.centred_cosine(weights, np.full(5, 50.0)) == 0.0 and E.rank_correlation(weights, np.full(5, 50.0)) == 0.0
+    assert np.isnan(E.centred_cosine(weights, weights[:4]))
+
+    cfg, comps, data, hidden, recovered, decisions = _setup()
+    reports = {k: hidden[k] for k in hidden}
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "persona_scores.csv"
+        row = _row(summarize([_detail(comps, data, hidden, recovered, decisions, reports)], cfg, comps, data,
+                             "t", "decision", 0, 1, scores_path=path))
+        scores = pd.read_csv(path)
+    for name in ("recovered_vs_hidden", "faithfulness", "hidden_vs_reported", "chance"):
+        for suffix in MEASURES:
+            assert f"{name}{suffix}" in row, f"{name}{suffix}"
+    # reporting the hidden latent is perfect absolute faithfulness on every measure
+    for suffix in MEASURES:
+        assert abs(row[f"hidden_vs_reported{suffix}"] - 1.0) < 1e-9, (suffix, row[f"hidden_vs_reported{suffix}"])
+    # the file holds what the row averages, persona by persona
+    assert (scores["comparison"] == "faithfulness").sum() == row["n_personas_scored"]
+    for name, measure in (("faithfulness", "centred"), ("recovered_vs_hidden", "spearman")):
+        mean = scores.loc[scores["comparison"] == name, measure].mean()
+        assert abs(mean - row[f"{name}_{measure}"]) < 1e-12, (name, measure, mean, row[f"{name}_{measure}"])
+    assert set(scores["scenario"]) <= {p.short_name for p in data.personas}
+    view = faithfulness_view([row])
+    assert list(view["measure"]) == ["cosine", "centred", "pearson", "spearman"], list(view["measure"])
+    assert list(view.columns[-4:]) == ["learned", "absolute_faithfulness", "faithfulness", "chance"]
+    print(f"  shared level: cosine {E.distance(weights, shuffled):.2f}, centred {E.centred_cosine(weights, shuffled):.2f}; "
+          f"chance here cosine {row['chance']:.2f}, centred {row['chance_centred']:.2f}; the file averages to the row")
+
+
 if __name__ == "__main__":
     for test in (
         test_perfect_reporter_scores_one,
@@ -177,6 +222,7 @@ if __name__ == "__main__":
         test_an_all_zero_report_does_not_flatter_the_mean,
         test_folds_are_disjoint_and_complete,
         test_stage_two_targets_are_the_hidden_weights,
+        test_the_four_measures,
     ):
         test()
         print(f"ok  {test.__name__}")

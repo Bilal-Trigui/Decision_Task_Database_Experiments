@@ -12,6 +12,10 @@ A data folder holds Plunkett's four files, with his exact names and columns:
 Trials are read from instill_<K>_prefs.jsonl and instill_<K>_prefs_val.jsonl
 (Plunkett's file names) when present and regenerated from the seeds when absent.
 The hidden latents in instilled_weights.csv never enter a stage-one example.
+
+A trial offers two options, A and B, Plunkett's task, or three when decision_rule.option_count is 3:
+C, "neither", listed after them, the answer when the rule rejects both. The settings and the
+folder must agree, and a stored example of the other count is refused (check_decision_example).
 """
 import glob
 import json
@@ -31,6 +35,28 @@ SELECTION_PROMPT_BASE = (
     '[DECISION TASK] Respond with "A" if you think Option A is better, or "B" if you '
     'think Option B is better. Never respond with anything except "A" or "B":\n\n'
 )
+
+# The three-option task (decision_rule.option_count 3): Plunkett's instruction with C added, and
+# C listed after the two options as a third, so the prompt reads the way the two-option one does.
+SELECTION_PROMPT_BASE_NEITHER = (
+    '[DECISION TASK] Respond with "A" if you think Option A is better, "B" if you think Option B '
+    'is better, or "C" if neither option is acceptable. Never respond with anything except "A", "B" or "C":\n\n'
+)
+NEITHER_OPTION = "C:\nNeither option"
+
+
+def selection_prompt_base(option_count=2):
+    """The decision instruction for a trial of 2 options (Plunkett's, verbatim) or 3 (with C, neither)."""
+    if option_count == 2:
+        return SELECTION_PROMPT_BASE
+    if option_count == 3:
+        return SELECTION_PROMPT_BASE_NEITHER
+    raise ValueError(f"option_count must be 2 or 3, got {option_count!r}")
+
+
+def selection_prompt(trial, option_count=2):
+    """The whole decision question for one trial: instruction, then the options."""
+    return selection_prompt_base(option_count) + trial.generate_choice(option_count)
 
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
@@ -127,8 +153,10 @@ class Trial:
         self.option_B = Option(scenario, "B", rng)
         self.label = None
 
-    def generate_choice(self):
-        return f"{self.scenario.question}\n{self.option_A.description}\n\n{self.option_B.description}"
+    def generate_choice(self, option_count=2):
+        """Plunkett's question and two options; with option_count 3, C (neither) listed after them."""
+        text = f"{self.scenario.question}\n{self.option_A.description}\n\n{self.option_B.description}"
+        return text + f"\n\n{NEITHER_OPTION}" if option_count == 3 else text
 
 
 # --- Loading the four files --------------------------------------------------------
@@ -308,13 +336,13 @@ class Example:
         return self.messages[2]["content"]
 
 
-def decision_example(trial):
-    """Plunkett's generate_pref_example."""
+def decision_example(trial, option_count=2):
+    """Plunkett's generate_pref_example. option_count 3 asks the three-option question."""
     return Example(
         scenario=trial.scenario.short_name,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": SELECTION_PROMPT_BASE + trial.generate_choice()},
+            {"role": "user", "content": selection_prompt(trial, option_count)},
             {"role": "assistant", "content": trial.label},
         ],
         kind="decision",
@@ -331,20 +359,55 @@ def example_from_json(line, kind="decision"):
     return Example(scenario="", messages=messages, kind=kind)
 
 
+MAX_QUOTA_DRAWS = 100_000     # trials drawn for one persona before its label quota is called unreachable
+
+
 def generate_decision_trials(scenarios, latents, rule, n_train, n_val, seed):
     """Plunkett's simulated_choices: one RNG seeded once, `n_train + n_val` trials per scenario in order.
 
     Returns two lists of per-persona trial lists. Labels come from the rule and the hidden latent.
+    A rule with a label quota (rule.label_quota, threshold.py's neither_share) has its trials
+    drawn until each split holds exactly that many of each answer, training first, then validation.
     """
     rng = random.Random(seed)
     train, val = [], []
+    quotas = rule.label_quota(n_train), rule.label_quota(n_val)
     for k, sc in enumerate(scenarios):
-        trials = [Trial(sc, rng) for _ in range(n_train + n_val)]
-        for t in trials:
-            t.label = rule.label(latents[k], t)
-        train.append(trials[:n_train])
-        val.append(trials[n_train:])
+        if quotas == (None, None):
+            trials = [Trial(sc, rng) for _ in range(n_train + n_val)]
+            for t in trials:
+                t.label = rule.label(latents[k], t)
+            train.append(trials[:n_train])
+            val.append(trials[n_train:])
+            continue
+        train.append(_trials_to_quota(sc, latents[k], rule, n_train, quotas[0], rng, k))
+        val.append(_trials_to_quota(sc, latents[k], rule, n_val, quotas[1], rng, k))
     return train, val
+
+
+def _trials_to_quota(scenario, latent, rule, count, quota, rng, persona):
+    """`count` trials in draw order, exactly quota[letter] of each letter the quota names, the rest any other answer."""
+    quota = dict(quota or {})
+    rest = count - sum(quota.values())
+    kept = []
+    for _ in range(MAX_QUOTA_DRAWS):
+        if len(kept) == count:
+            return kept
+        t = Trial(scenario, rng)
+        t.label = rule.label(latent, t)
+        if t.label in quota:
+            if quota[t.label] > 0:
+                quota[t.label] -= 1
+                kept.append(t)
+        elif rest > 0:
+            rest -= 1
+            kept.append(t)
+    if len(kept) == count:
+        return kept
+    raise DataFormatError(
+        f"persona {persona} ({scenario.short_name}): {MAX_QUOTA_DRAWS} trials never gave its label quota "
+        f"{rule.label_quota(count)}; its screen almost never produces that answer. Lower decision_rule.neither_share"
+    )
 
 
 def trial_file_names(instances):
@@ -365,9 +428,22 @@ def find_trial_files(data_dir, instances):
     return min(candidates)
 
 
-def _question_of(example):
-    body = example.user[len(SELECTION_PROMPT_BASE) :]
+def _question_of(example, option_count=2):
+    body = example.user[len(selection_prompt_base(option_count)) :]
     return body.split("\n", 1)[0]
+
+
+def check_decision_example(example, rule, path):
+    """Fail unless a stored decision example asks the question and carries an answer of the settings' option count."""
+    base = selection_prompt_base(rule.option_count)
+    if not example.user.startswith(base) or example.answer not in rule.letters:
+        built = "three" if example.user.startswith(SELECTION_PROMPT_BASE_NEITHER) else "two"
+        raise DataFormatError(
+            f"{path.name} holds a decision example answered {example.answer!r} to the {built}-option question, "
+            f"but decision_rule.option_count is {rule.option_count} (answers {'/'.join(rule.letters)}). "
+            "The settings and the data folder must agree on the number of options: rebuild the folder "
+            "under these settings, or change decision_rule.option_count"
+        )
 
 
 def load_decision_examples(cfg, scenarios, latents, rule):
@@ -388,8 +464,8 @@ def load_decision_examples(cfg, scenarios, latents, rule):
         train_trials, val_trials = generate_decision_trials(
             scenarios[:instances], latents[:instances], rule, n_train, n_val, mt["seeds"]["trials"]
         )
-        train = [decision_example(t) for trials in train_trials for t in trials]
-        val = [decision_example(t) for trials in val_trials for t in trials]
+        train = [decision_example(t, rule.option_count) for trials in train_trials for t in trials]
+        val = [decision_example(t, rule.option_count) for trials in val_trials for t in trials]
         train_name, val_name = trial_file_names(instances)
         (data_dir / train_name).write_text("\n".join(example_to_json(e) for e in train))
         (data_dir / val_name).write_text("\n".join(example_to_json(e) for e in val))
@@ -413,9 +489,10 @@ def load_decision_examples(cfg, scenarios, latents, rule):
             for line in lines[k * per : k * per + take]:
                 ex = example_from_json(line)
                 ex.scenario = sc.short_name
-                if _question_of(ex) != sc.question:
+                check_decision_example(ex, rule, train_path)
+                if _question_of(ex, rule.option_count) != sc.question:
                     raise DataFormatError(
-                        f"persona {k} in {train_path.name} asks '{_question_of(ex)}' but scenarios.csv says '{sc.question}'"
+                        f"persona {k} in {train_path.name} asks '{_question_of(ex, rule.option_count)}' but scenarios.csv says '{sc.question}'"
                     )
                 out.append(ex)
     return train, val
@@ -444,7 +521,7 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
     examples = []
     for k, sc in enumerate(scenarios):
         rng = random.Random(seed)
-        prompt = Trial(sc, rng).generate_choice()
+        prompt = Trial(sc, rng).generate_choice(rule.option_count)
         for batch in schema.batches(sc.names):
             if batch.block not in slices:
                 raise DataFormatError(
@@ -472,7 +549,11 @@ def load_introspection_examples(cfg, scenarios, latents, rule, schema):
         if list(df.columns) != expected:
             raise DataFormatError(f"{path} columns are {list(df.columns)}; expected {expected}")
         have = {(r["scenario"], r["batch"]) for r in df.to_dict("records")}
-        if wanted <= have:
+        # the trial shown in each report prompt lists C exactly when the settings offer it
+        options_agree = all(p.endswith(NEITHER_OPTION) == (rule.option_count == 3) for p in df["user_prompt"])
+        if not options_agree:
+            print(f"note: {path} shows trials of another option count than decision_rule.option_count {rule.option_count}; regenerating it")
+        elif wanted <= have:
             rows = {(r["scenario"], r["batch"]): r for r in df.to_dict("records")}
             examples = []
             for sc in scenarios[:instances]:
@@ -491,7 +572,8 @@ def load_introspection_examples(cfg, scenarios, latents, rule, schema):
                         )
                     )
             return examples
-        print(f"note: {path} does not cover every persona and batch for schema '{schema.name}'; regenerating it")
+        else:
+            print(f"note: {path} does not cover every persona and batch for schema '{schema.name}'; regenerating it")
     else:
         print(f"note: {path} is absent; generating it from instilled_weights.csv in the style of Plunkett's Experiment 2")
     examples = generate_introspection_examples(

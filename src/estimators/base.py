@@ -5,10 +5,18 @@ predicted learned latent of the paper. It declares which blocks it recovers,
 builds a design matrix from the two options of each trial, fits it, and
 measures distance between two latents of one block.
 
+Every comparison is scored four ways, each a different question about the same pair:
+  cosine             block_distance: the block's own distance, cosine on directions
+  centred cosine     block_distance_centred: cosine after removing each vector's mean
+  pooled Pearson     pooled_pearson: Plunkett's, one r over all personas' values together
+  rank correlation   block_rank_correlation: Spearman, the order of the attributes only
+The first, second and fourth are per persona and averaged; the third is one number for all.
+
 Reads: object.attribute_count (through `attribute_count`); model_estimating
 (type only; the behaviour-collection settings are used by evaluate.py).
 """
 import numpy as np
+from scipy.stats import rankdata
 from sklearn.linear_model import LogisticRegression
 
 
@@ -67,16 +75,26 @@ class Estimator:
         raise NotImplementedError
 
     def fit(self, A, B, choices, mins, maxs, sample_weight=None):
-        """Recovered latent for one persona from its choices ('A'/'B' per trial), rescaled so max |.| = 100."""
-        X = self.features(np.asarray(A, float), np.asarray(B, float), np.asarray(mins, float), np.asarray(maxs, float))
-        y = np.array([1 if c == "A" else 0 for c in choices])
+        """Recovered latent for one persona from its choices ('A'/'B' per trial), rescaled so max |.| = 100.
+
+        A trial answered C, "neither", says nothing about which of A and B is preferred, so a
+        weighted-sum estimator leaves it out rather than counting it as B. The threshold estimators
+        read C themselves.
+        """
+        keep = np.array([c in ("A", "B") for c in choices], dtype=bool)
+        X = self.features(np.asarray(A, float)[keep], np.asarray(B, float)[keep], np.asarray(mins, float), np.asarray(maxs, float))
+        y = np.array([1 if c == "A" else 0 for c, k in zip(choices, keep) if k])
+        if sample_weight is not None:
+            sample_weight = np.asarray(sample_weight, float)[keep]
+        if not y.size:
+            return np.zeros(X.shape[1])
         return rescale_to_100(fit_logistic(X, y, sample_weight=sample_weight))
 
     def block_is_absolute(self, block):
         """True when a block holds levels rather than a direction, so its scale is part of the object.
 
         A weight vector is a direction: doubling it means the same preference, so it is normalised
-        before the agreement bands are measured. A4's cut points are levels: doubling them means a
+        before the agreement bands are measured. The minimum threshold rule's cut points are levels: doubling them means a
         different screen, so they are compared as they stand.
         """
         return False
@@ -85,10 +103,26 @@ class Estimator:
         """What `block_distance` measures for this block, recorded in every results row.
 
         Rows carrying different measures land in one `faithfulness` column, so without this the
-        column cannot be read or averaged safely: cosine on most blocks, a scaled error on A4's
-        cut points, an identification score on the interaction schema's pair question.
+        column cannot be read or averaged safely: cosine on most blocks, a scaled error on minimum
+        threshold cut points, an identification score on the interaction schema's pair question.
         """
         return "cosine"
+
+    def block_has_bands(self, block):
+        """True when the six agreement bands mean something for this block.
+
+        They compare two vectors slot by slot, so a block whose report is a single number or an
+        index, rather than one value per slot, has none and leaves those columns blank.
+        """
+        return True
+
+    def block_summary(self, block, vector):
+        """What the pooled correlation is taken over for this block: the vector itself by default.
+
+        A block whose report has a different shape from the latent it is read from overrides this
+        to bring both sides to one shape, so the correlation compares like with like.
+        """
+        return vector
 
     def block_distance(self, block, recovered, other):
         """Distance for one named block, so an estimator whose blocks are not all directions can say so.
@@ -107,6 +141,60 @@ class Estimator:
         if na == 0 or nb == 0 or a.shape != b.shape:
             return float("nan")
         return float(np.dot(a, b) / (na * nb))
+
+    # -- the shape measures: centred cosine and rank correlation, beside the block's own distance --
+
+    def block_has_shape(self, block):
+        """True when the centred cosine and the rank correlation mean something for this block.
+
+        They ask whether two vectors rise and fall together, which is a question about a direction.
+        A block scored some other way (a scaled error on cut levels, identification of one index)
+        holds levels or a single answer instead, and leaves those columns blank.
+        """
+        return self.block_distance_name(block) == "cosine"
+
+    def block_distance_centred(self, block, a, b):
+        """Centred cosine for one named block, NaN where the block is not a direction."""
+        return self.centred_cosine(a, b) if self.block_has_shape(block) else float("nan")
+
+    def block_rank_correlation(self, block, a, b):
+        """Rank correlation for one named block, NaN where the block is not a direction."""
+        return self.rank_correlation(a, b) if self.block_has_shape(block) else float("nan")
+
+    @staticmethod
+    def centred_cosine(recovered, other):
+        """Cosine after subtracting each vector's own mean: one persona's Pearson r across its attributes.
+
+        Plain cosine counts agreement on the overall level as agreement on the rule. When every
+        weight is positive, as under a weight range such as 0.5 to 2, any two weight vectors point
+        into the same corner and random ones score about 0.75. Centring removes that shared level, so
+        only which attributes sit above or below the persona's own average counts, and random
+        vectors score about 0.
+
+        A flat vector, every value the same, has no shape: it says nothing about which attribute
+        matters more. It scores 0, not NaN, so a report of "all equally important" counts against
+        the mean rather than leaving it. NaN only when the shapes differ or a value is missing.
+        """
+        a, b = np.asarray(recovered, float).ravel(), np.asarray(other, float).ravel()
+        if a.shape != b.shape or a.size == 0 or np.isnan(a).any() or np.isnan(b).any():
+            return float("nan")
+        a, b = a - a.mean(), b - b.mean()
+        na, nb = np.linalg.norm(a), np.linalg.norm(b)
+        if na < 1e-12 or nb < 1e-12:
+            return 0.0
+        return float(np.dot(a, b) / (na * nb))
+
+    @staticmethod
+    def rank_correlation(recovered, other):
+        """Spearman's rank correlation: the centred cosine of the two vectors' ranks, ties sharing a rank.
+
+        Asks only whether the attributes come in the same order of importance, ignoring by how much.
+        Scored like the centred cosine: a flat vector scores 0.
+        """
+        a, b = np.asarray(recovered, float).ravel(), np.asarray(other, float).ravel()
+        if a.shape != b.shape or a.size == 0 or np.isnan(a).any() or np.isnan(b).any():
+            return float("nan")
+        return Estimator.centred_cosine(rankdata(a), rankdata(b))
 
 
 TOLERANCES = (10, 30)

@@ -3,12 +3,18 @@
 U(x) = sum_k w_k * (x_k - min_k) / (max_k - min_k); the higher utility wins.
 The latent is one block, 'main', of `attribute_count` weights drawn as in
 Plunkett's generate_weights: Uniform(-100, 100), rescaled so the largest
-magnitude is exactly 100, rounded to integers. Reads decision_rule (no
-parameters), object.attribute_count.
+magnitude is exactly 100, rounded to integers.
+
+  min_weight_magnitude  null: his draw, any magnitude (default). A number: the whole weight
+                        vector is drawn again until every weight's magnitude is at least that,
+                        so no attribute is near irrelevant. Signs still vary
+
+Reads decision_rule, object.attribute_count.
 """
 import numpy as np
 
-from .base import Rule, cli
+from .base import MAX_REDRAWS, Rule, check_min_weight_magnitude, clears_floor, floor_unreachable
+from .build import cli
 
 
 def generate_weights(n, rng):
@@ -28,13 +34,22 @@ def normalized(values, mins, maxs):
 
 class LinearRule(Rule):
     name = "linear"
-    defaults = {}
+    defaults = {"min_weight_magnitude": None}
+
+    def __init__(self, **params):
+        super().__init__(**params)
+        check_min_weight_magnitude(self.params["min_weight_magnitude"])
 
     def blocks(self, n):
         return {"main": [f"attr{i}" for i in range(1, n + 1)]}
 
     def sample_latent(self, n, rng):
-        return np.array(generate_weights(n, rng), dtype=float)
+        floor = self.params["min_weight_magnitude"]
+        for _ in range(MAX_REDRAWS):   # with no minimum, one draw: his, unchanged
+            w = generate_weights(n, rng)
+            if clears_floor(w, floor):
+                return np.array(w, dtype=float)
+        raise floor_unreachable(floor)
 
     def score(self, latent, values, mins, maxs):
         # Plunkett's calculate_utility: a sequential sum, kept in his order so labels match bit for bit.

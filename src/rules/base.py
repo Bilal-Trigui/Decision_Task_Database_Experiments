@@ -1,42 +1,117 @@
-"""Base class for decision rules, plus the shared dataset builder and its command line.
+"""Base class for decision rules, plus the check the pipeline runs on a data folder. Building a folder is build.py.
 
-A rule declares the latent's blocks (named groups of columns), samples a latent,
-scores an option, and labels a trial. `make_dataset` uses those to build a fresh
-data folder from Plunkett's scenarios: the same personas and the same trials,
-with the latents rerolled under the rule and every A/B label recomputed.
+Ths defines what a decision rule is. A decision rule a hidden formula a persona uses to choose between option A and B. There are four parts to this file:
+Important: 
+"Rule," the base class that all other rules build on. 
+"make_dataset," which will generate a training data folder for any rule. This is important because the dataset fundamentally varies the rule.
 
-Reads: object.attribute_count (through `n`), decision_rule (the rule's own
-parameters), model_training seeds when building a dataset.
+Quality of Life: 
+"check_manifest," which is a safety check that pipelin.py runs at line 38. 
+"CLI," which is a small command line front end so you can build a folder from the terminal. 
+
 """
-import argparse
 import hashlib
 import json
-import random
-import shutil
 from pathlib import Path
-
-import numpy as np
-import pandas as pd
 
 from src import data as D
 
+# Parameters added after some data folders were built, with the value every such folder was built
+# under. check_manifest reads a manifest that predates one as having this value, so data/plunkett,
+# built before min_weight_magnitude and option_count existed, still matches a two-option linear rule
+# with no minimum.
+ADDED_LATER = {"min_weight_magnitude": None, "option_count": 2, "neither_share": None}
+
+# The answer letters, in order. A trial with two options is answered A or B, Plunkett's task; a
+# rule that can reject both options adds C, "neither". decision_rule.option_count picks how many.
+LETTERS = ("A", "B", "C")
+
+# How many times a draw is repeated to clear min_weight_magnitude before the settings are called
+# impossible. Plunkett's draw with a minimum of 20 over five weights clears about two times in five.
+MAX_REDRAWS = 100_000
+
+
+def check_min_weight_magnitude(value):
+    """decision_rule.min_weight_magnitude: null for no minimum, or a number from 0 up to but not including 100."""
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value < 100:
+        raise ValueError("decision_rule.min_weight_magnitude must be a number from 0 to below 100, or null for no minimum")
+
+
+def clears_floor(weights, floor, skip=()):
+    """True when every weight not in `skip` has a magnitude of at least `floor`. A floor of None always clears."""
+    return floor is None or all(abs(w) >= floor for i, w in enumerate(weights) if i not in skip)
+
+
+def check_option_count(rule):
+    """decision_rule.option_count: 2 (A or B, Plunkett's task) by default; 3 adds C, "neither", for a rule that can say it."""
+    count = rule.params["option_count"]
+    if isinstance(count, bool) or count not in rule.option_counts:
+        raise ValueError(
+            f"decision_rule.option_count is {count!r} but rule '{rule.name}' can only label "
+            f"{' or '.join(map(str, rule.option_counts))} options"
+            + ("" if 3 in rule.option_counts else
+               "; a third option, C for neither, needs a rule that can reject both options, such as minimum_threshold")
+        )
+
+
+def floor_unreachable(floor):
+    """The error for a min_weight_magnitude that MAX_REDRAWS draws never cleared."""
+    return ValueError(
+        f"decision_rule.min_weight_magnitude {floor} was not met in {MAX_REDRAWS} draws; lower it, "
+        "or widen weight_range"
+    )
+
 
 class Rule:
+    """
+    This is the baseclass for the rule. A rule only needs to have three sections to be unique. linear.py, the simplest rule, has more elaboration on it.
+    The three sections are the "what," "generator," and "dataset builder."
+
+    """
     name = "base"
     defaults = {}
+    option_counts = (2,)    # how many options this rule can label; a rule that can reject both adds 3
 
     def __init__(self, **params):
-        unknown = set(params) - set(self.defaults)
+        # option_count is every rule's parameter, 2 unless the rule's own defaults say otherwise
+        accepted = {"option_count": 2, **self.defaults}
+        unknown = set(params) - set(accepted)
         if unknown:
-            raise ValueError(f"rule '{self.name}' does not take parameters {sorted(unknown)}; it takes {sorted(self.defaults)}")
-        self.params = {**self.defaults, **params}
+            raise ValueError(f"rule '{self.name}' does not take parameters {sorted(unknown)}; it takes {sorted(accepted)}")
+        self.params = {**accepted, **params}
+        check_option_count(self)
 
-    # -- what the latent is --
-    def blocks(self, n):
-        """Ordered dict of block name -> latent column names. Every vector rule has a 'main' block."""
+    @property
+    def option_count(self):
+        """How many options a trial offers: 2 (A, B) or 3 (A, B, C for neither). decision_rule.option_count."""
+        return self.params["option_count"]
+
+    @property
+    def letters(self):
+        """The answers a trial can have, in order: ("A", "B") or ("A", "B", "C")."""
+        return LETTERS[: self.option_count]
+
+    # -- what the latent is -- 
+
+    # Every persona has a hidden set of numbers tht decide how it chooses. That set is the "latent." 
+    # Under Plunkett's linear rule, it is just one weight per attribute (like, [10, -5, 0, 3, 2] for example.)
+    # Other rules can be variations on this latent, having some implicit pattern in them. The minimum threshold rule has a hidden minimum threshold within it. 
+    # So for the minimum threshold rule specifically, this means that there are 10 latents instead of 5 from the original linear rule.
+    # This is because each of the 5 attributes of the latent rule has the possibility of having a linear trade off.
+    # The A3 was a bit different. You had the 5 main attributes. But then two of them were inversely correlated for example (a constrained tradeoff).
+    # This creates 15 hidden latents. Anyways, you can vary this. Then you can see what the model ends up learning. 
+
+    def blocks(self, n): 
+        """This is the shape of the hidden latent, represented as names group of parameters.
+        each rule must implement this uniquely. Each rule writes this uniquely. Columns names for each attribute. """
         raise NotImplementedError
 
     def latent_columns(self, n):
+        """
+        These are the same column names as one flat list, but also in order. They are the header of instilled_weights.csv too. 
+        """
         return [c for cols in self.blocks(n).values() for c in cols]
 
     def block_aliases(self, n):
@@ -45,11 +120,15 @@ class Rule:
         An alias is a second way of asking about one slice of the latent, not a second slice. It
         never appears in `blocks`, so it never widens instilled_weights.csv, and it exists so a
         report schema can collect the same block under a name that carries its own distance and
-        its own chance level.
+        its own chance level. This is optional.
         """
         return {}
 
     def block_slices(self, n):
+        """
+        where each block sits in the flat row, as Python slices. For minimum_threshold, main is 0:5 and cut is 5:10. So the latent [0:5] are the weights. 
+        Evaluate.py, chance.py and data.py use this to cut the right piece out of a latent. 
+        """
         slices, start = {}, 0
         for block, cols in self.blocks(n).items():
             slices[block] = slice(start, start + len(cols))
@@ -59,27 +138,44 @@ class Rule:
         return slices
 
     # -- generator side --
+    # This is how data is generated/made. Given the Persona's latent, what option does it pick? 
+
     def sample_latent(self, n, rng):
-        """Draw one hidden latent from the rule's target distribution, as a flat vector in latent_columns order."""
+        """Draw one hidden latent from the rule's target distribution, as a flat vector in latent_columns order. Called when the data folder is built."""
         raise NotImplementedError
 
     def score(self, latent, values, mins, maxs):
-        """Utility of one option (raw attribute values) under the latent."""
+        """Utility of one option (raw attribute values) under the latent. One number for how much the persona likes one option. 
+        Gets the option's raw attribute values and each attribute's min and max, so a rule can rescale attributes measured in different units (watts and decibels) to the same
+        0 to 1 scale. This can help us facilitate calculations. It's uniquely implemented 
+        """
         raise NotImplementedError
 
     def label(self, latent, trial):
-        """Plunkett's selection rule: A if it scores strictly higher, otherwise B."""
+        """Plunkett's selection rule: A if it scores strictly higher, otherwise B.
+        Score both options and return "A" or "B". THIS IS SHARED, so every rule picks the same way (strictly higher, a tie goes to B.) rules differ only in how they score. 
+        
+        """
         mins, maxs = trial.scenario.mins, trial.scenario.maxs
         utility_A = self.score(latent, trial.option_A.values, mins, maxs)
         utility_B = self.score(latent, trial.option_B.values, mins, maxs)
         return "A" if utility_A > utility_B else "B"
 
-    def generate_trials(self, latent, scenario, n_trials, rng):
-        """`n_trials` labelled trials for one persona from `rng`."""
-        trials = [D.Trial(scenario, rng) for _ in range(n_trials)]
-        for t in trials:
-            t.label = self.label(latent, t)
-        return trials
+    def label_quota(self, n_trials):
+        """How many of a persona's `n_trials` training trials must carry each answer, as letter -> count.
+
+        None, the default, takes the trials as they come, Plunkett's construction. A rule with a C
+        answer can fix C's share instead (threshold.py's neither_share), so every persona trains on
+        the same number of "neither" trials however often its own screen rejects both options.
+        Used for the training and validation trials only, never the estimation trials, which stay
+        drawn without looking at the hidden latent.
+        """
+        return None
+
+    # -- build-time hooks --
+    # Optional. They run only when a data folder is built (build.py, or the builders in
+    # data/general/), never during a run. They stay here because minimum_threshold.py and interaction.py
+    # override them, and only a method on the class can be overridden.
 
     def views(self, scenarios, latents, n):
         """Extra CSVs to write beside the training files: filename -> list of row dicts.
@@ -106,93 +202,6 @@ class Rule:
         """Rule-specific summary written to manifest.json. Empty by default."""
         return {}
 
-    # -- dataset builder --
-    def roll_weights(self, scenarios, n, seed):
-        """Draw one latent per scenario from this rule's target distribution, in scenario order.
-
-        Returns the latents and the instilled_weights.csv frame built from them. One RNG is
-        seeded once and consumed in scenario order, which is Plunkett's construction, so the
-        linear rule at his seed reproduces his file. Columns that came out whole are written as
-        integers, as his are.
-        """
-        rng = random.Random(seed)
-        latents = np.vstack([self.sample_latent(n, rng) for _ in scenarios])
-        columns = self.latent_columns(n)
-        weights = pd.DataFrame(latents, columns=columns)
-        for c in columns:
-            if np.all(np.equal(np.mod(weights[c], 1), 0)):
-                weights[c] = weights[c].astype(int)
-        weights.insert(0, "scenario", [sc.short_name for sc in scenarios])
-        return latents, weights
-
-    def make_dataset(self, source_dir, out_dir, attribute_count=None, instances=100, seed=1, train=50, val=10, trials_seed=2):
-        """Build a data folder for this rule from Plunkett's scenarios.
-
-        Keeps scenario_definitions.json, roles.csv and scenarios.csv (truncated to
-        `attribute_count` attributes), rerolls instilled_weights.csv under this rule
-        with `seed`, regenerates Plunkett's trials with `trials_seed` and relabels
-        them, writes instill_<instances>_prefs.jsonl and its _val file, and a
-        manifest.json. With the linear rule and Plunkett's seeds this reproduces
-        his files exactly.
-        """
-        source, out = Path(source_dir), Path(out_dir)
-        out.mkdir(parents=True, exist_ok=True)
-        native = D.infer_attribute_count(source)
-        n = attribute_count or native
-        if n > native:
-            raise D.DataFormatError(f"source folder has {native} attributes per scenario; cannot build {n}")
-        scenarios = D.load_scenarios(source, native)
-        definitions = D.read_definitions(source)
-
-        # scenario_definitions.json, roles.csv, scenarios.csv
-        if n == native:
-            shutil.copyfile(source / D.SCENARIO_DEFINITIONS, out / D.SCENARIO_DEFINITIONS)
-            shutil.copyfile(source / "scenarios.csv", out / "scenarios.csv")
-        else:
-            for d in definitions:
-                d["attributes"] = d["attributes"][:n]
-            (out / D.SCENARIO_DEFINITIONS).write_text(json.dumps(definitions, indent=2))
-            df = pd.read_csv(source / "scenarios.csv")
-            df[D.scenarios_columns(n)].to_csv(out / "scenarios.csv", index=False)
-        shutil.copyfile(source / "roles.csv", out / "roles.csv")
-        scenarios = [D.Scenario(sc.short_name, sc.question, sc.attributes[:n]) for sc in scenarios]
-
-        # latents for every scenario row, Plunkett-style (one RNG, scenario order)
-        latents, weights = self.roll_weights(scenarios, n, seed)
-        columns = self.latent_columns(n)
-        weights.to_csv(out / "instilled_weights.csv", index=False)
-
-        # trials for the first `instances` personas
-        train_trials, val_trials = D.generate_decision_trials(
-            scenarios[:instances], latents[:instances], self, train, val, trials_seed
-        )
-        train_name, val_name = D.trial_file_names(instances)
-        (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t)) for ts in train_trials for t in ts))
-        (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t)) for ts in val_trials for t in ts))
-
-        manifest = {
-            "rule": self.name,
-            "params": self.params,
-            "seed": seed,
-            "trials_seed": trials_seed,
-            "attribute_count": n,
-            "instances": instances,
-            "train_trials_per_persona": train,
-            "val_trials_per_persona": val,
-            "source": str(source),
-            "latent_columns": columns,
-            "stats": self.dataset_stats(train_trials, val_trials, latents[:instances], n),
-            "files": {},
-        }
-        for path in sorted(out.iterdir()):
-            if path.name != "manifest.json" and path.is_file():
-                manifest["files"][path.name] = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-        (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        print(f"wrote {out}: {len(scenarios)} latents, {instances} personas x ({train} train + {val} val) trials")
-        if manifest["stats"]:
-            print("stats:", json.dumps(manifest["stats"]))
-        return manifest
-
 
 def check_manifest(data_dir, rule, cfg):
     """Fail loudly if a folder's manifest says it was built under other rule parameters. Reads decision_rule."""
@@ -200,13 +209,23 @@ def check_manifest(data_dir, rule, cfg):
     if not path.exists():
         return
     manifest = json.loads(path.read_text())
+    built = {**{k: v for k, v in ADDED_LATER.items() if k in rule.params}, **manifest.get("params", {})}
+    options = built.get("option_count", 2)
+    if options != rule.option_count:
+        # checked before the rule's name: whatever labelled the folder, its answers are not the settings' answers
+        raise D.DataFormatError(
+            f"decision_rule.option_count is {rule.option_count} but {data_dir} was built with "
+            f"{options} options, so its training answers are {'/'.join(LETTERS[:options])} "
+            f"and the settings expect {'/'.join(rule.letters)}. Rebuild the folder with option_count "
+            f"{rule.option_count}, or set decision_rule.option_count to {options}"
+        )
     if manifest.get("rule") != rule.name:
         print(
             f"warning: {path} says the folder was built with rule '{manifest.get('rule')}' "
             f"but decision_rule.type is '{rule.name}'"
         )
         return
-    if manifest.get("params", {}) != rule.params:
+    if built != rule.params:
         raise D.DataFormatError(
             f"{path} was built with decision_rule parameters {manifest.get('params')} "
             f"but the settings say {rule.params}; rebuild the folder or change the settings"
@@ -226,40 +245,3 @@ def check_manifest(data_dir, rule, cfg):
                 f"labels in this folder still describe the previous latent. Rebuild the folder with "
                 f"its dataset constructor, or restore the file."
             )
-
-
-def _parse_param(text):
-    key, _, value = text.partition("=")
-    if not _:
-        raise argparse.ArgumentTypeError("--param expects key=value")
-    try:
-        value = json.loads(value)
-    except json.JSONDecodeError:
-        pass
-    return key, value
-
-
-def cli(build, description):
-    """Shared command line: python -m src.rules.<name> --source data/plunkett --out data/<name> [options]."""
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--source", required=True, help="folder holding Plunkett's four files")
-    parser.add_argument("--out", required=True, help="folder to write")
-    parser.add_argument("--attribute-count", type=int, default=None)
-    parser.add_argument("--instances", type=int, default=100)
-    parser.add_argument("--seed", type=int, default=1, help="latent seed (Plunkett's weights seed is 1)")
-    parser.add_argument("--trials-seed", type=int, default=2, help="trial seed (Plunkett's is 2)")
-    parser.add_argument("--train", type=int, default=50)
-    parser.add_argument("--val", type=int, default=10)
-    parser.add_argument("--param", type=_parse_param, action="append", default=[], help="rule parameter, key=value")
-    args = parser.parse_args()
-    rule = build(dict(args.param))
-    rule.make_dataset(
-        args.source,
-        args.out,
-        attribute_count=args.attribute_count,
-        instances=args.instances,
-        seed=args.seed,
-        train=args.train,
-        val=args.val,
-        trials_seed=args.trials_seed,
-    )

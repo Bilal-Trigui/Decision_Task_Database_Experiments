@@ -11,6 +11,10 @@ in place, and the run uses a setting nobody chose.
   4. A cycle is refused rather than recursing forever.
   5. A field no block has is refused, in a child as well as in a parent.
   6. `_source` records the whole chain, so a results row still says where its settings came from.
+  7. configs/default.json is the whole list of settings: it holds every field the pipeline reads,
+     and every value apply_defaults falls back on is the value default.json gives.
+  8. Every settings file's data folder was built under that file's rule: same option count, same
+     parameters, so a run can never train on answers of another task.
 
 Run with `python -m tests.test_settings`.
 """
@@ -18,7 +22,8 @@ import json
 import tempfile
 from pathlib import Path
 
-from src.config import BLOCKS, SettingsError, load, merge, read_settings, resolve
+from src.config import BLOCKS, OPTIONAL, REQUIRED, SettingsError, apply_defaults, load, merge, read_settings, resolve
+from src.rules.base import check_manifest
 
 CONFIGS = sorted(Path("configs").glob("*.json"))
 
@@ -98,10 +103,44 @@ def test_a_field_no_block_has_is_refused():
     print("  four misspelled fields each refused by name")
 
 
+def _leaves(cfg, prefix=""):
+    out = {}
+    for key, value in cfg.items():
+        if isinstance(value, dict):
+            out.update(_leaves(value, f"{prefix}{key}."))
+        else:
+            out[f"{prefix}{key}"] = value
+    return out
+
+
+def test_default_json_is_the_whole_list():
+    default = json.loads(Path("configs/default.json").read_text())
+    for block in BLOCKS:
+        fields = set(REQUIRED[block]) | OPTIONAL.get(block, set())
+        missing = fields - set(default[block])
+        assert not missing, f"configs/default.json lacks {block}.{sorted(missing)}"
+    assert "option_count" in default["decision_rule"], "configs/default.json lacks decision_rule.option_count"
+    # apply_defaults on a bare skeleton fills exactly default.json's values
+    filled = _leaves(apply_defaults({}))
+    given = _leaves(default)
+    differ = {k: (v, given.get(k)) for k, v in filled.items() if given.get(k, object()) != v}
+    assert not differ, f"apply_defaults and configs/default.json disagree on {differ}"
+    print(f"  every field of every block listed; the {len(filled)} fallbacks match it")
+
+
+def test_every_config_matches_its_data_folder():
+    for path in CONFIGS:
+        cfg = load(str(path))
+        comps = resolve(cfg)
+        check_manifest(cfg["model_training"]["data_dir"], comps.rule, cfg)
+    print(f"  {len(CONFIGS)} settings files, each agreeing with its data folder's manifest")
+
+
 if __name__ == "__main__":
     for test in (test_every_config_loads_and_resolves, test_merge_is_per_field,
                  test_a_list_replaces_whole, test_extends_chain_and_source, test_a_cycle_is_refused,
-                 test_a_field_no_block_has_is_refused):
+                 test_a_field_no_block_has_is_refused, test_default_json_is_the_whole_list,
+                 test_every_config_matches_its_data_folder):
         test()
         print(f"ok  {test.__name__}")
     print("all settings checks passed")

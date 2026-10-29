@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build the training files from a data folder's four inputs, using its weights as given.
 
-    python data/general/vector_dataset_constructor.py --data data/plunkett                 # Plunkett's files, byte for byte
-    python data/general/vector_dataset_constructor.py --data data/a4 --rule tradeoff       # a non-linear rule
-    python data/general/vector_dataset_constructor.py --data data/mine --rule linear       # your own weights
+    python data/general/vector_dataset_constructor.py --data data/plunkett                                     # Plunkett's files, byte for byte
+    python data/general/vector_dataset_constructor.py --data data/minimum_threshold --rule minimum_threshold   # a non-linear rule
+    python data/general/vector_dataset_constructor.py --data data/mine --rule linear                           # your own weights
+    python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold_8b.json       # exactly what a settings file runs on
 
 Run from the repo root. --data also accepts a bare folder name inside data/.
 
@@ -22,6 +23,10 @@ and writes, from those exactly, never rerolling the weights:
     introspection_training.csv           the same stage-two examples in the layout the
                                          pipeline reads at run time
     manifest.json                        rule, parameters, seeds, counts, and a hash per file
+
+--settings builds the folder a settings file names (model_training.data_dir) under that file's
+decision_rule, option count included, its counts and seeds, and its report schema, so the folder and
+the settings cannot disagree. Any other argument given beside it wins.
 
 This is the tool for testing a latent you designed by hand: edit instilled_weights.csv,
 run this, run the pipeline. To draw a fresh latent under a rule instead, use the
@@ -45,13 +50,13 @@ import pandas as pd  # noqa: E402
 
 from src import data as D  # noqa: E402
 from src.config import load_component  # noqa: E402
-from src.rules.base import _parse_param  # noqa: E402
+from src.rules.build import _parse_param  # noqa: E402
 
 SEEDS = {"trials": 2, "introspection": 6}
 
 
 def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10, params=None,
-              seeds=None, schema_name=None):
+              seeds=None, schema_name=None, schema_params=None):
     """Build the training files. Returns the manifest dict."""
     data_dir = resolve_data_dir(data_dir)
     out = Path(out_dir) if out_dir else data_dir
@@ -60,7 +65,7 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
     n = D.infer_attribute_count(data_dir)
 
     rule = load_component("rules", rule_name or rule_of(data_dir), params or {})
-    schema = load_component("reports", schema_name or rule.name, {"attribute_count": n})
+    schema = load_component("reports", schema_name or rule.name, {**(schema_params or {}), "attribute_count": n})
 
     scenarios = D.load_scenarios(data_dir, n)
     if instances > len(scenarios):
@@ -73,8 +78,8 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
     # stage one: decisions, labelled by the rule under these exact weights
     train_trials, val_trials = D.generate_decision_trials(personas, latents, rule, train, val, seeds["trials"])
     train_name, val_name = D.trial_file_names(instances)
-    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t)) for ts in train_trials for t in ts))
-    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t)) for ts in val_trials for t in ts))
+    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in train_trials for t in ts))
+    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in val_trials for t in ts))
 
     # stage two: the report prompt answered with the hidden weights, in both layouts
     examples = D.generate_introspection_examples(personas, latents, rule, schema, n, seeds["introspection"])
@@ -95,6 +100,7 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
         "constructed_by": "vector_dataset_constructor.py",
         "rule": rule.name,
         "params": rule.params,
+        "option_count": rule.option_count,
         "schema": schema.name,
         "seeds": seeds,
         "attribute_count": n,
@@ -111,7 +117,7 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
         "files": {name: _hash(out / name) for name in written},
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"wrote {out}:")
+    print(f"wrote {out}: answers {'/'.join(rule.letters)}")
     for name in written:
         print(f"  {name:44s} {manifest['files'][name]}")
     if stats:
@@ -122,7 +128,7 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
 
 
 def resolve_data_dir(data_dir):
-    """`--data a4` means data/a4, so a folder can be named without its path."""
+    """`--data minimum_threshold` means data/minimum_threshold, so a folder can be named without its path."""
     data_dir = Path(data_dir)
     if not data_dir.exists() and (REPO / "data" / data_dir).exists():
         return REPO / "data" / data_dir
@@ -141,10 +147,30 @@ def _hash(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
 
 
+def from_settings(path):
+    """construct()'s arguments as a settings file gives them: its folder, rule, counts, seeds and schema."""
+    from src.config import apply_defaults, read_settings
+
+    cfg, _ = read_settings(path)
+    apply_defaults(cfg)
+    mt, rule_block, rs = cfg["model_training"], dict(cfg["decision_rule"]), dict(cfg["report_schema"])
+    schema = rs.pop("type")
+    schema = None if schema == "auto" else (schema if isinstance(schema, str) else schema[0])
+    keep = ("batches",)    # the schema's own parameters; the rest of report_schema is how reports are asked
+    return {
+        "data_dir": mt["data_dir"], "rule_name": rule_block.pop("type"), "params": rule_block,
+        "instances": mt["instances"], "train": mt["train_trials_per_persona"], "val": mt["val_trials_per_persona"],
+        "seeds": {"trials": mt["seeds"]["trials"], "introspection": mt["seeds"]["introspection"]},
+        "schema_name": schema, "schema_params": {k: v for k, v in rs.items() if k in keep},
+    }
+
+
 def main(default_data=None, default_rule=None):
     """The command line. A folder's own wrapper calls this with itself as the default."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--data", default=default_data, required=default_data is None,
+    parser.add_argument("--settings", default=None,
+                        help="build the folder a settings file runs on, under its decision_rule, counts and seeds")
+    parser.add_argument("--data", default=default_data, required=default_data is None and "--settings" not in sys.argv,
                         help="folder holding the four inputs")
     parser.add_argument("--rule", default=default_rule, help="decision rule that labels the trials; default is what the folder's manifest says")
     parser.add_argument("--schema", default=None, help="report schema for the stage-two file; default is the rule's own")
@@ -156,6 +182,16 @@ def main(default_data=None, default_rule=None):
     parser.add_argument("--introspection-seed", type=int, default=SEEDS["introspection"])
     parser.add_argument("--param", type=_parse_param, action="append", default=[], help="rule parameter, key=value")
     a = parser.parse_args()
+    if a.settings:
+        given = from_settings(a.settings)
+        # a folder wrapper's own defaults never override the settings file; an argument typed does
+        typed = set(arg.lstrip("-").split("=")[0].replace("-", "_") for arg in sys.argv[1:] if arg.startswith("--"))
+        given["params"].update(dict(a.param))
+        construct(a.data if "data" in typed else given["data_dir"], a.rule if "rule" in typed else given["rule_name"],
+                  a.out, a.instances if "instances" in typed else given["instances"],
+                  a.train if "train" in typed else given["train"], a.val if "val" in typed else given["val"],
+                  given["params"], given["seeds"], a.schema or given["schema_name"], given["schema_params"])
+        return
     construct(a.data, a.rule, a.out, a.instances, a.train, a.val, dict(a.param),
               {"trials": a.trials_seed, "introspection": a.introspection_seed}, a.schema)
 

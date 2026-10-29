@@ -1,1 +1,1 @@
-"""Decision rules: linear (Plunkett), interaction, tradeoff (A4). Selected by decision_rule.type."""
+"""Decision rules: linear (Plunkett), interaction, minimum_threshold. Selected by decision_rule.type."""

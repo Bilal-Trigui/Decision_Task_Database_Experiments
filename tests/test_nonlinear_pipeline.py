@@ -1,26 +1,32 @@
-"""A4 through the full collection and scoring path, with a scripted model in place of a real one.
+"""The minimum threshold rule through the full collection and scoring path, with a scripted model in place of a real one.
 
 `collect` is the function every result passes through and the one hardest to test, because it
 normally needs a loaded model. Here the two places it touches the model, the choice logits and the
 report generation, are replaced by stubs driven from the hidden latent, so the model is perfect by
 construction and every number downstream has a known answer:
 
-  1. The stub chooses exactly as the hidden latent prescribes, so decision accuracy is 1.0.
+  1. The stub chooses exactly as the hidden latent prescribes, C included where both options
+     fail the screen, so decision accuracy is 1.0.
   2. The stub reports exactly the hidden latent, in the schema's own answer format, so
      hidden-versus-reported is the identity and faithfulness equals recovered-versus-hidden.
   3. Every block and every batch the schema declares comes back as its own results row.
   4. The detail CSVs are written with one row per parsed reply and headers as wide as the block.
+  5. After introspection training the model is asked no A/B question: the held-out fold's reports
+     are scored against the rule recovered at the decision checkpoint.
 
 Everything between those stubs is the real pipeline: the verification trials, the rule's labels,
 the estimator, the schema's parse, the per-persona averaging, the block slicing and the distances.
 A persona or attribute misalignment anywhere in that chain breaks case 2.
 
-Run with `python -m tests.test_nonlinear_pipeline`. Needs data/a4 built.
+Run with `python -m tests.test_nonlinear_pipeline`. Needs data/minimum_threshold and
+data/paper_minimum_threshold built.
 """
 import copy
 import tempfile
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from src import data as D
 from src import evaluate as E
@@ -34,7 +40,7 @@ def _settings(data_dir, rule, estimator, batches=None):
     cfg = copy.deepcopy(TEST)
     cfg["model_training"]["data_dir"] = data_dir
     cfg["model_training"]["instances"] = N_PERSONAS
-    cfg["decision_rule"] = rule
+    cfg["decision_rule"] = {"option_count": 3, **rule}     # both threshold folders are built with A, B and C
     cfg["model_estimating"].update({"type": estimator, "estimation_trials_per_persona": 60, "chance_draws": 5})
     cfg["report_schema"]["samples_per_report"] = 2
     if batches is not None:
@@ -59,10 +65,11 @@ def _scripted_model(cfg, comps, data, persona_indices):
     trials = D.fresh_trials(personas, me["estimation_trials_per_persona"], seeds["verification"])
     labels = [rule.label(data.latents[k], t) for k in persona_indices for t in trials[k]]
 
-    def choice_logits(model, tok, texts, batch_size, device):
+    def choice_logits(model, tok, texts, batch_size, device, letters=("A", "B")):
         assert len(texts) == len(labels), (len(texts), len(labels))
-        pairs = np.array([[1.0, 0.0] if lab == "A" else [0.0, 1.0] for lab in labels])
-        return pairs, [0] * len(labels), (0, 1)
+        assert tuple(letters) == rule.letters, (letters, rule.letters)
+        one_hot = np.array([[float(lab == letter) for letter in letters] for lab in labels])
+        return one_hot, [0] * len(labels), tuple(range(len(letters)))
 
     queued = []
     slices = rule.block_slices(n)
@@ -96,6 +103,12 @@ def _run(cfg):
         with tempfile.TemporaryDirectory() as out:
             detail = E.collect(None, None, cfg, comps, data, "cpu", persona_indices, "t", out)
             rows = E.summarize([detail], cfg, comps, data, "t", "decision", 0, 1)
+            if "cut" in comps.rule.block_slices(data.attribute_count):
+                # step 3c: one line per persona, True or False against the persona's own screen
+                screen = pd.read_csv(Path(out) / "screen_fit_t.csv")
+                assert len(screen) == N_PERSONAS, len(screen)
+                for column in ("estimator_attribute_matches_absolute", "estimator_cut_matches_absolute"):
+                    assert set(screen[column]) <= {True, False}, (column, set(screen[column]))
     finally:
         E.choice_logits, E.generate_texts, E.chat_prompt = saved
     return comps, rows
@@ -121,18 +134,82 @@ def _check(name, cfg, expect_batches):
     return by_batch
 
 
-def test_a4_both_blocks_score():
-    cfg = _settings("data/a4/", {"type": "tradeoff", "active_cuts": 1, "cut_range": [30, 70],
-                                 "zero_cut_main_effects": True}, "tradeoff")
-    by_batch = _check("A4", cfg, ["main", "cut"])
+def test_minimum_threshold_both_blocks_score():
+    cfg = _settings("data/minimum_threshold/", {"type": "minimum_threshold", "active_cuts": 1, "cut_range": [30, 70],
+                                 "zero_cut_main_effects": True}, "minimum_threshold")
+    by_batch = _check("minimum_threshold", cfg, ["main", "cut"])
     assert by_batch["cut"]["block"] == "cut"
     # the cut block is a scaled error, so its chance sits far above zero and the row is only
     # readable against it; this asserts the pipeline actually measured that rather than assuming
     assert by_batch["cut"]["chance"] > 0.3, by_batch["cut"]["chance"]
+    assert 0 <= by_batch["cut"]["estimator_attribute_match_rate"] <= 1, by_batch["cut"]
+    assert "estimator_attribute_match_rate" not in by_batch["main"], by_batch["main"]
+
+
+def test_paper_minimum_threshold_four_questions_score():
+    """The paper's four questions through collect and summarize, with a perfect reporter.
+
+    Their answers have other shapes than the blocks they are read from (an index, one level, one
+    weight), so this is the check that every one of them is sliced, parsed and scored the same way
+    from either side. The weight report is rounded to integers on the 100 scale, so it is exact to
+    rounding rather than to the last digit, and the screened weight is scored against hidden only.
+    """
+    cfg = _settings("data/paper_minimum_threshold/", {"type": "paper_minimum_threshold"}, "paper_minimum_threshold")
+    comps, rows = _run(cfg)
+    by_batch = {r["report_batch"]: r for r in rows if r["report_batch"]}
+    assert set(by_batch) == {"main", "screen_index", "screen_cut", "screen_weight"}, sorted(by_batch)
+    for batch, row in sorted(by_batch.items()):
+        assert row["parse_rate"] == 1.0 and row["n_personas_reported"] == N_PERSONAS, (batch, row)
+        assert abs(row["hidden_vs_reported"] - 1.0) < 1e-3, (batch, row["hidden_vs_reported"])
+        if batch == "screen_weight":
+            assert "faithfulness" not in row and "recovered_vs_hidden" not in row, row
+            print(f"  {'paper':10s} {batch:13s} hidden vs reported {row['hidden_vs_reported']:.3f}, not recovered by design")
+            continue
+        assert abs(row["faithfulness"] - row["recovered_vs_hidden"]) < 1e-3, (
+            batch, row["faithfulness"], row["recovered_vs_hidden"])
+        print(f"  {'paper':10s} {batch:13s} {row['distance']:14s} recovery {row['recovered_vs_hidden']:.3f}  "
+              f"faithfulness {row['faithfulness']:.3f}  chance {row['chance']:.3f}")
+    assert by_batch["screen_index"]["distance"] == "identification"
+    # identification of the fit against hidden is the attribute match rate, counted another way
+    assert by_batch["screen_index"]["estimator_attribute_match_rate"] == by_batch["screen_index"]["recovered_vs_hidden"]
+
+
+def test_introspection_reuses_the_decision_rule():
+    cfg = _settings("data/paper_minimum_threshold/", {"type": "paper_minimum_threshold"}, "paper_minimum_threshold")
+    comps = resolve(cfg)
+    data = D.load_data(cfg, comps.rule)
+    everyone, fold = list(range(N_PERSONAS)), list(range(N_PERSONAS // 2, N_PERSONAS))
+    logits, generate = _scripted_model(cfg, comps, data, everyone)
+    _, fold_generate = _scripted_model(cfg, comps, data, fold)
+
+    def no_decisions(*args, **kwargs):
+        raise AssertionError("the model was asked an A/B question after introspection training")
+
+    saved = (E.choice_logits, E.generate_texts, E.chat_prompt)
+    E.chat_prompt = lambda tok, content: content
+    try:
+        with tempfile.TemporaryDirectory() as out:
+            E.choice_logits, E.generate_texts = logits, generate
+            decision = E.collect(None, None, cfg, comps, data, "cpu", everyone, "decision_step-1", out)
+            E.choice_logits, E.generate_texts = no_decisions, fold_generate
+            after = E.collect(None, None, cfg, comps, data, "cpu", fold, "introspection-fold1_step-1", out, reuse=decision)
+            written = sorted(p.name for p in Path(out).iterdir() if "introspection" in p.name)
+            rows = E.summarize([after], cfg, comps, data, "t", "introspection", 1, 1, from_step=1)
+    finally:
+        E.choice_logits, E.generate_texts, E.chat_prompt = saved
+    assert sorted(after["recovered"]) == fold
+    assert all(np.array_equal(after["recovered"][k], decision["recovered"][k]) for k in fold)
+    assert set(after["decisions"]["persona"]) == set(fold)
+    assert not any(name.startswith(("selections_", "recovered_", "screen_fit_", "design_correlation_")) for name in written), written
+    main = next(r for r in rows if r["report_batch"] == "main")
+    assert main["decision_accuracy"] == 1.0 and abs(main["faithfulness"] - main["recovered_vs_hidden"]) < 1e-3, main
+    print(f"  {len(fold)} held-out personas: no A/B question asked, reports scored against the decision "
+          f"checkpoint's rule (faithfulness {main['faithfulness']:.3f}); files written: {', '.join(written)}")
 
 
 if __name__ == "__main__":
-    for test in (test_a4_both_blocks_score,):
+    for test in (test_minimum_threshold_both_blocks_score, test_paper_minimum_threshold_four_questions_score,
+                 test_introspection_reuses_the_decision_rule):
         test()
         print(f"ok  {test.__name__}")
     print("all non-linear pipeline checks passed")

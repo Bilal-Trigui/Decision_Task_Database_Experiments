@@ -1,8 +1,9 @@
-"""Trace the A4 cut-faithfulness number (-1.17 at decision step 2500).
-Run from inside a folder holding constraint_table.csv plus the weight_reports_*_tradeoff_cut.csv
-and recovered_*.csv files for one tradeoff run:  python3 trace_cut_faithfulness.py
+"""Trace the minimum threshold cut-faithfulness number (-1.17 at decision step 2500).
+Run from inside a folder holding constraint_table.csv plus the weight_reports_*_cut.csv
+and recovered_*.csv files for one minimum threshold run:  python3 trace_cut_faithfulness.py
 Score used by the pipeline for the cut block: 1 - mean absolute error (percentage points) / 100.
 """
+import glob
 import pandas as pd, numpy as np
 ct=pd.read_csv('constraint_table.csv')
 H=ct.pivot(index='scenario',columns='cut_column',values='cut_percent')[[f'cut{i}' for i in range(1,6)]]
@@ -11,7 +12,7 @@ hi=ct.pivot(index='scenario',columns='cut_column',values='range_max')[H.columns]
 cols=[f'report_cut{i}' for i in range(1,6)]
 score=lambda R,B: 1-np.mean(np.abs(R-B))/100
 def run(tag):
-    r=pd.read_csv(f'weight_reports_{tag}_tradeoff_cut.csv'); rec=pd.read_csv(f'recovered_{tag}.csv').set_index('scenario')
+    r=pd.read_csv(glob.glob(f'weight_reports_{tag}_*_cut.csv')[0]); rec=pd.read_csv(f'recovered_{tag}.csv').set_index('scenario')
     A=r[[f'A_attribute_{i}' for i in range(1,6)]].values; Bo=r[[f'B_attribute_{i}' for i in range(1,6)]].values
     copy=np.all(np.isclose(r[cols].values,A),1)|np.all(np.isclose(r[cols].values,Bo),1)
     s=r.scenario.values

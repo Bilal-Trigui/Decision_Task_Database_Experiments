@@ -56,7 +56,7 @@ REQUIRED = {
         "type": str,
         "decision_temperature": NUMBER,
         "samples_per_trial": int,
-        "estimation_trials_per_persona": int,
+        "estimation_trials_per_persona": (int, list),
         "chance_draws": int,
     },
     "report_schema": {
@@ -93,7 +93,8 @@ REQUIRED = {
 OPTIONAL = {
     "object": set(),
     "model_training": {"seeds"},
-    "model_hyperparameters": {"gradient_checkpointing", "micro_batch_size"},
+    "model_hyperparameters": {"gradient_checkpointing", "micro_batch_size", "introspection_at_steps",
+                              "baseline_before_training"},
     "gates": set(),
     "compute": {"mount_drive"},
 }
@@ -104,7 +105,7 @@ class SettingsError(ValueError):
 
 
 def apply_defaults(cfg):
-    """Fill the few fields that may be omitted. Reads model_training.seeds, compute."""
+    """Fill the few fields that may be omitted, with configs/default.json's values. Reads model_training.seeds, compute, decision_rule.option_count."""
     cfg.setdefault("model_training", {}).setdefault("seeds", {})
     for key, value in DEFAULT_SEEDS.items():
         cfg["model_training"]["seeds"].setdefault(key, value)
@@ -114,10 +115,13 @@ def apply_defaults(cfg):
     compute.setdefault("mixed_precision", "no" if compute["device"] == "cpu" else "fp16")
     compute.setdefault("eval_batch_size", 16)
     compute.setdefault("mount_drive", False)
+    cfg.setdefault("decision_rule", {}).setdefault("option_count", 2)
     cfg.setdefault("report_schema", {}).setdefault("max_new_tokens", 200)
     cfg.setdefault("model_estimating", {}).setdefault("chance_draws", 1000)
     cfg.setdefault("model_hyperparameters", {}).setdefault("gradient_checkpointing", False)
     cfg["model_hyperparameters"].setdefault("micro_batch_size", None)
+    cfg["model_hyperparameters"].setdefault("introspection_at_steps", None)
+    cfg["model_hyperparameters"].setdefault("baseline_before_training", True)
     return cfg
 
 
@@ -164,6 +168,12 @@ def validate(cfg):
         raise SettingsError("object.type must be 'vector'; non-vector objects are out of scope")
     if obj["attribute_count"] < 2:
         raise SettingsError("object.attribute_count must be at least 2")
+    options = cfg["decision_rule"]["option_count"]
+    if isinstance(options, bool) or options not in (2, 3):
+        raise SettingsError(
+            "decision_rule.option_count must be 2 (A or B, Plunkett's task) or 3 (A, B, or C for neither); "
+            f"got {options!r}"
+        )
     for key in DEFAULT_SEEDS:
         if key not in mt["seeds"] or isinstance(mt["seeds"][key], bool) or not isinstance(mt["seeds"][key], int):
             raise SettingsError(f"model_training.seeds.{key} must be an integer")
@@ -176,7 +186,6 @@ def validate(cfg):
         raise SettingsError("temperatures must be non-negative")
     for block, field in (
         ("model_estimating", "samples_per_trial"),
-        ("model_estimating", "estimation_trials_per_persona"),
         ("model_estimating", "chance_draws"),
         ("report_schema", "samples_per_report"),
         ("report_schema", "max_new_tokens"),
@@ -201,6 +210,34 @@ def validate(cfg):
     micro = mh["micro_batch_size"]
     if micro is not None and (isinstance(micro, bool) or not isinstance(micro, int) or micro < 1):
         raise SettingsError("model_hyperparameters.micro_batch_size must be a positive integer or null")
+    if not isinstance(mh["baseline_before_training"], bool):
+        raise SettingsError("model_hyperparameters.baseline_before_training must be true or false")
+    trials = me["estimation_trials_per_persona"]
+    counts = trials if isinstance(trials, list) else [trials]
+    if not counts or any(isinstance(t, bool) or not isinstance(t, int) or t < 1 for t in counts):
+        raise SettingsError(
+            "model_estimating.estimation_trials_per_persona must be a positive integer, "
+            "or a non-empty list of them to recover the rule from several trial counts"
+        )
+    if len(set(counts)) != len(counts):
+        raise SettingsError(f"model_estimating.estimation_trials_per_persona lists a count twice: {trials}")
+    at = mh["introspection_at_steps"]
+    if at is not None:
+        if not isinstance(at, list) or not at or any(isinstance(s, bool) or not isinstance(s, int) for s in at):
+            raise SettingsError("model_hyperparameters.introspection_at_steps must be a non-empty list of decision steps, or null")
+        if not mh["introspection_training"]:
+            raise SettingsError(
+                "model_hyperparameters.introspection_at_steps is set but introspection_training is false; "
+                "set introspection_training to true, or remove introspection_at_steps"
+            )
+        if len(set(at)) != len(at):
+            raise SettingsError(f"model_hyperparameters.introspection_at_steps lists a step twice: {at}")
+        outside = [s for s in at if not 1 <= s <= mh["training_steps"]]
+        if outside:
+            raise SettingsError(
+                f"model_hyperparameters.introspection_at_steps {outside} lie outside decision training "
+                f"(steps 1 to training_steps, {mh['training_steps']})"
+            )
     if mh["finetune"] == "full" and mh["quantization"] != "none":
         raise SettingsError("model_hyperparameters.finetune 'full' needs quantization 'none'; a quantized base cannot be fully trained")
     for field in ("min_decision_accuracy", "min_parse_rate"):
@@ -313,7 +350,15 @@ def resolve(cfg):
     rule_params = {k: v for k, v in cfg["decision_rule"].items() if k != "type"}
     rule = load_component("rules", cfg["decision_rule"]["type"], rule_params)
     estimator_params = {k: v for k, v in cfg["model_estimating"].items() if k != "type"}
-    estimator = load_component("estimators", cfg["model_estimating"]["type"], {**estimator_params, "attribute_count": n})
+    # the estimator is told how many options a trial offers, so a threshold fit knows whether both-fail means C
+    estimator = load_component("estimators", cfg["model_estimating"]["type"],
+                               {**estimator_params, "attribute_count": n, "option_count": rule.option_count})
+    active_cuts = getattr(rule, "params", {}).get("active_cuts", 1)
+    if getattr(estimator, "single_cut", False) and active_cuts != 1:
+        raise SettingsError(
+            f"model_estimating.type '{estimator.name}' fits exactly one screened attribute, but "
+            f"decision_rule.active_cuts is {active_cuts}"
+        )
     schema_params = {k: v for k, v in cfg["report_schema"].items() if k != "type"}
     names = cfg["report_schema"]["type"]
     names = [names] if isinstance(names, str) else list(names)
@@ -326,6 +371,29 @@ def resolve(cfg):
         schemas.append(load_component("reports", name, {**schema_params, "attribute_count": n}))
     backend = load_component("compute", cfg["compute"]["backend"], cfg)
     return Components(rule=rule, estimator=estimator, schemas=schemas, backend=backend)
+
+
+def introspection_points(cfg):
+    """The decision steps that introspection training branches from, in order. Reads model_hyperparameters.
+
+    Empty when introspection_training is off. introspection_at_steps null means the final step
+    only, which is the original design: stage two once, after all of stage one.
+    """
+    mh = cfg["model_hyperparameters"]
+    if not mh["introspection_training"]:
+        return []
+    return sorted(mh.get("introspection_at_steps") or [mh["training_steps"]])
+
+
+def estimation_counts(cfg):
+    """The trial counts the rule is recovered from, smallest first. Reads model_estimating.
+
+    estimation_trials_per_persona is one number, or a list to sweep: the model makes its A/B
+    decisions once, on the largest count, and the rule is recovered again from the first N of
+    them for every N listed, so how many trials it takes to find the rule costs no model time.
+    """
+    trials = cfg["model_estimating"]["estimation_trials_per_persona"]
+    return sorted(trials) if isinstance(trials, list) else [trials]
 
 
 def hyperparameter_columns(cfg):
@@ -343,6 +411,7 @@ def hyperparameter_columns(cfg):
         "data_dir": mt["data_dir"],
         "decision_rule": cfg["decision_rule"]["type"],
         "decision_rule_params": json.dumps(rule_params, sort_keys=True),
+        "option_count": cfg["decision_rule"].get("option_count", 2),
         "estimator": me["type"],
         "attribute_count": cfg["object"]["attribute_count"],
         "instances": mt["instances"],
@@ -358,12 +427,15 @@ def hyperparameter_columns(cfg):
         "training_steps": mh["training_steps"],
         "introspection_training": mh["introspection_training"],
         "introspection_steps": mh["introspection_steps"],
+        "introspection_at_steps": json.dumps(introspection_points(cfg)),
         "gradient_checkpointing": mh["gradient_checkpointing"],
         "micro_batch_size": mh["micro_batch_size"],
         "seed": mh["seed"],
         "decision_temperature": me["decision_temperature"],
         "samples_per_trial": me["samples_per_trial"],
-        "estimation_trials_per_persona": me["estimation_trials_per_persona"],
+        # a single count as it was always written; a sweep as its list, smallest first
+        "estimation_trials_per_persona": (json.dumps(estimation_counts(cfg)) if isinstance(me["estimation_trials_per_persona"], list)
+                                          else me["estimation_trials_per_persona"]),
         "chance_draws": me["chance_draws"],
         "report_temperature": rs["report_temperature"],
         "samples_per_report": rs["samples_per_report"],

@@ -1,4 +1,4 @@
-"""A4 report: two batches of n slots each, Plunkett's weight report and a cut-point report.
+"""Minimum threshold report: two batches of n slots each, Plunkett's weight report and a cut-point report.
 
 The main batch uses Plunkett's introspection prompt verbatim. The cut batch asks for the minimum
 level the model required of each dimension before it would accept an option at all, on the same
@@ -35,10 +35,34 @@ def cut_prompt_base(n):
     return CUT_PROMPT_BASE.format(word=_NUMBER_WORDS.get(n, str(n)), count=n)
 
 
-class TradeoffSchema(Schema):
-    name = "tradeoff"
+class MinimumThresholdSchema(Schema):
+    """
+    This uses most of what base.py gives you. Only overwrites batches. Parsing nad training answers are inherited unchanged. 
+    The rule it reports on
+
+    The minimum threshold rule (rules/minimum_threshold.py) gives each persona 2n hidden numbers in two blocks:
+
+    - main: Plunkett's weights, attr1..attr5, from -100 to 100.
+    - cut: one cut point per attribute, cut1..cut5, as a percentage of that attribute's range (0 to 100). An option that falls below any cut point loses outright. Among options that pass every cut, the weighted sum decides. A cut of 0 means that attribute has no constraint.
+
+    So a latent looks like [w1..w5, c1..c5], for example [20, -10, 0, 35, 5,  0, 0, 45, 0, 0]. With default settings only one attribute gets a cut, and that attribute's own weight is set to 0.
+
+    """
+
+
+    name = "minimum_threshold"
 
     def batches(self, attribute_names):
+        """
+        self: MinimumThresholdSchema object. It was created once per run by build(params) at the bottom of the file. It calls MinimumThresholdSchema(params["attribute_count"]).
+        It runs the inherited Schema, which sets self.n = attribute count. 
+
+        
+
+        
+        """
+
+
         names = list(attribute_names)[: self.n]
         return [
             Batch(name="main", block="main", keys=names, prompt_base=introspection_prompt_base(self.n)),
@@ -47,4 +71,4 @@ class TradeoffSchema(Schema):
 
 
 def build(params):
-    return TradeoffSchema(params["attribute_count"])
+    return MinimumThresholdSchema(params["attribute_count"])

@@ -74,6 +74,9 @@ def pair_prompt_base(n, keys, list_keys=None):
 
 
 class InteractionSchema(Schema):
+
+
+
     name = "interaction"
 
     def __init__(self, attribute_count, batches=None, list_pair_keys=None):

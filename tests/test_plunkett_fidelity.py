@@ -3,7 +3,7 @@
 Run with `python -m tests.test_plunkett_fidelity` or pytest. Every check is
 byte-for-byte or value-for-value:
   1. scenarios.csv rebuilt from scenario_definitions.json + roles.csv with the roles seed.
-  2. instilled_weights.csv and both trial JSONL files rebuilt by the linear rule's make_dataset.
+  2. instilled_weights.csv and both trial JSONL files rebuilt by make_dataset under the linear rule.
   3. The Experiment 2 introspection-training file rebuilt with the introspection seed.
   4. The data folder holds exactly Plunkett's file names.
   5. The 50 verification trials per persona (seed 5) are structurally valid: scenario order,
@@ -23,6 +23,7 @@ import pandas as pd
 
 from src import data as D
 from src.reports.linear import LinearSchema
+from src.rules.build import make_dataset
 from src.rules.linear import LinearRule
 
 PLUNKETT = Path(__file__).resolve().parents[1] / "data" / "plunkett"
@@ -38,7 +39,7 @@ def test_scenarios_csv():
 
 def test_weights_and_trials():
     with tempfile.TemporaryDirectory() as tmp:
-        LinearRule().make_dataset(PLUNKETT, tmp, seed=SEEDS["weights"], trials_seed=SEEDS["trials"])
+        make_dataset(LinearRule(), PLUNKETT, tmp, seed=SEEDS["weights"], trials_seed=SEEDS["trials"])
         for name in ("instilled_weights.csv", "instill_100_prefs.jsonl", "instill_100_prefs_val.jsonl"):
             assert (Path(tmp) / name).read_bytes() == (PLUNKETT / name).read_bytes(), f"{name} differs"
 

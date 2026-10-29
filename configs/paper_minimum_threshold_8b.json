@@ -1,0 +1,28 @@
+{
+  "_comment": "The paper's minimum threshold design at Qwen3-8B, over data/paper_minimum_threshold/: Plunkett's weights, -100 to 100 with the largest magnitude 100 and none nearer 0 than 20, the screened attribute's weight 0 so it is a pure screen, one cut at 25, 50 or 75 percent of its range. Three options: A, B, or C (neither) when both options fall below the cut, with a fifth of the training answers C. 1000 estimation trials per persona so the single-cut fit sees every branch of the rule. Four report questions (weights, which attribute is screened, its cut, its weight), each asked at every checkpoint and each trained on in introspection, so 200 examples a fold and 600 steps for three passes. 1000 report tokens so no answer is cut off. Everything else is minimum_threshold_8b.json's.",
+  "extends": "minimum_threshold_8b.json",
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "neither_share": 0.2,
+    "active_cuts": 1,
+    "cut_range": [25, 75],
+    "cut_levels": [25, 50, 75],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "min_weight_magnitude": 20
+  },
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold/"
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "estimation_trials_per_persona": 1000
+  },
+  "report_schema": {
+    "max_new_tokens": 1000
+  },
+  "model_hyperparameters": {
+    "introspection_steps": 600
+  }
+}

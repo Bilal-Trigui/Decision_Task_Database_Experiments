@@ -5,7 +5,7 @@ say what the choices are and what hidden latent drives them, and the generated f
 the pipeline actually trains on. This document says what each file is, what writes
 it, how the three module kinds bind together, and the ways a folder fails quietly.
 
-`data/plunkett/` is the reference folder. `data/a4/` is the constrained tradeoff
+`data/plunkett/` is the reference folder. `data/minimum_threshold/` is the minimum threshold
 rule, built from Plunkett's scenarios with a different latent. This folder holds no
 data of its own: it carries this document and the two tools every experiment builds
 with, `vector_dataset_constructor.py` and `vector_weight_generator.py`.
@@ -60,7 +60,8 @@ the only place a hand-designed latent goes.
 |---|---|
 | linear | `attr1..attrN` |
 | interaction | `attr1..attrN`, `v_1_2 .. v_(N-1)_N` |
-| tradeoff | `attr1..attrN`, `cut1..cutN` |
+| minimum_threshold | `attr1..attrN`, `cut1..cutN` |
+| paper_minimum_threshold | `attr1..attrN`, `cut1..cutN` |
 
 Row counts: `scenarios.csv` needs at least `model_training.instances` rows, and
 `instilled_weights.csv` needs a row for every scenario actually used. The pipeline
@@ -90,10 +91,10 @@ The constructor uses the latent exactly as written.
 Draw a fresh latent under a rule and build everything:
 
 ```
-python -m src.rules.linear      --source data/plunkett --out data/plunkett_regen
-python -m src.rules.interaction --source data/plunkett --out data/interaction --seed 1
-python -m src.rules.tradeoff    --source data/plunkett --out data/a4 --seed 1
-python -m src.rules.interaction --source data/plunkett --out data/interaction_dense --seed 1 \
+python -m src.rules.linear            --source data/plunkett --out data/plunkett_regen
+python -m src.rules.interaction       --source data/plunkett --out data/interaction --seed 1
+python -m src.rules.minimum_threshold --source data/plunkett --out data/minimum_threshold --seed 1
+python -m src.rules.interaction       --source data/plunkett --out data/interaction_dense --seed 1 \
     --param active_pairs=10 --param main_scale=1.0 --param zero_pair_main_effects=false
 ```
 
@@ -104,20 +105,26 @@ then the rule's extra latent columns), regenerates Plunkett's trials with
 `--trials-seed` 2 and relabels them into `instill_<instances>_prefs.jsonl` and its
 `_val` file, and writes `manifest.json` with the seed, the rule parameters, file
 hashes and rule statistics. At load, the pipeline refuses a folder whose manifest was
-built with different rule parameters than the settings say.
+built with different rule parameters than the settings say, and above all one built with a
+different `option_count`: a folder of A/B answers cannot train a model asked A, B or C, or the
+reverse. The stored examples are checked too, so a folder with no manifest is caught the same way.
 
 Rebuild the training files from the weights already in a folder, never rerolling:
 
 ```
-python data/general/vector_dataset_constructor.py --data data/plunkett      # his three JSONLs, byte for byte
+python data/general/vector_dataset_constructor.py --data data/plunkett                  # his three JSONLs, byte for byte
 python data/general/vector_dataset_constructor.py --data data/mine --rule linear
-python data/general/vector_dataset_constructor.py --data a4                 # a bare folder name works too
-python data/a4/a4_dataset_constructor.py                                    # the same, through the wrapper
-python data/a4/a4_weight_generator.py --seed 7 --rebuild                    # reroll A4 and rebuild in one step
+python data/general/vector_dataset_constructor.py --data minimum_threshold               # a bare folder name works too
+python data/minimum_threshold/minimum_threshold_dataset_constructor.py                   # the same, through the wrapper
+python data/minimum_threshold/minimum_threshold_weight_generator.py --seed 7 --rebuild   # reroll and rebuild in one step
+python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold_8b.json   # the folder a settings file runs on
 ```
 
-The A4 constructor wraps the general one with its rule as the default and adds a
-readable view of the extra block. A4 writes `constraint_table.csv`, one row per
+`--settings` takes the folder, rule (option count included), counts, seeds and report schema from
+a settings file, so the folder it writes is the one that file expects. Anything typed beside it wins.
+
+The minimum threshold constructor wraps the general one with its rule as the default and adds a
+readable view of the extra block. It writes `constraint_table.csv`, one row per
 persona and attribute carrying the weight beside the cut point in both percent and
 the attribute's own units. It audits the authored weights against the declared rule
 parameters and prints warnings rather than failing, since a hand-designed latent may
@@ -159,7 +166,8 @@ behave differently and that difference is the finding.
 |---|---|---|---|
 | linear | `main` | linear | 5, one batch |
 | interaction | `main`, `interaction` | interaction | 15, two batches |
-| tradeoff | `main`, `cut` | tradeoff | 10, two batches |
+| minimum_threshold | `main`, `cut` | minimum_threshold | 10, two batches |
+| paper_minimum_threshold | `main`, `cut`, read also as `screen_index`, `screen_cut`, `screen_weight` | paper_minimum_threshold | 8, four batches |
 
 Every vector rule calls its weight block `main`. A report schema splits its slots
 into batches, each collected in its own prompt, and a batch names the block it
@@ -237,7 +245,7 @@ decimal places whenever the range spans 5 or more. An attribute ranging 0.1 to 1
 can draw 0.4 and round to 0, so its normalized value is negative. This is rare, about
 one value in ten thousand, and it is faithful to Plunkett, so the generator keeps it.
 Any new rule that compares a normalized value against a bound must handle it. The
-tradeoff rule treats a cut point of 0 as no constraint rather than as the bound
+minimum threshold rule treats a cut point of 0 as no constraint rather than as the bound
 `xhat >= 0` for exactly this reason.
 
 **The manifest pins the rule parameters.** `check_manifest` raises when a folder's

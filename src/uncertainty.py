@@ -12,7 +12,7 @@ Three questions the point estimates in results.csv cannot answer on their own.
 2. How stable is one persona's recovered latent?  `bootstrap_recovered`
    The recovered latent is fitted from one persona's A/B choices on the verification trials.
    Resampling those trials and refitting shows how far each recovered number moves. For the
-   linear and interaction estimators this is quick. For the tradeoff estimator every refit runs
+   linear and interaction estimators this is quick. For the minimum threshold estimator every refit runs
    the full cut-point search, so keep n_boot small (100 to 200) or run it offline on a few
    personas.
 
@@ -20,7 +20,7 @@ Three questions the point estimates in results.csv cannot answer on their own.
    If two columns of the design matrix move together, logistic regression cannot tell which one
    the choices respond to, and the weights it splits between them are unstable. Plunkett's option
    values are drawn independently, so the main-effect columns should be close to uncorrelated.
-   The column to watch is A4's screen column: whether an option survives the screen depends on
+   The column to watch is the minimum threshold rule's screen column: whether an option survives the screen depends on
    the screened attribute's level, so the screen column is correlated with that attribute's
    difference column by construction. With zero_cut_main_effects the true weight on that
    attribute is 0, and any weight the fit puts there may be screen signal leaking across.
@@ -105,7 +105,7 @@ def bootstrap_recovered(estimator, A, B, choices, mins, maxs, n_boot=200, seed=0
 def design_matrix(estimator, A, B, mins, maxs, cuts=None):
     """The matrix the estimator actually fits on, with column names.
 
-    For the tradeoff estimator, pass the cut vector to include the screen column the fit uses at
+    For the minimum threshold estimator, pass the cut vector to include the screen column the fit uses at
     those cuts. Without cuts, or for any other estimator, this is `estimator.features`.
     """
     A, B = np.asarray(A, float), np.asarray(B, float)
@@ -157,7 +157,7 @@ def design_correlation(X, names):
 
 
 def screen_correlation_row(estimator, A, B, mins, maxs, cuts, persona=None):
-    """One summary row for one persona under A4: how tangled is the screen with what it screens on.
+    """One summary row for one persona under the minimum threshold rule: how tangled is the screen with what it screens on.
 
     `cuts` should be the persona's hidden cut vector for the question "does the task itself tangle
     these columns", or the recovered one for "did the fit work on tangled columns". The row

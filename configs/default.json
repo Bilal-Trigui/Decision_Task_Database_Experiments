@@ -1,18 +1,23 @@
 {
   "_comment": [
-    "THE DEFAULT. Every other settings file in this folder is this file with a few fields changed.",
+    "THE DEFAULT. Every other settings file in this folder extends this one and changes a few fields.",
     "Run it unchanged and it reproduces Plunkett et al. (2025) on Qwen3-0.6B: 4-bit, fp16, sized for a Colab T4.",
     "The six blocks mirror the paper's environment frame (object, decision_rule, model_training,",
     "model_estimating, report_schema, model_hyperparameters), plus gates and compute.",
+    "Every field the pipeline reads is listed here, so this file is the whole list of settings. A rule,",
+    "estimator or report schema may take more fields of its own (a threshold rule's cut_range, an",
+    "estimator's grid_step, a schema's batches); those are set in the file that names that component.",
     "Every value with a Plunkett source is his value; README 'Settings' gives the source of each field.",
-    "To make a new experiment: copy this file, change one element, name the copy after the change."
+    "To make a new experiment: copy a file, change one element, name the copy after the change."
   ],
   "object": {
     "type": "vector",
     "attribute_count": 5
   },
   "decision_rule": {
-    "type": "linear"
+    "type": "linear",
+    "option_count": 2,
+    "min_weight_magnitude": null
   },
   "model_training": {
     "data_dir": "data/plunkett/",
@@ -49,12 +54,16 @@
     "lora_alpha": 8,
     "learning_rate": 0.0002,
     "batch_size": 10,
+    "micro_batch_size": null,
+    "gradient_checkpointing": false,
     "loss_mask_answer_only": true,
     "training_steps": 1500,
     "checkpoint_every": 300,
+    "baseline_before_training": true,
     "introspection_training": true,
     "introspection_steps": 150,
     "introspection_batch_size": 1,
+    "introspection_at_steps": null,
     "seed": 4
   },
   "gates": {

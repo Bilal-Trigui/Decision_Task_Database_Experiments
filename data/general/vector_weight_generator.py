@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Reroll a data folder's instilled_weights.csv under its rule, and nothing else.
 
-    python data/general/vector_weight_generator.py --data a4 --seed 7
-    python data/a4/a4_weight_generator.py --seed 7              # the same, defaulting to that folder
-    python data/a4/a4_weight_generator.py --seed 7 --rebuild    # reroll, then rebuild the dataset
+    python data/general/vector_weight_generator.py --data minimum_threshold --seed 7
+    python data/minimum_threshold/minimum_threshold_weight_generator.py --seed 7             # the same, defaulting to that folder
+    python data/minimum_threshold/minimum_threshold_weight_generator.py --seed 7 --rebuild   # reroll, then rebuild the dataset
 
 This writes one file. The constructor turns the latent it writes into the training files, and the
 two stay separate so a latent designed by hand enters exactly the way a drawn one does: edit
@@ -26,7 +26,7 @@ sys.path.insert(0, str(REPO / "data" / "general"))
 
 from src import data as D  # noqa: E402
 from src.config import load_component  # noqa: E402
-from src.rules.base import _parse_param  # noqa: E402
+from src.rules.build import _parse_param, roll_weights  # noqa: E402
 
 from vector_dataset_constructor import construct, resolve_data_dir, rule_of  # noqa: E402
 
@@ -40,7 +40,7 @@ def generate(data_dir, rule_name=None, out_dir=None, seed=1, params=None, rebuil
     rule = load_component("rules", rule_name or rule_of(data_dir), params or {})
     n = D.infer_attribute_count(data_dir)
     scenarios = D.load_scenarios(data_dir, n)
-    latents, frame = rule.roll_weights(scenarios, n, seed)
+    latents, frame = roll_weights(rule, scenarios, n, seed)
     frame.to_csv(out / WEIGHTS, index=False)
 
     print(f"rerolled {out / WEIGHTS} under rule '{rule.name}' at seed {seed}")

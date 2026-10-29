@@ -21,12 +21,14 @@ TRAIN_LOG_COLUMNS = [
     "run_id",
     "stage",
     "fold",
+    "introspection_from_step",
     "step",
     "loss",
     "first_token_accuracy",
     "answer_token_accuracy",
     "val_loss",
     "val_first_token_accuracy",
+    "val_answer_token_accuracy",
     "learning_rate",
     "elapsed_seconds",
 ]
@@ -181,30 +183,26 @@ def collate(encoded, pad_id, device):
     return input_ids.to(device), attention.to(device), labels.to(device)
 
 
-def _accuracy_counts(logits, labels):
+def _accuracy_counts(logits, labels, first_token=True):
     """Per-example first-answer-token hits, plus correct and valid answer-token counts.
 
     Takes the logits in whatever dtype the model produced. Only an argmax is
     needed, so no fp32 copy of the (batch, sequence, vocabulary) tensor is made.
     Counts rather than means, so micro-batches of one step can be combined.
+    `first_token` False skips the first-token hits and returns none.
     """
     pred = logits[:, :-1, :].argmax(-1)
     target = labels[:, 1:]
     valid = target != -100
     correct = (pred == target) & valid
     firsts = []
-    for i in range(labels.shape[0]):
+    for i in range(labels.shape[0] if first_token else 0):
         positions = torch.nonzero(valid[i]).flatten()
         if len(positions):
             firsts.append(correct[i, positions[0]].item())
     return firsts, correct.sum().item(), valid.sum().item()
 
 
-def _accuracies(logits, labels):
-    """First-answer-token accuracy and all-answer-token accuracy from teacher-forced logits."""
-    firsts, correct, valid = _accuracy_counts(logits, labels)
-    first_acc = float(np.mean(firsts)) if firsts else float("nan")
-    return first_acc, correct / max(valid, 1)
 
 
 def _autocast(device, precision):
@@ -216,10 +214,13 @@ def _autocast(device, precision):
 
 
 @torch.no_grad()
-def evaluate_examples(model, tok, encoded, batch_size, device, precision):
-    """Mean loss over answer tokens and first-token accuracy on held-out examples."""
+def evaluate_examples(model, tok, encoded, batch_size, device, precision, first_token=True):
+    """Mean loss over answer tokens, first-token accuracy and all-answer-token accuracy on held-out examples.
+
+    `first_token` False leaves the first token unread and its accuracy NaN, for stage two.
+    """
     model.eval()
-    losses, weights, firsts = [], [], []
+    losses, weights, firsts, correct, valid = [], [], [], 0, 0
     for i in range(0, len(encoded), batch_size):
         input_ids, attention, labels = collate(encoded[i : i + batch_size], tok.pad_token_id, device)
         with _autocast(device, precision):
@@ -227,16 +228,45 @@ def evaluate_examples(model, tok, encoded, batch_size, device, precision):
         n_tokens = (labels[:, 1:] != -100).sum().item()
         losses.append(out.loss.item() * n_tokens)
         weights.append(n_tokens)
-        first, _ = _accuracies(out.logits, labels)
-        firsts.append(first)
+        f, c, v = _accuracy_counts(out.logits, labels, first_token)
+        firsts += f
+        correct += c
+        valid += v
     model.train()
-    return sum(losses) / max(sum(weights), 1), float(np.nanmean(firsts)) if firsts else float("nan")
+    first_acc = float(np.mean(firsts)) if firsts else float("nan")
+    return sum(losses) / max(sum(weights), 1), first_acc, correct / max(valid, 1)
+
+
+def stage_label(stage, fold=0, from_step=None):
+    """The name a stage's checkpoints and detail files go under.
+
+    decision, introspection-fold1, or introspection-from-1500-fold1 when the folds branched
+    from decision step 1500. The pipeline always names the step it branched from, so several
+    introspection points in one run never share a folder.
+    """
+    name = stage if from_step is None else f"{stage}-from-{from_step}"
+    return name if not fold else f"{name}-fold{fold}"
 
 
 def _append_log(path, rows):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     new = not path.exists()
+    if not new:
+        with path.open(newline="") as f:
+            existing = next(csv.reader(f), [])
+        if existing != TRAIN_LOG_COLUMNS:
+            if not set(existing) <= set(TRAIN_LOG_COLUMNS):
+                raise RuntimeError(f"{path} has columns {existing} but this pipeline writes {TRAIN_LOG_COLUMNS}; move the old file aside")
+            # A code update added a column. Rewrite the old rows under the new header, as
+            # append_results does for results.csv, so the appended rows line up.
+            with path.open(newline="") as f:
+                old = list(csv.DictReader(f))
+            with path.open("w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=TRAIN_LOG_COLUMNS)
+                writer.writeheader()
+                writer.writerows(old)
+            print(f"note: {path} migrated to {len(TRAIN_LOG_COLUMNS)} columns")
     with path.open("a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=TRAIN_LOG_COLUMNS)
         if new:
@@ -260,9 +290,14 @@ def train_stage(
     checkpoint_root="checkpoints",
     log_path="results/train_log.csv",
     on_checkpoint=None,
+    extra_checkpoints=(),
+    from_step=None,
 ):
     """Train for `steps` optimizer steps, logging every step and checkpointing every `checkpoint_every`.
 
+    Steps in `extra_checkpoints` are checkpointed too, so an introspection point need not fall on
+    the regular schedule. `from_step` is the decision step an introspection stage branched from;
+    it names the checkpoint folder and fills the log's introspection_from_step column.
     Examples are shuffled anew each epoch. Reads model_hyperparameters
     (learning_rate, loss_mask_answer_only, seed), compute (mixed_precision).
     Returns the list of (step, checkpoint_dir).
@@ -284,25 +319,34 @@ def train_stage(
     rng = random.Random(mh["seed"] + (0 if stage == "decision" else 100 * (fold + 1)))
     order = []
     checkpoints = []
-    stage_dir = Path(checkpoint_root) / run_id / (stage if not fold else f"{stage}-fold{fold}")
+    stage_dir = Path(checkpoint_root) / run_id / stage_label(stage, fold, from_step)
+    extra = set(extra_checkpoints)
     model.train()
     t0 = time.time()
     rows = []
     # Console lines report the mean over the steps since the previous line, so the
     # accuracy covers hundreds of examples rather than one batch of ten. The
     # per-step values still go to train_log.csv unchanged.
-    win_loss, win_firsts, win_start = 0.0, [], 1
+    # Stage one's answer is one letter, so its first token is the answer and its accuracy is the
+    # A/B accuracy. Stage two's answer is a whole JSON object whose first token is always "{",
+    # so stage two never reads the first token: it is measured over every answer token instead.
+    first_token = stage == "decision"
+    win_loss, win_firsts, win_correct, win_valid, win_start = 0.0, [], 0, 0, 1
 
     def window_text(step):
-        nonlocal win_loss, win_firsts, win_start
+        nonlocal win_loss, win_firsts, win_correct, win_valid, win_start
         n = step - win_start + 1
-        acc = float(np.mean(win_firsts)) if win_firsts else float("nan")
-        text = f"loss {win_loss / n:.4f} acc {acc:.3f} [mean of steps {win_start}-{step}]"
-        win_loss, win_firsts, win_start = 0.0, [], step + 1
+        if first_token:
+            acc = f"acc {float(np.mean(win_firsts)) if win_firsts else float('nan'):.3f}"
+        else:
+            acc = f"answer acc {win_correct / max(win_valid, 1):.3f}"
+        text = f"loss {win_loss / n:.4f} {acc} [mean of steps {win_start}-{step}]"
+        win_loss, win_firsts, win_correct, win_valid, win_start = 0.0, [], 0, 0, step + 1
         return text
 
     print(
-        f"training stage '{stage}'{'' if not fold else f' fold {fold}'}: {len(encoded)} examples, {steps} steps, "
+        f"training stage '{stage}'{'' if not fold else f' fold {fold}'}"
+        f"{'' if from_step is None else f' from decision step {from_step}'}: {len(encoded)} examples, {steps} steps, "
         f"batch {batch_size}" + (f" in micro-batches of {micro}" if micro < batch_size else "")
     )
     for step in range(1, steps + 1):
@@ -328,7 +372,7 @@ def train_stage(
             else:
                 loss.backward()
             loss_value += loss.item()
-            f, c, v = _accuracy_counts(out.logits.detach(), labels)
+            f, c, v = _accuracy_counts(out.logits.detach(), labels, first_token)
             firsts += f
             answer_correct += c
             answer_valid += v
@@ -345,29 +389,36 @@ def train_stage(
         answer_acc = answer_correct / max(answer_valid, 1)
         win_loss += loss_value
         win_firsts += firsts
+        win_correct += answer_correct
+        win_valid += answer_valid
         row = {
             "run_id": run_id,
             "stage": stage,
             "fold": fold,
+            "introspection_from_step": "" if from_step is None else from_step,
             "step": step,
             "loss": loss_value,
-            "first_token_accuracy": first_acc,
+            "first_token_accuracy": first_acc if first_token else "",
             "answer_token_accuracy": answer_acc,
             "val_loss": "",
             "val_first_token_accuracy": "",
+            "val_answer_token_accuracy": "",
             "learning_rate": mh["learning_rate"],
             "elapsed_seconds": round(time.time() - t0, 2),
         }
-        if step % checkpoint_every == 0 or step == steps:
-            val_loss, val_first = evaluate_examples(model, tok, encoded_val, comp["eval_batch_size"], device, precision)
-            row["val_loss"], row["val_first_token_accuracy"] = val_loss, val_first
+        if step % checkpoint_every == 0 or step == steps or step in extra:
+            val_loss, val_first, val_answer = evaluate_examples(
+                model, tok, encoded_val, comp["eval_batch_size"], device, precision, first_token)
+            row["val_loss"], row["val_answer_token_accuracy"] = val_loss, val_answer
+            row["val_first_token_accuracy"] = val_first if first_token else ""
             ckpt = stage_dir / f"step-{step}"
             ckpt.mkdir(parents=True, exist_ok=True)
             model.save_pretrained(str(ckpt))
             checkpoints.append((step, ckpt))
             print(
                 f"  step {step}/{steps} {window_text(step)} | val loss {val_loss:.4f} "
-                f"val acc {val_first:.3f} | saved {ckpt} | {time.time() - t0:.0f}s"
+                f"val {'acc' if first_token else 'answer acc'} {val_first if first_token else val_answer:.3f} "
+                f"| saved {ckpt} | {time.time() - t0:.0f}s"
             )
             rows.append(row)
             _append_log(log_path, rows)
@@ -403,3 +454,20 @@ def restore(model, state):
         set_peft_model_state_dict(model, state)
     except (ImportError, AttributeError, ValueError):
         model.load_state_dict(state, strict=False)
+
+
+def rng_state():
+    """Every random number generator training draws from, so a detour can be undone exactly."""
+    state = {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
+    if torch.cuda.is_available():
+        state["cuda"] = torch.cuda.get_rng_state_all()
+    return state
+
+
+def set_rng_state(state):
+    """Put back what `rng_state` saved."""
+    random.setstate(state["python"])
+    np.random.set_state(state["numpy"])
+    torch.set_rng_state(state["torch"])
+    if "cuda" in state:
+        torch.cuda.set_rng_state_all(state["cuda"])

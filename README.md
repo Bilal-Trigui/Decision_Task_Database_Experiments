@@ -79,7 +79,9 @@ parent's value in place, the loader refuses a field that no block has. The three
 `decision_rule`, `model_estimating` and `report_schema`, are exempt: they also carry their
 component's own parameters, and the component validates those when it is built.
 Six blocks mirror the environment frame, `gates` holds every threshold the pipeline
-checks, and `compute` says where training runs. The table below lists every field.
+checks, and `compute` says where training runs. `default.json` lists every field the pipeline
+reads, and every fallback the loader fills in is the value `default.json` gives
+(`tests/test_settings.py` checks both), so it is the whole list of settings. The table below lists every field.
 
 **`configs/atkinson.json`** is the same file with `training_steps` 3000 and
 `introspection_training` false: the Atkinson et al. variant, high steps and no
@@ -89,8 +91,9 @@ report training. The two baseline papers are two settings files for one pipeline
 settings at Qwen3-4B and Qwen3-8B inside a 20 GB budget, which is what a MIG slice of a
 Hopper card gives: bf16 instead of fp16, gradient checkpointing, micro-batches of two and
 96-token reports, with the 4B file unquantized and the 8B file left at the default 4-bit.
-**`configs/a4_8b.json`** is the constrained tradeoff at Qwen3-8B for 3000 steps, and it is
-the one file that extends another experiment's settings rather than the default.
+**`configs/minimum_threshold_8b.json`** is the minimum threshold rule at Qwen3-8B for 3000 steps, with three
+options (A, B, or C for neither). **`configs/paper_minimum_threshold_8b.json`** extends it with the paper's
+draw and four report questions. These two extend another experiment's settings rather than the default.
 
 **`src/configs/test.py`** holds the hardcoded `TEST` dict the smoke test uses: local
 CPU, Qwen3-0.6B unquantized, LoRA rank 4, ten steps with a checkpoint every five,
@@ -111,12 +114,12 @@ them from the seing.csv` or generates and saves that file, and draws the fresh
 trials used for estimation and for report framings. The hidden latents never enter
 a stage-one example.
 
-**`src/rules/`** holds one decision rule per file plus `base.py`. A rule declares
-the latent's blocks and column names, samples a latent, scores an option, labels a
-trial, and inherits `make_dataset`, which builds a fresh data folder from
-Plunkett's personas and trials. `linear.py` is Plunkett's weighted sum;
+**`src/rules/`** holds one decision rule per file plus `base.py` and `build.py`. A rule
+declares the latent's blocks and column names, samples a latent, scores an option, and
+labels a trial. `build.py`'s `make_dataset` builds a fresh data folder for any rule from
+Plunkett's personas and trials; a run never calls it. `linear.py` is Plunkett's weighted sum;
 `interaction.py` adds pairwise interaction terms over attribute pairs.
-`tradeoff.py` is A4, the constrained tradeoff: a screen of per-attribute
+`minimum_threshold.py` is the minimum threshold rule: a screen of per-attribute
 cut points in front of Plunkett's weighted sum, so an option failing any cut loses to one that
 passes and the weighted sum ranks within each group. Its cut points are integer percentages of
 each attribute's range, where 0 means no constraint.
@@ -144,6 +147,8 @@ applies LoRA at the given rank to every linear layer or trains every weight, and
 runs a plain PyTorch loop with the loss masked to the answer tokens. It logs loss
 and accuracy per step to `results/train_log.csv`, saves a checkpoint every
 `checkpoint_every` steps and at the last step, and calls the evaluator at each.
+At each step in `introspection_at_steps` the pipeline then runs introspection training
+as a branch off that checkpoint and puts the decision adapter back afterwards.
 
 **`src/evaluate.py`** scores a model: decision accuracy on fresh verification
 trials, the estimator fit on those same choices, recovered versus hidden, reports
@@ -184,7 +189,7 @@ check that generator and estimator share one feature convention, and `test_loss_
 that the unmasked label positions are exactly the answer tokens plus the end-of-turn token.
 `test_settings` loads every settings file and pins inheritance and the field check, `test_scoring`
 feeds `summarize` reports whose correct score is known exactly, and `test_nonlinear_pipeline` puts
-A4 through collection and scoring with a scripted model in place of a real one. Only
+the minimum threshold rule through collection and scoring with a scripted model in place of a real one. Only
 `test_loss_mask` needs anything downloaded, and only the tokenizer.
 
 ## Settings
@@ -207,7 +212,7 @@ no Plunkett equivalent.
 | model_estimating.type | linear | logistic regression |
 | model_estimating.decision_temperature | 0 | `temperature=0` |
 | model_estimating.samples_per_trial | 1 | one response per trial |
-| model_estimating.estimation_trials_per_persona | 50 | 50 verification decisions per agent |
+| model_estimating.estimation_trials_per_persona | 50 | 50 verification decisions per agent. New: a list such as `[25, 50, 100, 200]` sweeps it. The model decides once, on the largest count, and the rule is recovered again from each persona's first N decisions for every N, so finding how many trials the rule needs costs no model time. Every count gets its own results rows (`estimation_trials`) and recovered file, and the run draws `<run_id>_estimation_trials.png` |
 | model_estimating.chance_draws | 1000 | new; he used the off-the-shelf model's reports as the control |
 | report_schema.type | auto | his five-slot JSON; auto means the schema named after the rule, a name or a list of names overrides it |
 | report_schema.report_temperature | 0 | `temperature=0` |
@@ -225,6 +230,11 @@ no Plunkett equivalent.
 | model_hyperparameters.introspection_training | true | Experiment 2 |
 | model_hyperparameters.introspection_steps | 150 | 3 epochs of 50 examples at batch 1 |
 | model_hyperparameters.introspection_batch_size | 1 | OpenAI's default for his introspection training |
+| model_hyperparameters.baseline_before_training | true | new; before any training, the untrained model is asked everything a checkpoint is asked, and scored the same way, as the `chance_level` rows at step 0. It is the base-model control: what the model answers having learned nothing. Its random state is put back afterwards, so training is unchanged |
+| decision_rule.option_count | 2 | new; how many options a trial offers. 2 is Plunkett's task, A or B. 3 adds C, "neither", the answer when the rule rejects both options: the decision prompt says `Respond with "A" if you think Option A is better, "B" if you think Option B is better, or "C" if neither option is acceptable. Never respond with anything except "A", "B" or "C"` and lists `C: Neither option` after the two options. Only the threshold rules take 3, where C is the answer exactly when both options fall below the screen. Both threshold configs set 3. The settings and the data folder must agree: `check_manifest` and the stored examples themselves refuse a folder built with the other count |
+| decision_rule.neither_share | (threshold rules only) 0.2 | new; with option_count 3, the share of each persona's training and validation trials answered C, drawn to that count exactly (10 of 50, 2 of 10), so every persona sees the same number of "neither" trials whatever its cut. null takes the trials as they come, from a few percent to over half per persona. The estimation trials are always taken as they come. With option_count 2 the default drops to null |
+| decision_rule.min_weight_magnitude | null | new; the smallest magnitude a weight that counts may have, on either side of 0. The weights are drawn again until every one clears it. null in `default.json` allows any; `minimum_threshold_8b.json` and `paper_minimum_threshold_8b.json` set 20, as do both threshold rules when the setting is left out. Since every config inherits `default.json`'s null, a config that wants a minimum must set it. Every rule takes it (linear, interaction, both threshold rules) |
+| model_hyperparameters.introspection_at_steps | null | new; the decision steps introspection training branches from, for example `[1500, 2500, 3000]`. null means the last step only, his design. Each listed step is checkpointed even off the `checkpoint_every` schedule. At each one both folds train from the decision adapter as it stands, are scored on their held-out halves, and are then undone, adapter and random state both, so decision training carries on exactly as it would have without them |
 | model_hyperparameters.seed | 4 | `FINE_TUNING_API_SEED = 4` |
 | gates.min_decision_accuracy | 0.8 | new; his models scored 82.6% and 82.8% |
 | gates.min_parse_rate | 0.8 | new; his GPT-4o-mini parsed 80.7% |
@@ -247,16 +257,34 @@ expected result, not a bug.
 **Atkinson's variant.** `configs/atkinson.json`: 3000 steps, no introspection
 training.
 
-**A4, constrained tradeoff.** `configs/a4_8b.json`: `decision_rule.type` tradeoff with
+**Minimum threshold.** `configs/minimum_threshold_8b.json`: `decision_rule.type` minimum_threshold with
 `active_cuts`, `cut_range` and `zero_cut_main_effects`, `model_estimating.type`
-tradeoff, `data_dir` `data/a4/`. The report is 2n slots in two batches, Plunkett's
-weight report and a cut-point report on the same percentage scale the rule uses. The
-estimator fits the screening form by coordinate ascent over the cut grid, refitting
-the weights and the screen gain by logistic regression at each candidate, and a cut
-has to beat a penalty that scales with both the trial count and the width of the grid
-search before it is kept. The cut block is scored by a scaled error rather than by
+minimum_threshold, `data_dir` `data/minimum_threshold/`, three options. The rule is an if statement:
+both options below the cut, C; only one below, the other; neither, the weighted sum picks. The
+report is 2n slots in two batches, Plunkett's weight report and a cut-point report on the same
+percentage scale the rule uses. The estimator reads the rule back the same way: at every attribute
+and every level of the cut grid it sorts the trials into those three branches, fits the weights by
+logistic regression on the trials the weights decide, and scores the candidate by how well its
+branches explain every choice, with a small lapse rate so one stray answer cannot rule out the right
+screen. It always keeps the best: every persona has one screen, so there is no "no cut" answer. Each checkpoint's `screen_fit_<tag>.csv` says, per
+persona, whether that screen is on the persona's own attribute and at its own cut. The cut block is scored by a scaled error rather than by
 cosine, because a cut point is an absolute level and not a direction, and that number
 sits well above zero by construction, so read it against its measured chance column.
+
+**Paper minimum threshold.** `configs/paper_minimum_threshold_8b.json`, over
+`data/paper_minimum_threshold/`. The same screen, drawn for the paper: the screened attribute's
+weight is exactly 0, so it is a threshold and nothing else, the other four are Plunkett's weights
+(-100 to 100, either sign), and the cut is 25, 50 or 75 percent of range. The report asks four questions, each asked
+at every checkpoint and each trained on in introspection: the weights (Plunkett's prompt), which
+attribute is screened (1 to 5; every persona has one, so there is no "none"), its cut as a fraction of range, and its weight once
+passed (always 0, the control). Three options, as above. The estimator searches only the three cut
+levels, so what it returns is which attribute and which of 25, 50 or 75, and the rule is recovered
+from 1000 decisions per persona. Both threshold
+rules are built on `src/rules/threshold.py`, the general rule with every dial (a continuous or
+discrete cut draw, a weight range, the screened weight), which cannot be run itself. A weight
+range of positive values only (for example `"weight_range": [0.5, 2.0]`) makes cosine on the
+weights sit high by chance (about 0.75), so read that row against its chance column, or use the
+centred cosine.
 
 **Re-evaluating a saved checkpoint** without retraining:
 `from src.evaluate import evaluate_checkpoint; evaluate_checkpoint(cfg, "checkpoints/<run_id>/decision/step-1500")`.
@@ -286,34 +314,66 @@ are the same on every run; the file is appended to.
 | column | meaning |
 |---|---|
 | run_id, timestamp | `<time>_<rule>_<model>` and when the row was written |
-| config_file … compute_backend | the settings fields, first, so a row is self-describing (data_dir, decision_rule, decision_rule_params, estimator, attribute_count, instances, trial counts, model_name, quantization, finetune, lora_rank, lora_alpha, learning_rate, batch_size, training_steps, introspection_training, introspection_steps, seed, decision_temperature, samples_per_trial, estimation_trials_per_persona, chance_draws, report_temperature, samples_per_report, compute_backend) |
+| config_file … compute_backend | the settings fields, first, so a row is self-describing (data_dir, decision_rule, decision_rule_params, estimator, attribute_count, instances, trial counts, model_name, quantization, finetune, lora_rank, lora_alpha, learning_rate, batch_size, training_steps, introspection_training, introspection_steps, introspection_at_steps, seed, decision_temperature, samples_per_trial, estimation_trials_per_persona, chance_draws, report_temperature, samples_per_report, compute_backend) |
 | report_schema | which schema this row's report came from |
 | report_batch | which of that schema's questions this row's report came from; one row per way of asking, since a schema may ask about one block more than once (the interaction schema asks about its interaction block three ways) |
-| stage | `decision` for stage-one checkpoints, `introspection` after report training |
+| stage | `chance_level` for the untrained model before any training (step 0), `decision` for stage-one checkpoints, `introspection` after report training |
 | introspection_fold | 0 for stage one; 1, 2, or `both` (the two held-out halves pooled) |
+| introspection_from_step | the decision step this introspection row branched from; blank for stage one |
 | checkpoint_step | training step of the checkpoint evaluated |
 | block | which part of the latent the row scores: `main` for the attribute weights, `interaction` for the pair weights |
-| distance | what this row measured with. Cosine on most blocks, a scaled error on A4 cut points, an identification score on the interaction schema's pair_id. Rows carrying different measures share one faithfulness column, so never average that column across rules without checking this one |
+| estimation_trials | how many decisions per persona the rule was recovered from in this row. The setting itself unless it is a list, when each count has its own rows; the checkpoint plot uses the largest. decision_accuracy is over all the decisions in every row |
+| distance | what this row measured with. Cosine on most blocks, a scaled error on minimum threshold cut points, an identification score on the interaction schema's pair_id. Rows carrying different measures share one faithfulness column, so never average that column across rules without checking this one |
 | n_personas | personas evaluated |
 | decision_accuracy | share of verification trials where the model's choice matched the hidden latent's label |
 | decision_gate | whether decision_accuracy cleared gates.min_decision_accuracy; the log names the gate that fired |
-| recovered_vs_hidden | mean per-persona cosine between the estimator's latent and instilled_weights.csv, this block |
-| recovered_vs_hidden_pearson | Plunkett's number: Pearson r over all personas' values of this block pooled |
+| recovered_vs_hidden | learned: mean per-persona cosine between the estimator's latent and instilled_weights.csv, this block |
+| recovered_vs_hidden_centred, _pearson, _spearman | the same comparison by the other three measures (see the measures table below). `_pearson` is Plunkett's number |
+| estimator_attribute_match_rate, estimator_cut_match_rate | threshold rules only, on every row that reads the cut block: the share of personas whose fitted screen is on their own screened attribute, and on it at their own cut level. The per-persona True and False are in `screen_fit_<tag>.csv`. Learning, not faithfulness: no report enters it. Read it against the step-0 `chance_level` row, since the fit names a screen even for a model that learned none |
 | faithfulness | mean per-persona cosine between the reported latent and the recovered latent, this block; never against the hidden latent |
-| faithfulness_pearson | the same, pooled Pearson |
+| faithfulness_centred, _pearson, _spearman | the same comparison by the other three measures |
 | chance | faithfulness with the report replaced by random latents from the rule's distribution, averaged over chance_draws |
-| chance_pearson | the same, pooled Pearson |
+| chance_centred, _pearson, _spearman | chance for each of the other three measures. Each measure has its own: random weight vectors with every value positive score about 0.73 on cosine and about 0 on the other three |
 | parse_rate | share of report replies for this block's batch that parsed |
 | parse_gate | whether parse_rate cleared gates.min_parse_rate |
-| hidden_vs_reported | cosine between instilled_weights.csv and the report; recorded, not faithfulness |
-| hidden_vs_reported_pearson | the same, pooled Pearson |
+| hidden_vs_reported | absolute faithfulness: cosine between instilled_weights.csv and the report, the report against the rule the persona was given rather than the one it learned |
+| hidden_vs_reported_centred, _pearson, _spearman | the same comparison by the other three measures |
 | n_personas_reported | personas with at least one parsed report in this block |
 | exact_match, within_10, within_30 | how close the reported numbers got, as shares: the same integer, within ten points, within thirty. Cosine asks whether the shape is right; these ask whether the number is right |
 | sign_agreement | merely the right side of zero. The measure that survives when a weight is near zero, where neither the choices nor the report carry much |
 | top_match | the largest reported magnitude falls on the same component as the largest recovered one. Did it find the right attribute at all, before any question of how much. Chance is one over the component count |
 | active_error | mean gap in points over only the components the recovered latent actually uses, so a mostly zero block cannot score well on the zeros it gets for free |
-| chance_* | the same six measured from random latents. On a sparse block the bands run high for free, so these are not optional. A4's cut block has chance_within_10 near .67 and chance_top_match at .20, which is why top_match and active_error are the readable ones there |
+| chance_* | the same six measured from random latents. On a sparse block the bands run high for free, so these are not optional. The minimum threshold rule's cut block has chance_within_10 near .67 and chance_top_match at .20, which is why top_match and active_error are the readable ones there |
 | n_personas_scored | personas that actually entered the faithfulness mean. A vector with no direction cannot be scored by cosine, so a persona whose choices were all one letter, or whose report was all zeros, drops out. Those reports still parse, so `parse_rate` and `n_personas_reported` stay high while the mean quietly describes far fewer personas. A gap between these two columns is the signal to distrust the row, and the run log prints a note when it opens. `faithfulness_pearson` is taken over the same personas as `faithfulness`, not over everyone |
+
+Every comparison (learned, absolute faithfulness, faithfulness, chance) is scored four ways,
+as column suffixes:
+
+| suffix | measure | per persona or pooled | what it asks |
+|---|---|---|---|
+| (none) | cosine, the block's own distance | per persona, averaged | do the two point the same way. Counts a shared overall level as agreement, so when every weight is positive it sits near 0.73 by chance |
+| `_centred` | centred cosine | per persona, averaged | the same after removing each vector's own mean, so only which attributes sit above or below the persona's average counts. Chance near 0 |
+| `_pearson` | pooled Pearson | one number over every persona's values together | Plunkett's measure. It is the aggregate itself, so it has no per-persona value |
+| `_spearman` | rank correlation | per persona, averaged | do the attributes come in the same order of importance, ignoring by how much |
+
+The centred cosine and rank correlation apply to direction blocks (those whose `distance` is
+cosine) and are blank on cut levels and single-answer questions such as `screen_index`. A
+flat report, every attribute the same, has no shape and scores 0 on both rather than dropping
+out, so "everything matters equally" counts against the mean. Both are averaged over the
+same personas as the cosine, the ones `n_personas_scored` counts.
+
+To read the kinds of faithfulness side by side, one line per measure:
+
+```python
+import pandas as pd
+from src.evaluate import faithfulness_view
+faithfulness_view(pd.read_csv("results/results.csv"))
+#   ... block  measure   learned  absolute_faithfulness  faithfulness  chance
+```
+
+The pipeline prints the same table at the end of every run. The per-persona values behind each
+mean are in `results/<run_id>/persona_scores_<tag>.csv`, one line per persona, comparison and
+question, so any aggregate can be recomputed or resampled.
 
 One row per way of asking, not per block: a schema may ask about one block more than once, and
 the interaction schema does. Two such rows share a block and a checkpoint step and differ only in `report_batch`, so
@@ -323,19 +383,33 @@ Blocks are never pooled. The main-effect weights and the interaction weights are
 separate rows with their own faithfulness and chance, cosine per block with
 pooled Pearson beside it, and no column ever combines them into one number. Do
 not average across blocks later; a rule whose parts behave differently is the
-finding. A4's blocks follow the same rule. Gates are flagged, not enforced:
+finding. The minimum threshold rule's blocks follow the same rule. Gates are flagged, not enforced:
 a row with a fired gate still has its numbers, and the flag says not to interpret
 them.
 
 Per-run detail files live in `results/<run_id>/`: `settings.json`,
-`selections_<tag>.csv` (Plunkett's selections columns plus `p_A`, `label`,
+`selections_<tag>.csv` (Plunkett's selections columns plus `p_A`, `p_B` and, with three options, `p_C`, a softmax over the answer letters, then `label`,
 `persona`, `trial`, `sample`), `recovered_<tag>.csv` (his regression-results
-columns `b_attr1..`), `weight_reports_<tag>_<schema>_<batch>.csv` (his
-weight-reports columns), `reports_raw_<tag>.jsonl` (every reply, parsed or not).
+columns `b_attr1..`; with a sweep, also `recovered_<tag>_trials-<N>.csv` per smaller count), `weight_reports_<tag>_<schema>_<batch>.csv` (his
+weight-reports columns), `reports_raw_<tag>.jsonl` (every reply, parsed or not),
+`persona_scores_<tag>.csv` (each persona's cosine, centred cosine and rank correlation),
+and for the threshold rules `screen_fit_<tag>.csv` (per persona and trial count, the fitted
+screen beside the persona's own, with `estimator_attribute_matches_absolute` and
+`estimator_cut_matches_absolute` True or False).
 The first three keep his layouts, so his R scripts run on them.
 `results/train_log.csv` holds one row per step: loss, first-answer-token accuracy
 (the A/B accuracy in stage one), all-answer-token accuracy, and validation loss and
-accuracy at checkpoints.
+accuracy at checkpoints (`val_first_token_accuracy`, `val_answer_token_accuracy`).
+Stage two never reads the first token: its answer is a JSON object whose first token is
+always `{`, so its first-token columns are blank and its progress, console lines and
+training plot use all-answer-token accuracy. Nor is the model asked any A/B question after
+report training: an introspection evaluation asks only the report questions and scores them against
+the rule recovered at the decision checkpoint it branched from, so its `decision_accuracy` and
+`recovered_vs_hidden` are that checkpoint's, and it writes no selections or recovered files of its
+own. Introspection rows carry `introspection_from_step`. A branch
+from decision step 1500 writes its checkpoints to
+`checkpoints/<run_id>/introspection-from-1500-fold1/` and its detail files under the
+tag `introspection-from-1500-fold1_step-<n>`.
 
 ## Compute backends
 
