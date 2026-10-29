@@ -208,7 +208,8 @@ def test_the_four_measures():
     assert set(scores["scenario"]) <= {p.short_name for p in data.personas}
     view = faithfulness_view([row])
     assert list(view["measure"]) == ["cosine", "centred", "pearson", "spearman"], list(view["measure"])
-    assert list(view.columns[-4:]) == ["learned", "absolute_faithfulness", "faithfulness", "chance"]
+    assert list(view.columns[-8:]) == ["learned", "absolute_faithfulness", "faithfulness", "chance",
+                                       "chance_p95", "floor_shuffled", "floor_shuffled_p95", "const_best"]
     print(f"  shared level: cosine {E.distance(weights, shuffled):.2f}, centred {E.centred_cosine(weights, shuffled):.2f}; "
           f"chance here cosine {row['chance']:.2f}, centred {row['chance_centred']:.2f}; the file averages to the row")
 

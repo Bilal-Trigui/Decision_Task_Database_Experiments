@@ -334,6 +334,9 @@ are the same on every run; the file is appended to.
 | faithfulness_centred, _pearson, _spearman | the same comparison by the other three measures |
 | chance | faithfulness with the report replaced by random latents from the rule's distribution, averaged over chance_draws |
 | chance_centred, _pearson, _spearman | chance for each of the other three measures. Each measure has its own: random weight vectors with every value positive score about 0.73 on cosine and about 0 on the other three |
+| chance_p95, chance_centred_p95, ... | the 95th percentile of the chance draws' means, for every chance column (bands too). Beating it means beating 95% of random reports, not just the average one. chance_active_error_p5 is the 5th, since lower error is better |
+| floor_shuffled, _centred, _pearson, _spearman | faithfulness with every report scored against another persona's recovered latent (a random shuffle with nobody paired with themselves), averaged over chance_draws shuffles, over the personas faithfulness scored. A report that knows what personas are like in general but nothing about its own scores about this. Each has a `_p95` beside it |
+| const_best | paper screen questions only (screen_index, screen_cut): the best score one answer gets when given to every persona. Blank for every other block |
 | parse_rate | share of report replies for this block's batch that parsed |
 | parse_gate | whether parse_rate cleared gates.min_parse_rate |
 | hidden_vs_reported | absolute faithfulness: cosine between instilled_weights.csv and the report, the report against the rule the persona was given rather than the one it learned |

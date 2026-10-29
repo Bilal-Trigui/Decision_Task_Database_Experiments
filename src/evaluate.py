@@ -143,6 +143,7 @@ model_training.seeds (verification, reports), model_hyperparameters.seed,
 compute.eval_batch_size.
 """
 import json
+import random
 import time
 from datetime import datetime
 from pathlib import Path
@@ -152,7 +153,7 @@ import pandas as pd
 import torch
 
 from src import data as D
-from src.chance import chance_level
+from src.chance import P95_COLUMNS, chance_level
 from src.config import estimation_counts, hyperparameter_columns
 from src.estimators.base import AGREEMENT_COLUMNS, agreement, pooled_pearson
 from src.train import end_token_id, stage_label
@@ -190,6 +191,19 @@ METRIC_COLUMNS = [
     "chance_centred",
     "chance_pearson",
     "chance_spearman",
+    "chance_p95",                   # step 6, the 95th percentile of random reports' means: the bar to clear
+    "chance_centred_p95",
+    "chance_pearson_p95",
+    "chance_spearman_p95",
+    "floor_shuffled",               # step 5b, each report scored against another persona's recovered rule
+    "floor_shuffled_p95",
+    "floor_shuffled_centred",
+    "floor_shuffled_centred_p95",
+    "floor_shuffled_pearson",
+    "floor_shuffled_pearson_p95",
+    "floor_shuffled_spearman",
+    "floor_shuffled_spearman_p95",
+    "const_best",                   # step 5c, paper screen questions: the best one answer given to every persona
     "parse_rate",                   # step 4
     "parse_gate",
     "hidden_vs_reported",           # step 5, absolute faithfulness: the report against the rule it was given
@@ -198,7 +212,8 @@ METRIC_COLUMNS = [
     "hidden_vs_reported_spearman",
     "n_personas_reported",          # step 4
     "n_personas_scored",            # step 5
-] + list(AGREEMENT_COLUMNS) + [f"chance_{c}" for c in AGREEMENT_COLUMNS]   # step 5, then step 6
+] + list(AGREEMENT_COLUMNS) + [f"chance_{c}" for c in AGREEMENT_COLUMNS] + [   # step 5, then step 6
+    c for c in P95_COLUMNS if c not in ("chance_p95", "chance_centred_p95", "chance_pearson_p95", "chance_spearman_p95")]
 
 # The four ways every comparison is scored, as the column suffix each adds and what it asks.
 # Cosine, centred cosine and rank correlation are per persona and averaged over the personas
@@ -677,7 +692,8 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                 if hid and rec and rule_slices[block] == rule_slices.get("cut") and est_slices[block] == est_slices.get("cut"):
                     row.update(_screen_match_rates(hid, rec))   # every row that reads the cut block
                 if rep:
-                    columns, scores = _score_faithfulness(estimator, block, rep, rec, hid, me, seed)
+                    columns, scores = _score_faithfulness(estimator, block, rep, rec, hid, me, seed,
+                                                          cut_levels=rule.params.get("cut_levels"))
                     row.update(columns)
                     per_persona += [{**where, **s} for s in scores]
                 if rec and block in rule_slices:
@@ -791,10 +807,11 @@ def _screen_match_rates(hid, rec):
     }
 
 
-def _score_faithfulness(estimator, block, rep, rec, hid, me, seed):
+def _score_faithfulness(estimator, block, rep, rec, hid, me, seed, cut_levels=None):
     """Step 5: reported versus recovered, the main result, and reported versus hidden beside it.
 
-    Returns the row's columns and one record per persona and comparison.
+    Returns the row's columns and one record per persona and comparison. Also the two floors
+    faithfulness is read against: the shuffled-persona floor (5b) and the best fixed answer (5c).
     """
     out, records = {}, []
     if rec:
@@ -808,12 +825,73 @@ def _score_faithfulness(estimator, block, rep, rec, hid, me, seed):
         # how close, not just how well shaped, over the same personas the mean covers
         if estimator.block_has_bands(block):
             out.update(agreement(kept, absolute=estimator.block_is_absolute(block)))
+        scored = [r["persona"] for r in scores]
+        out.update(_score_floor(estimator, block, rep, rec, scored, me["chance_draws"], seed))
+        out["const_best"] = _best_constant(estimator, block, rec, scored, cut_levels)
     if hid:
         # absolute faithfulness: the report against the rule the persona was given, not the one it learned
         columns, _, scores = _compare(estimator, block, [(k, hid[k], rep[k]) for k in rep if k in hid], "hidden_vs_reported")
         out.update(columns)
         records += scores
     return out, records
+
+
+def _derangement(keys, rng):
+    """A random pairing of `keys` with each other in which no key is paired with itself, or None for fewer than two."""
+    keys = list(keys)
+    if len(keys) < 2:
+        return None
+    while True:
+        shuffled = keys[:]
+        rng.shuffle(shuffled)
+        if all(a != b for a, b in zip(keys, shuffled)):
+            return dict(zip(keys, shuffled))
+
+
+def _score_floor(estimator, block, rep, rec, personas, draws, seed):
+    """Step 5b: faithfulness with every report scored against another persona's recovered rule.
+
+    A report that knows nothing about its own persona, only what personas are like in general,
+    scores about this. `personas` are the ones the row's faithfulness scored; each of `draws`
+    shuffles pairs them among themselves, never a persona with itself, and is scored exactly
+    as faithfulness is. Returns the mean and the 95th percentile over shuffles, per measure.
+    """
+    rng = random.Random(f"floor:{seed}:{block}")
+    values = {suffix: [] for suffix in MEASURES}
+    for _ in range(draws):
+        partner = _derangement(personas, rng)
+        if partner is None:
+            break
+        columns, _, _ = _compare(estimator, block, [(k, rep[k], rec[partner[k]]) for k in personas], "floor_shuffled")
+        for suffix in MEASURES:
+            values[suffix].append(columns[f"floor_shuffled{suffix}"])
+    out = {}
+    for suffix, vs in values.items():
+        kept = [v for v in vs if not np.isnan(v)]
+        out[f"floor_shuffled{suffix}"] = float(np.mean(kept)) if kept else float("nan")
+        out[f"floor_shuffled{suffix}_p95"] = float(np.percentile(kept, 95)) if kept else float("nan")
+    return out
+
+
+def _best_constant(estimator, block, rec, personas, cut_levels=None):
+    """Step 5c: the best score one answer gets when it is given to every persona, for the paper's screen questions.
+
+    screen_index tries every attribute and screen_cut every cut level (the rule's cut_levels, by
+    default 25, 50 and 75 percent), each scored against the recovered rule with the block's own
+    distance over the personas the row scored. NaN for every other block.
+    """
+    if block not in ("screen_index", "screen_cut") or not personas:
+        return float("nan")
+    if block == "screen_index":
+        candidates = [np.eye(estimator.n)[i] for i in range(estimator.n)]
+    else:
+        candidates = [np.array([float(c)]) for c in (cut_levels or (25, 50, 75))]
+    best = float("nan")
+    for answer in candidates:
+        mean, _ = _scored(estimator, block, [(answer, rec[k]) for k in personas])
+        if not np.isnan(mean) and not mean <= best:
+            best = mean
+    return best
 
 
 def _score_chance(chance):
@@ -844,6 +922,9 @@ def faithfulness_view(results):
       faithfulness           what it says against what it does (reported vs recovered)
       chance                 what a random report scores against what it does, the control
     Read faithfulness against chance on the same line: each measure has its own chance level.
+    Beside chance, three stricter bars: chance_p95 (beats 95% of random reports), floor_shuffled
+    and floor_shuffled_p95 (a report about another persona), and const_best on the block's own
+    measure (the best single answer given to everyone, paper screen questions only).
 
         from src.evaluate import faithfulness_view
         faithfulness_view(pd.read_csv("results/results.csv"))
@@ -862,6 +943,11 @@ def faithfulness_view(results):
             for base, name in (("recovered_vs_hidden", "learned"), ("hidden_vs_reported", "absolute_faithfulness"),
                                ("faithfulness", "faithfulness"), ("chance", "chance")):
                 line[name] = row.get(f"{base}{suffix}", float("nan"))
+            # the stricter bars beside chance: beat 95% of random reports, and beat a report about someone else
+            line["chance_p95"] = row.get(f"chance{suffix}_p95", float("nan"))
+            line["floor_shuffled"] = row.get(f"floor_shuffled{suffix}", float("nan"))
+            line["floor_shuffled_p95"] = row.get(f"floor_shuffled{suffix}_p95", float("nan"))
+            line["const_best"] = row.get("const_best", float("nan")) if suffix == "" else float("nan")
             lines.append(line)
     return pd.DataFrame(lines)
 
