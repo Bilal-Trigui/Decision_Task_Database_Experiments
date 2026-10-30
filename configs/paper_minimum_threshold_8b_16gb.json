@@ -35,7 +35,7 @@
     "  main_report asks the first four in one question, and is trained on like them. Report prompts show A and B, never C",
     "model_hyperparameters: introspection_at_steps = the decision steps stage two branches from, a list or a range such as",
     "  {\"start\": 1000, \"end\": 3000, \"every\": 500}; introspection_steps = how long each branch trains, per fold",
-    "  baseline_before_training = score the untrained model first, as the chance_level rows",
+    "  baseline_before_training = score the untrained model first, as the base_model rows",
     "gates: thresholds that mark a row as not to be read; they never stop the run",
     "compute: bf16 needs an A100 or H100 (or a slice); on a T4 set mixed_precision to fp16. eval_batch_size: lower it if memory runs out"
   ],
