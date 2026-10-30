@@ -29,7 +29,7 @@ class Batch:
     keys: list
     prompt_base: str
     names: list = None      # the scenario's attribute names, for a batch answered in names
-    trained: bool = True    # False: asked in the reports but never an introspection training example
+    trained: bool = True    # False: asked in the reports but never an introspection training example (no batch uses it now)
     parts: tuple = ()       # blocks one reply answers together, for a question that asks several at once
 
     @property

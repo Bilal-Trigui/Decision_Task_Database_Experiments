@@ -7,15 +7,29 @@
   <run_id>_estimation_trials.png  with a sweep over estimation_trials_per_persona: recovery and faithfulness
                                against the trial count the rule was recovered from, one line per decision checkpoint
   <run_id>_scatter_<block>.png Plunkett's Figure 2 scatter: recovered weight against reported weight, final checkpoint
+Each plot is saved twice: the picture, and <same name>.csv beside it holding exactly the points
+drawn, one row per point, so any plot can be redrawn by hand. To redraw a past run's plots from its
+results (downloaded from the Hub first, if the run was elsewhere):
+    python -m src.plots <run_id> [--results-dir results]
 Reads none of the six settings directly; everything comes from the CSVs.
 """
 from pathlib import Path
+
+import argparse
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
+
+
+def save_points(points, png_path, columns):
+    """The points a plot drew, as <plot name>.csv beside the picture. `points` is a list of dicts."""
+    path = Path(png_path).with_suffix(".csv")
+    pd.DataFrame(points, columns=columns).to_csv(path, index=False)
+    return path
 
 
 def plot_training(train_log, run_id, out_dir):
@@ -35,6 +49,7 @@ def plot_training(train_log, run_id, out_dir):
         if column not in log.columns:
             log[column] = float("nan")
     fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    points = []
     for (stage, fold, origin), part in log.groupby(["stage", "fold", "_from"]):
         name = stage if not fold else f"{stage} fold {fold}"
         if origin >= 0:
@@ -42,13 +57,20 @@ def plot_training(train_log, run_id, out_dir):
         x = part["step"] + max(origin, 0)
         acc, val_acc = (("first_token_accuracy", "val_first_token_accuracy") if stage == "decision"
                         else ("answer_token_accuracy", "val_answer_token_accuracy"))
-        axes[0].plot(x, part["loss"], label=name, linewidth=1)
-        axes[1].plot(x, pd.to_numeric(part[acc], errors="coerce"), label=name, linewidth=1)
+        loss, accuracy = part["loss"], pd.to_numeric(part[acc], errors="coerce")
+        axes[0].plot(x, loss, label=name, linewidth=1)
+        axes[1].plot(x, accuracy, label=name, linewidth=1)
         val = part[pd.to_numeric(part["val_loss"], errors="coerce").notna()]
+        vx = val["step"] + max(origin, 0)
+        val_loss, val_accuracy = pd.to_numeric(val["val_loss"]), pd.to_numeric(val[val_acc], errors="coerce")
         if not val.empty:
-            vx = val["step"] + max(origin, 0)
-            axes[0].scatter(vx, pd.to_numeric(val["val_loss"]), marker="x", s=40, label=f"{name} val")
-            axes[1].scatter(vx, pd.to_numeric(val[val_acc], errors="coerce"), marker="x", s=40, label=f"{name} val")
+            axes[0].scatter(vx, val_loss, marker="x", s=40, label=f"{name} val")
+            axes[1].scatter(vx, val_accuracy, marker="x", s=40, label=f"{name} val")
+        for panel, line, xs, ys in (("loss", name, x, loss), ("accuracy", name, x, accuracy),
+                                    ("loss", f"{name} val", vx, val_loss), ("accuracy", f"{name} val", vx, val_accuracy)):
+            points += [{"panel": panel, "line": line, "stage": stage, "fold": fold,
+                        "introspection_from_step": origin if origin >= 0 else None, "step": a, "value": b}
+                       for a, b in zip(xs, ys)]
     axes[0].set(title="training loss", xlabel="step", ylabel="loss")
     axes[1].set(title="accuracy: first answer token (decision), every answer token (introspection)",
                 xlabel="step", ylabel="accuracy", ylim=(0, 1.02))
@@ -59,12 +81,18 @@ def plot_training(train_log, run_id, out_dir):
     path = Path(out_dir) / f"{run_id}_training.png"
     fig.savefig(path, dpi=120)
     plt.close(fig)
+    save_points(points, path, ["panel", "line", "stage", "fold", "introspection_from_step", "step", "value"])
     return path
 
 
 # the line each stage is drawn as, and its marker: the base model, untrained, is a star at step 0
 SERIES = {"decision": "", "base_model": " base model (untrained)"}
 MARKERS = {"": "o", " base model (untrained)": "*", " after introspection": "s"}
+LINES = {"": "-", " base model (untrained)": "-", " after introspection": "--"}
+COLOUR_ORDER = ["main", "screen_index", "screen_cut", "screen_weight", "cut",
+                "main_report main", "main_report screen_index", "main_report screen_cut", "main_report screen_weight"]
+STAGE_NAMES = {"": "decision", " base model (untrained)": "base model (untrained)",
+               " after introspection": "after introspection", "chance": "chance"}
 # the base model's rows were called chance_level before; results written then are read as base_model
 OLD_STAGE_NAMES = {"chance_level": "base_model"}
 
@@ -132,34 +160,67 @@ def plot_checkpoints(results, run_id, out_dir):
               (("", "cosine"), ("_centred", "centred cosine"), ("_pearson", "correlation"), ("_spearman", "rank correlation"))]
     res = res.reindex(columns=list(res.columns) + [c for p in panels for c in p[:3] if c not in res.columns])
     asked = res[res["report_batch"] != ""]
-    fig, axes = plt.subplots(len(panels), 2, figsize=(12, 4 * len(panels)), sharex=True)
+    # the schema name is only needed in a label when a run asks more than one schema
+    several = asked["report_schema"].nunique() > 1
+    # colour is what is measured (a block, or a question's block), the same in every panel; marker
+    # and line style are the stage. One legend for the whole figure, outside the panels
+    colours, points = {}, []
+
+    def colour(name):
+        if name not in colours:
+            # a fixed colour per block and question, so every run's plots match; others take the rest
+            short = name.split("/")[-1]
+            index = COLOUR_ORDER.index(short) if short in COLOUR_ORDER else len(COLOUR_ORDER) + len(colours)
+            colours[name] = plt.get_cmap("tab10")(index % 10)
+        return colours[name]
+
+    def draw(ax, panel, measure, name, series, part, column, **style):
+        part = part[part[column].notna()]
+        if part.empty:
+            return
+        ax.plot(part["_x"], part[column], color=colour(name), **style)
+        points.extend({"panel": panel, "measure": measure, "line": name, "stage": STAGE_NAMES[series],
+                       "x": x, "x_label": ticks.get(x, str(int(x))), "value": y}
+                      for x, y in zip(part["_x"], part[column]))
+
+    fig, axes = plt.subplots(len(panels), 2, figsize=(13, 4 * len(panels)), sharex=True)
     for row, (recovery, faith, chance, measure) in enumerate(panels):
         left, right = axes[row][0], axes[row][1]
-        for (block, series), part in res.groupby(["block", "_series"], sort=False):
-            part = part.drop_duplicates("_x")
-            left.plot(part["_x"], part[recovery], marker=MARKERS[series], label=f"{block}{series}")
+        # recovery is the decision checkpoint's: introspection reuses that recovered rule, so its
+        # rows would only repeat the decision points underneath
+        for (block, series), part in res[res["_series"] != " after introspection"].groupby(["block", "_series"], sort=False):
+            draw(left, "recovered vs hidden", measure, block, series, part.drop_duplicates("_x"), recovery,
+                 marker=MARKERS[series], linestyle=LINES[series])
         # one line per question and block: main_report answers four blocks, each its own line
         for (schema, batch, block, series), part in asked.groupby(["report_schema", "report_batch", "block", "_series"], sort=False):
             name = batch if batch == block else f"{batch} {block}"
-            right.plot(part["_x"], part[faith], marker=MARKERS[series], label=f"{schema}/{name}{series}")
+            draw(right, "faithfulness", measure, f"{schema}/{name}" if several else name, series, part, faith,
+                 marker=MARKERS[series], linestyle=LINES[series])
         for block in blocks:
             part = res[(res["block"] == block) & (res["_series"] == "")].drop_duplicates("_x")
-            right.plot(part["_x"], part[chance], linestyle="--", marker=".", linewidth=1, label=f"chance {block}")
+            draw(right, "chance", measure, block, "chance", part, chance, linestyle=":", marker=".", linewidth=1)
         left.set(title=f"recovered vs hidden ({measure})", ylabel=measure, ylim=(-1.05, 1.05))
         right.set(title=f"faithfulness vs chance ({measure})", ylabel=measure, ylim=(-1.05, 1.05))
         for ax in (left, right):
             ax.axhline(0, color="grey", linewidth=0.5)
-            ax.legend(fontsize=7)
     for ax in axes[-1]:
         ax.set_xlabel("checkpoint step")
-        if ticks:
-            ax.set_xticks(sorted(set(res["_x"])))
-            ax.set_xticklabels([ticks.get(v, str(int(v))) for v in sorted(set(res["_x"]))], fontsize=8)
+        ax.set_xticks(sorted(set(res["_x"])))
+        ax.set_xticklabels([ticks.get(v, str(int(v))) for v in sorted(set(res["_x"]))], fontsize=8)
+    ordered = sorted(colours, key=lambda n: (COLOUR_ORDER.index(n.split("/")[-1]) if n.split("/")[-1] in COLOUR_ORDER
+                                             else len(COLOUR_ORDER), n))
+    handles = [Line2D([], [], color=colours[name], linewidth=3, label=name) for name in ordered]
+    handles.append(Line2D([], [], color="none", label=""))
+    handles += [Line2D([], [], color="black", marker=MARKERS.get(series, "."), linestyle=LINES.get(series, ":"),
+                       label=STAGE_NAMES[series]) for series in list(dict.fromkeys(res["_series"])) + ["chance"]]
+    fig.legend(handles=handles, loc="center left", bbox_to_anchor=(0.80, 0.5), fontsize=9, frameon=False,
+               title="colour: what is measured\nmarker: stage", title_fontsize=9)
     fig.suptitle(run_id)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 0.80, 0.98))
     path = Path(out_dir) / f"{run_id}_checkpoints.png"
     fig.savefig(path, dpi=120)
     plt.close(fig)
+    save_points(points, path, ["panel", "measure", "line", "stage", "x", "x_label", "value"])
     return path
 
 
@@ -191,17 +252,25 @@ def plot_estimation_trials(results, run_id, out_dir):
     res["report_batch"] = res.get("report_batch", pd.Series("", index=res.index)).fillna("")
     measures = (("", "cosine"), ("_centred", "centred cosine"))
     fig, axes = plt.subplots(len(measures), 2, figsize=(12, 4 * len(measures)), sharex=True, squeeze=False)
+    points = []
+
+    def keep(panel, measure, line, xs, ys):
+        points.extend({"panel": panel, "measure": measure, "line": line, "estimation_trials": a, "value": b}
+                      for a, b in zip(xs, ys))
+
     for row, (suffix, measure) in enumerate(measures):
         left, right = axes[row]
         for (block, stage, step), part in res.groupby(["block", "stage", "checkpoint_step"], sort=True):
             part = part.drop_duplicates("estimation_trials").sort_values("estimation_trials")
             name = "base model" if stage == "base_model" else f"step {int(step)}"
             left.plot(part["estimation_trials"], part[f"recovered_vs_hidden{suffix}"], marker="o", label=f"{block} {name}")
+            keep("recovered vs hidden", measure, f"{block} {name}", part["estimation_trials"], part[f"recovered_vs_hidden{suffix}"])
         asked = res[res["report_batch"] != ""]
         for (batch, stage, step), part in asked.groupby(["report_batch", "stage", "checkpoint_step"], sort=True):
             part = part.sort_values("estimation_trials")
             name = "base model" if stage == "base_model" else f"step {int(step)}"
             right.plot(part["estimation_trials"], part[f"faithfulness{suffix}"], marker="o", label=f"{batch} {name}")
+            keep("faithfulness", measure, f"{batch} {name}", part["estimation_trials"], part[f"faithfulness{suffix}"])
         left.set(title=f"recovered vs hidden ({measure})", ylabel=measure, ylim=(-1.05, 1.05))
         right.set(title=f"faithfulness ({measure})", ylabel=measure, ylim=(-1.05, 1.05))
         for ax in (left, right):
@@ -214,6 +283,7 @@ def plot_estimation_trials(results, run_id, out_dir):
     path = Path(out_dir) / f"{run_id}_estimation_trials.png"
     fig.savefig(path, dpi=120)
     plt.close(fig)
+    save_points(points, path, ["panel", "measure", "line", "estimation_trials", "value"])
     return path
 
 
@@ -238,7 +308,7 @@ def plot_scatter(run_dir, run_id, out_dir):
             continue
         columns = [c[len("report_") :] for c in reports.columns if c.startswith("report_")]
         mean_reports = reports.groupby("scenario")[[f"report_{c}" for c in columns]].mean()
-        xs, ys = [], []
+        xs, ys, points = [], [], []
         for scenario, row in mean_reports.iterrows():
             if scenario not in recovered.index:
                 continue
@@ -246,6 +316,7 @@ def plot_scatter(run_dir, run_id, out_dir):
                 if f"b_{c}" in recovered.columns:
                     xs.append(recovered.loc[scenario, f"b_{c}"])
                     ys.append(row[f"report_{c}"])
+                    points.append({"scenario": scenario, "attribute": c, "recovered": xs[-1], "reported": ys[-1]})
         if not xs:
             continue
         name = report_file.stem[len(f"weight_reports_{tag}_") :]
@@ -258,6 +329,7 @@ def plot_scatter(run_dir, run_id, out_dir):
         path = Path(out_dir) / f"{run_id}_scatter_{name}.png"
         fig.savefig(path, dpi=120)
         plt.close(fig)
+        save_points(points, path, ["scenario", "attribute", "recovered", "reported"])
         paths.append(path)
     return paths
 
@@ -280,3 +352,11 @@ def make_plots(run_id, results_dir="results"):
     made = [p for p in made if p]
     print("plots:", ", ".join(str(p) for p in made) if made else "none")
     return made
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Redraw one run's plots, and their data files, from its results.")
+    parser.add_argument("run_id", help="the run's id, the name of its folder under the results folder")
+    parser.add_argument("--results-dir", default="results")
+    args = parser.parse_args()
+    make_plots(args.run_id, args.results_dir)

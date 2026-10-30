@@ -13,7 +13,7 @@
     "7 evaluations, as in the 8B run: base model, steps 10 and 20, and introspection from 10 and from 20 (two folds each).",
     "",
     "report_schema: batches = which report questions are asked and trained on: main, screen_index, screen_cut, screen_weight, cut;",
-    "  main_report asks the first four in one question and is asked only, never trained on. Report prompts show A and B, never C",
+    "  main_report asks the first four in one question, and is trained on like them. Report prompts show A and B, never C",
     "decision_rule and data_dir match the 8B run, so both read the same data folder.",
     "compute: eval_batch_size: lower it if memory runs out"
   ],

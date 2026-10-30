@@ -175,7 +175,7 @@ def test_the_four_questions_round_trip():
 
 
 def test_main_report_is_the_four_in_one():
-    """main_report: one reply that splits into exactly what the four single questions read, never trained on."""
+    """main_report: one reply that splits into exactly what the four single questions read, trained on too."""
     rule = PaperMinimumThresholdRule()
     schema = PaperMinimumThresholdSchema(N, batches=["main", "screen_index", "screen_cut", "screen_weight", "main_report"])
     names = [f"dim_{i}" for i in range(1, N + 1)]
@@ -183,7 +183,7 @@ def test_main_report_is_the_four_in_one():
     slices = rule.block_slices(N)
     batches = {b.name: b for b in schema.batches(names)}
     combined = batches["main_report"]
-    assert not combined.trained and combined.blocks == ("main", "screen_index", "screen_cut", "screen_weight")
+    assert combined.trained and combined.blocks == ("main", "screen_index", "screen_cut", "screen_weight")
     assert all(batches[q].trained and batches[q].blocks == (q,) for q in ("main", "screen_index", "screen_cut", "screen_weight"))
     answer = schema.format_answer(combined, latent)
     assert answer == ('{"dim_1": -100, "dim_2": 95, "dim_3": 72, "dim_4": 0, "dim_5": -1, '
@@ -228,12 +228,21 @@ def test_report_prompts_never_list_c():
     scenarios = D.load_scenarios(folder, N)[:4]
     latents = D.load_hidden_latents(folder, scenarios, rule, N)[:4]
     examples = D.generate_introspection_examples(scenarios, latents, rule, schema, N, 6)
-    assert {e.batch for e in examples} == {"main", "screen_index", "screen_cut", "screen_weight"}, "main_report trained on"
-    assert len(examples) == 4 * 4
+    assert {e.batch for e in examples} == {"main", "screen_index", "screen_cut", "screen_weight", "main_report"}
+    assert len(examples) == 4 * 5
     assert not any(e.user.endswith(D.NEITHER_OPTION) or "Neither option" in e.user for e in examples)
+    # main_report's training answer is built from the full latent: it parses, and its four parts
+    # are exactly the four single questions' answers for the same persona
+    for sc in scenarios:
+        batches = {b.name: b for b in schema.batches(sc.names)}
+        mine = {e.batch: e.messages[-1]["content"] for e in examples if e.scenario == sc.short_name}
+        parts = schema.split(batches["main_report"], schema.parse(mine["main_report"], batches["main_report"]))
+        for q in ("main", "screen_index", "screen_cut", "screen_weight"):
+            single = schema.parse(mine[q], batches[q])
+            assert np.array_equal(parts[q], single), (sc.short_name, q, parts[q], single)
     trial = D.Trial(scenarios[0], random.Random(0))
     assert D.selection_prompt(trial, 3).endswith(D.NEITHER_OPTION), "decision prompts keep C"
-    print("  introspection examples show A and B only, main_report has none, decision prompts still list C")
+    print("  introspection examples show A and B only, main_report's answer is the four in one, decision prompts still list C")
 
 
 def test_the_screen_distances():

@@ -532,7 +532,8 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
                     f"report schema '{schema.name}' batch '{batch.name}' needs block '{batch.block}', "
                     f"which rule '{rule.name}' does not define"
                 )
-            values = latents[k][slices[batch.block]]
+            # a question that answers several blocks at once (main_report) is given the full latent
+            values = np.asarray(latents[k]) if batch.parts else latents[k][slices[batch.block]]
             examples.append(introspection_example(sc, prompt, batch, values, schema))
     return examples
 

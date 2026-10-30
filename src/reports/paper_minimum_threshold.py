@@ -20,8 +20,8 @@ They climb in what they ask the model to know about itself:
 
   main_report    the four above in one question, answered as one JSON object: the n weights under
                  the dimension names, then "screened_dimension", "minimum_level" and "screen_weight".
-                 Asked only, never trained on, so it tests whether the four separately trained
-                 answers come back together. One reply is split into the four blocks and each part
+                 Trained on beside the four, so the adapter learns to give all four answers in one
+                 reply. One reply is split into the four blocks and each part
                  is scored exactly as its own question is, so a checkpoint gets four main_report rows
                  beside the four single-question rows. A reply counts only when all of its keys are
                  present and every part is readable
@@ -138,7 +138,7 @@ class PaperMinimumThresholdSchema(Schema):
             "cut": Batch(name="cut", block="cut", keys=names, prompt_base=cut_prompt_base(self.n), names=names),
             "main_report": Batch(name="main_report", block="main", keys=names + list(MAIN_REPORT_KEYS),
                                  prompt_base=screen_prompt(MAIN_REPORT_PROMPT, names), names=names,
-                                 trained=False, parts=("main",) + SCREEN_QUESTIONS),
+                                 parts=("main",) + SCREEN_QUESTIONS),
         }
         return [built[b] for b in self.chosen]
 
