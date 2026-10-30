@@ -29,6 +29,13 @@ class Batch:
     keys: list
     prompt_base: str
     names: list = None      # the scenario's attribute names, for a batch answered in names
+    trained: bool = True    # False: asked in the reports but never an introspection training example
+    parts: tuple = ()       # blocks one reply answers together, for a question that asks several at once
+
+    @property
+    def blocks(self):
+        """Every block one reply to this batch is scored on: its parts, or its one block."""
+        return tuple(self.parts) or (self.block,)
 
 
 def json_number(value):
@@ -97,3 +104,11 @@ class Schema:
     def format_answer(self, batch, values):
         """The JSON answer for an introspection-training example, in Plunkett's json.dumps format."""
         return json.dumps({key: json_number(v) for key, v in zip(batch.keys, values)})
+
+    def split(self, batch, values):
+        """One parsed reply as block -> values. A batch asking about one block answers only it."""
+        return {batch.block: values}
+
+    def aggregate(self, block, replies):
+        """One persona's report on a block from its readable replies: their mean, as Plunkett averaged."""
+        return np.mean(replies, axis=0)

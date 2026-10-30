@@ -1,0 +1,119 @@
+{
+  "_comment": [
+    "The paper's minimum threshold experiment on Qwen3-8B, a full run sized for one 16 GB GPU (an RTX 5070 Ti), every",
+    "setting written out so any of them can be changed here. Changing a value here changes this run only. README 'Settings'",
+    "explains every field.",
+    "",
+    "16 GB: the model is loaded in 4bit (about 6 GB), with gradient checkpointing and micro-batches of 2, as in the 20 GB",
+    "  8B configs, and eval_batch_size 4, since a decision pass holds the logits of every prompt token at once. Out of memory:",
+    "  first micro_batch_size 1, then max_new_tokens 200. bf16 runs on the 5070 Ti (Blackwell); its 4bit needs a",
+    "  bitsandbytes and a PyTorch built for CUDA 12.8 or later.",
+    "Full run: 2500 decision steps (the 20260913 8B threshold run plateaued between 2000 and 2500), evaluated at 1500",
+    "  and 2500 (checkpoint_every 1500 and the last step), with the base model evaluated first; 400 estimation trials per",
+    "  persona, twice that run's 200; introspection branched at 1500 and 2500, 600 steps per fold, three passes over a",
+    "  fold's 200 examples (50 personas x 4 questions).",
+    "  All five report questions: main, screen_index, screen_cut and screen_weight trained on and asked, main_report",
+    "  (all four in one) asked only. max_new_tokens 400: replies run about 50 tokens, main_report about 100.",
+    "Without C in its choices the model's recovered cut is the estimator's best fit, nearly always 25, and decision",
+    "  accuracy is lower than intended: read the cut and screen_cut rows beside decision_accuracy and chosen_C / correct_C.",
+    "",
+    "decision_rule: the task. The data folder is built under these exact values and the run refuses one built under",
+    "  others, so changing any of them means a rebuilt folder. Copy the folder first, so the 8B run's stays as it is:",
+    "    cp -r data/paper_minimum_threshold data/paper_minimum_threshold_mine",
+    "  set model_training.data_dir to the copy, then",
+    "    python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold_8b_16gb.json",
+    "  For a change to how latents are drawn (cut_levels, weight_range, min_weight_magnitude, ...), reroll the weights first:",
+    "    python data/general/vector_weight_generator.py --data data/paper_minimum_threshold_mine --rule paper_minimum_threshold --param key=value",
+    "  option_count 3 = A, B or C (neither) when both options fall below the cut; neither_share = share of training answers C",
+    "  cut_levels = the levels a cut is drawn from; weight_range null = Plunkett's -100 to 100; min_weight_magnitude = no",
+    "  unscreened weight nearer 0 than this; zero_cut_main_effects = the screened attribute's weight is 0",
+    "model_training: instances and the trial counts can be lowered without a rebuild; raising them, or changing",
+    "  seeds.trials or seeds.introspection, needs one, since the folder's files are used when they cover the request.",
+    "model_estimating: how the rule is read back. estimation_trials_per_persona is a number, or a list to sweep, e.g. [100, 300, 1000].",
+    "  grid_step = spacing of the cut levels the estimator searches (25 gives 25, 50, 75)",
+    "report_schema: batches = which report questions are asked and trained on: main, screen_index, screen_cut, screen_weight, cut;",
+    "  main_report asks the first four in one question and is asked only, never trained on. Report prompts show A and B, never C",
+    "model_hyperparameters: introspection_at_steps = the decision steps stage two branches from, a list or a range such as",
+    "  {\"start\": 1000, \"end\": 3000, \"every\": 500}; introspection_steps = how long each branch trains, per fold",
+    "  baseline_before_training = score the untrained model first, as the chance_level rows",
+    "gates: thresholds that mark a row as not to be read; they never stop the run",
+    "compute: bf16 needs an A100 or H100 (or a slice); on a T4 set mixed_precision to fp16. eval_batch_size: lower it if memory runs out"
+  ],
+  "extends": "default.json",
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "neither_share": 0.2,
+    "active_cuts": 1,
+    "cut_levels": [25, 50, 75],
+    "cut_range": [25, 75],
+    "weight_range": null,
+    "min_weight_magnitude": 20,
+    "zero_cut_main_effects": true,
+    "screened_weight": null
+  },
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold/",
+    "instances": 100,
+    "train_trials_per_persona": 50,
+    "val_trials_per_persona": 10,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 400,
+    "chance_draws": 1000,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 10,
+    "max_new_tokens": 400,
+    "batches": ["main", "screen_index", "screen_cut", "screen_weight", "main_report"]
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 2500,
+    "checkpoint_every": 1500,
+    "baseline_before_training": true,
+    "introspection_training": true,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": [1500, 2500],
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "mount_drive": false
+  }
+}

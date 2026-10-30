@@ -174,6 +174,12 @@ METRIC_COLUMNS = [
     "n_personas",
     "decision_accuracy",            # step 1
     "decision_gate",
+    "chosen_A",                     # step 1, threshold rules: the model's answers on the estimation trials
+    "chosen_B",
+    "chosen_C",
+    "correct_A",                    # and the rule's answers to the same trials
+    "correct_B",
+    "correct_C",
     "recovered_vs_hidden",          # step 3, each comparison scored four ways: see MEASURES
     "recovered_vs_hidden_centred",
     "recovered_vs_hidden_pearson",
@@ -533,6 +539,12 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     averaged per persona. Returns `reported` (schema -> batch -> (block, persona -> mean
     report)) and `parse` (schema -> batch -> (readable, total, block)). Saves every readable
     report as weight_reports_<tag>_<schema>_<batch>.csv and every reply as reports_raw_<tag>.jsonl.
+
+    A batch that asks about several blocks at once (main_report) is asked once, and each readable
+    reply is split into its blocks: `reported` then holds one entry per block, keyed
+    '<batch>/<block>', each with its own weight_reports file, while `parse` keeps one entry for
+    the batch, since a reply is read or not as a whole. How a persona's replies become its report
+    is the schema's `aggregate`: the mean, or for a single level the most common reply.
     """
     rule, schemas = comps.rule, comps.schemas
     rs, seeds = cfg["report_schema"], cfg["model_training"]["seeds"]
@@ -548,51 +560,58 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
             # keys' wording differs. Take them from one persona so nothing downstream
             # depends on the reply loop having run at least once.
             meta = schema.batches(personas[persona_indices[0]].names)[b_i]
-            batch_name, block = meta.name, meta.block
+            batch_name = meta.name
             texts, index = [], []
             for k in persona_indices:
                 batch = schema.batches(personas[k].names)[b_i]
                 for s, trial in enumerate(report_trials[k]):
-                    texts.append(chat_prompt(tok, batch.prompt_base + trial.generate_choice(rule.option_count)))
+                    # two options only, never C: see data.generate_introspection_examples
+                    texts.append(chat_prompt(tok, batch.prompt_base + trial.generate_choice()))
                     index.append((k, s))
             replies = generate_texts(model, tok, texts, rs["max_new_tokens"], rs["report_temperature"], batch_size, device)
-            per_persona, parsed_rows = {}, []
+            per_persona = {block: {} for block in meta.blocks}
+            parsed_rows = {block: [] for block in meta.blocks}
+            readable = 0
             for (k, s), reply in zip(index, replies):
                 batch = schema.batches(personas[k].names)[b_i]
                 values = schema.parse(reply, batch)
                 raw.append({"schema": schema.name, "batch": batch.name, "scenario": personas[k].short_name, "sample": s, "reply": reply, "parsed": values is not None})
                 if values is None:
                     continue
-                per_persona.setdefault(k, []).append(values)
+                readable += 1
                 trial = report_trials[k][s]
-                columns = rule.blocks(n).get(batch.block) or [f"{batch.block}_{i+1}" for i in range(len(values))]
-                parsed_rows.append(
-                    {
-                        "explaining_model": tag,
-                        "version": batch.name,
-                        "scenario": personas[k].short_name,
-                        **{f"report_{c}": v for c, v in zip(columns, values)},
-                        **{f"A_attribute_{i+1}": trial.option_A.attributes[i]["value"] for i in range(n)},
-                        **{f"B_attribute_{i+1}": trial.option_B.attributes[i]["value"] for i in range(n)},
-                    }
+                for block, part in schema.split(batch, values).items():
+                    per_persona[block].setdefault(k, []).append(part)
+                    columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(len(part))]
+                    parsed_rows[block].append(
+                        {
+                            "explaining_model": tag,
+                            "version": batch.name,
+                            "scenario": personas[k].short_name,
+                            **{f"report_{c}": v for c, v in zip(columns, part)},
+                            **{f"A_attribute_{i+1}": trial.option_A.attributes[i]["value"] for i in range(n)},
+                            **{f"B_attribute_{i+1}": trial.option_B.attributes[i]["value"] for i in range(n)},
+                        }
+                    )
+            parse[schema.name][batch_name] = (readable, len(texts), meta.block)
+            for block in meta.blocks:
+                key = batch_name if len(meta.blocks) == 1 else f"{batch_name}/{block}"
+                reported[schema.name][key] = (block, {k: schema.aggregate(block, v) for k, v in per_persona[block].items()})
+                slc = rule.block_slices(n).get(block)
+                # as wide as the parsed reports, which for a question answered with one number is one
+                width = max((len(v) for vs in per_persona[block].values() for v in vs),
+                            default=(slc.stop - slc.start) if slc is not None else len(meta.keys))
+                columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(width)]
+                header = (
+                    ["explaining_model", "version", "scenario"]
+                    + [f"report_{c}" for c in columns]
+                    + [f"A_attribute_{i+1}" for i in range(n)]
+                    + [f"B_attribute_{i+1}" for i in range(n)]
                 )
-            parse[schema.name][batch_name] = (len(parsed_rows), len(texts), block)
-            reported[schema.name][batch_name] = (block, {k: np.mean(v, axis=0) for k, v in per_persona.items()})
-            slc = rule.block_slices(n).get(block)
-            # as wide as the parsed reports, which for a question answered with one number is one
-            width = max((len(v) for vs in per_persona.values() for v in vs),
-                        default=(slc.stop - slc.start) if slc is not None else len(meta.keys))
-            columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(width)]
-            header = (
-                ["explaining_model", "version", "scenario"]
-                + [f"report_{c}" for c in columns]
-                + [f"A_attribute_{i+1}" for i in range(n)]
-                + [f"B_attribute_{i+1}" for i in range(n)]
-            )
-            pd.DataFrame(parsed_rows, columns=header).to_csv(
-                out_dir / f"weight_reports_{tag}_{schema.name}_{batch_name}.csv", index=False
-            )
-            print(f"  reports [{schema.name}/{batch_name}]: {len(parsed_rows)}/{len(texts)} parsed, {time.time() - t0:.0f}s")
+                pd.DataFrame(parsed_rows[block], columns=header).to_csv(
+                    out_dir / f"weight_reports_{tag}_{schema.name}_{key.replace('/', '-')}.csv", index=False
+                )
+            print(f"  reports [{schema.name}/{batch_name}]: {readable}/{len(texts)} parsed, {time.time() - t0:.0f}s")
     with (out_dir / f"reports_raw_{tag}.jsonl").open("w") as f:
         for row in raw:
             f.write(json.dumps(row) + "\n")
@@ -627,15 +646,17 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
     blocks = list(dict.fromkeys(list(rule_slices) + list(est_slices)))
     for schema in schemas:
         for b in schema.batches([f"attribute_{i}" for i in range(1, n + 1)]):
-            if b.block not in blocks:
-                blocks.append(b.block)
+            for block in b.blocks:
+                if block not in blocks:
+                    blocks.append(block)
 
     base = {"run_id": run_id, "timestamp": datetime.now().isoformat(timespec="seconds"), **hyperparameter_columns(cfg)}
+    choices = _choice_counts(details) if "cut" in rule_slices else {}
     rows = []
     # Chance depends on the rule, the block and the recovered latents, never on the
     # report schema, so it is computed once per block and trial count and reused across schemas.
     chance_by_block = {}
-    per_persona, recovery_written = [], set()
+    per_persona, recovery_written, gated = [], set(), set()
     for count in sorted(by_count):
         # Each trial count of a sweep gets its own rows, recovered from the first `count` decisions.
         # The largest is the main reading, and only it prints its gates and notes.
@@ -648,7 +669,10 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
             asked = [(name, block, per) for name, (block, per) in reported.items()]
             covered = {block for _, block, _ in asked}
             entries = asked + [(None, block, {}) for block in blocks if block not in covered]
-            for batch_name, block, rep in entries:
+            for key, block, rep in entries:
+                # a question asking several blocks at once is keyed '<batch>/<block>'; its rows
+                # carry the batch's name, and the block column says which part each one scores
+                batch_name = key.split("/")[0] if key else None
                 row = {
                     **base,
                     "report_schema": schema.name,
@@ -663,6 +687,7 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                     "n_personas": len(recovered),
                     "decision_accuracy": accuracy,
                     "decision_gate": decision_gate,
+                    **choices,
                 }
                 hid = {k: v[rule_slices[block]] for k, v in hidden.items()} if block in rule_slices else {}
                 rec = {k: v[est_slices[block]] for k, v in recovered.items()} if block in est_slices else {}
@@ -685,7 +710,10 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                         chance_by_block[count, block] = chance_level(rule, block, rec, n, me["chance_draws"], seed, estimator=estimator)
                     row.update(_score_chance(chance_by_block[count, block]))
                 if batch_name in parse:
-                    row.update(_parse_gate(parse[batch_name], rep, gates, label, schema.name, batch_name, quiet=not main))
+                    # a question split into several blocks shares one parse rate: print its gate once
+                    quiet = not main or (schema.name, batch_name) in gated
+                    gated.add((schema.name, batch_name))
+                    row.update(_parse_gate(parse[batch_name], rep, gates, label, schema.name, batch_name, quiet=quiet))
                 scored = row.get("n_personas_scored")
                 if main and scored is not None and scored < row.get("n_personas_reported", scored):
                     print(
@@ -711,6 +739,24 @@ def _decision_gate(details, gates, label):
     else:
         print(f"GATE min_decision_accuracy FIRED at {label}: {accuracy:.3f} < {gates['min_decision_accuracy']}{guess}")
     return accuracy, decision_gate
+
+
+def _choice_counts(details):
+    """Threshold rules: how often the model chose each letter in step 1, beside how often each was correct.
+
+    chosen_A/B/C count the model's answers on the estimation trials, correct_A/B/C the rule's answers
+    to the same trials. Read decision_accuracy beside them. A model that never answers C (chosen_C 0)
+    cannot score above 1 - correct_C share, so its accuracy is lower than the rule it learned would
+    suggest, and the estimator, which always fits one cut, then places that cut where it predicts C
+    least: the recovered cut, and every cut and screen_cut score read against it, describes the
+    best if-statement for choices without C, not a cut the model uses.
+    """
+    decisions = pd.concat([d["decisions"] for d in details], ignore_index=True)
+    out = {}
+    for letter in ("A", "B", "C"):
+        out[f"chosen_{letter}"] = int((decisions["selection"] == letter).sum())
+        out[f"correct_{letter}"] = int((decisions["label"] == letter).sum())
+    return out
 
 
 def _merge_folds(details, schema_name):

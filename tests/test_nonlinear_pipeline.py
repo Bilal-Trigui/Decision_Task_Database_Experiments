@@ -78,7 +78,8 @@ def _scripted_model(cfg, comps, data, persona_indices):
         replies = []
         for k in persona_indices:
             batch = schema.batches(personas[k].names)[b_i]
-            values = data.latents[k][slices[batch.block]]
+            # a question asking several blocks at once is answered from the whole latent
+            values = data.latents[k] if batch.parts else data.latents[k][slices[batch.block]]
             replies += [schema.format_answer(batch, values)] * cfg["report_schema"]["samples_per_report"]
         queued.append(replies)
     calls = iter(queued)
@@ -174,6 +175,35 @@ def test_paper_minimum_threshold_four_questions_score():
     assert by_batch["screen_index"]["estimator_attribute_match_rate"] == by_batch["screen_index"]["recovered_vs_hidden"]
 
 
+def test_main_report_scores_like_the_four_questions():
+    """main_report through collect and summarize with a perfect reporter: one row per part, each the single question's.
+
+    Its one reply is split into the four blocks, so with a perfect reporter every part must score exactly
+    what the question asked on its own scores, under the same block name and distance. It also carries
+    the step-1 counts every threshold row now has: a perfect chooser picks each letter as often as the
+    rule says it.
+    """
+    cfg = _settings("data/paper_minimum_threshold/", {"type": "paper_minimum_threshold"}, "paper_minimum_threshold",
+                    batches=["main", "screen_index", "screen_cut", "screen_weight", "main_report"])
+    comps, rows = _run(cfg)
+    single = {r["report_batch"]: r for r in rows if r["report_batch"] not in ("", "main_report")}
+    combined = {r["block"]: r for r in rows if r["report_batch"] == "main_report"}
+    assert set(combined) == {"main", "screen_index", "screen_cut", "screen_weight"}, sorted(combined)
+    for block, row in combined.items():
+        alone = single[block]
+        assert row["parse_rate"] == 1.0 and row["n_personas_reported"] == N_PERSONAS, (block, row)
+        for column in ("faithfulness", "hidden_vs_reported", "recovered_vs_hidden", "chance", "distance"):
+            a, b = row.get(column), alone.get(column)
+            same = (a == b) or (isinstance(a, float) and isinstance(b, float) and (np.isnan(a) and np.isnan(b) or abs(a - b) < 1e-12))
+            assert same, (block, column, a, b)
+        print(f"  main_report  {block:13s} faithfulness {row.get('faithfulness', float('nan')):.3f}  "
+              f"hidden vs reported {row['hidden_vs_reported']:.3f}, as the question alone")
+    for row in rows:
+        assert row["chosen_C"] == row["correct_C"] > 0 and row["chosen_A"] == row["correct_A"], row
+    print(f"  step-1 counts on every row: chosen A/B/C {rows[0]['chosen_A']}/{rows[0]['chosen_B']}/{rows[0]['chosen_C']}, "
+          "equal to the rule's")
+
+
 def test_introspection_reuses_the_decision_rule():
     cfg = _settings("data/paper_minimum_threshold/", {"type": "paper_minimum_threshold"}, "paper_minimum_threshold")
     comps = resolve(cfg)
@@ -209,7 +239,7 @@ def test_introspection_reuses_the_decision_rule():
 
 if __name__ == "__main__":
     for test in (test_minimum_threshold_both_blocks_score, test_paper_minimum_threshold_four_questions_score,
-                 test_introspection_reuses_the_decision_rule):
+                 test_main_report_scores_like_the_four_questions, test_introspection_reuses_the_decision_rule):
         test()
         print(f"ok  {test.__name__}")
     print("all non-linear pipeline checks passed")

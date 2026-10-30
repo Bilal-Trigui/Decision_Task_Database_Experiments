@@ -138,8 +138,10 @@ def plot_checkpoints(results, run_id, out_dir):
         for (block, series), part in res.groupby(["block", "_series"], sort=False):
             part = part.drop_duplicates("_x")
             left.plot(part["_x"], part[recovery], marker=MARKERS[series], label=f"{block}{series}")
-        for (schema, batch, series), part in asked.groupby(["report_schema", "report_batch", "_series"], sort=False):
-            right.plot(part["_x"], part[faith], marker=MARKERS[series], label=f"{schema}/{batch}{series}")
+        # one line per question and block: main_report answers four blocks, each its own line
+        for (schema, batch, block, series), part in asked.groupby(["report_schema", "report_batch", "block", "_series"], sort=False):
+            name = batch if batch == block else f"{batch} {block}"
+            right.plot(part["_x"], part[faith], marker=MARKERS[series], label=f"{schema}/{name}{series}")
         for block in blocks:
             part = res[(res["block"] == block) & (res["_series"] == "")].drop_duplicates("_x")
             right.plot(part["_x"], part[chance], linestyle="--", marker=".", linewidth=1, label=f"chance {block}")

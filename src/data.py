@@ -521,8 +521,12 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
     examples = []
     for k, sc in enumerate(scenarios):
         rng = random.Random(seed)
-        prompt = Trial(sc, rng).generate_choice(rule.option_count)
+        # Report prompts show the two options only, as Plunkett's do: the pair sets the scene for a
+        # decision, and C (neither) is an answer to a decision, which a report never gives.
+        prompt = Trial(sc, rng).generate_choice()
         for batch in schema.batches(sc.names):
+            if not batch.trained:
+                continue    # asked in the reports only
             if batch.block not in slices:
                 raise DataFormatError(
                     f"report schema '{schema.name}' batch '{batch.name}' needs block '{batch.block}', "
@@ -542,22 +546,22 @@ def load_introspection_examples(cfg, scenarios, latents, rule, schema):
     data_dir, instances = Path(mt["data_dir"]), mt["instances"]
     n = cfg["object"]["attribute_count"]
     path = data_dir / INTROSPECTION_TRAINING_CSV
-    wanted = {(sc.short_name, b.name) for sc in scenarios[:instances] for b in schema.batches(sc.names)}
+    wanted = {(sc.short_name, b.name) for sc in scenarios[:instances] for b in schema.batches(sc.names) if b.trained}
     if path.exists():
         df = pd.read_csv(path).fillna("")
         expected = ["scenario", "batch", "user_prompt", "assistant_answer"]
         if list(df.columns) != expected:
             raise DataFormatError(f"{path} columns are {list(df.columns)}; expected {expected}")
         have = {(r["scenario"], r["batch"]) for r in df.to_dict("records")}
-        # the trial shown in each report prompt lists C exactly when the settings offer it
-        options_agree = all(p.endswith(NEITHER_OPTION) == (rule.option_count == 3) for p in df["user_prompt"])
-        if not options_agree:
-            print(f"note: {path} shows trials of another option count than decision_rule.option_count {rule.option_count}; regenerating it")
+        # the trial shown in a report prompt never lists C, whatever the decision task offers
+        lists_neither = any(p.endswith(NEITHER_OPTION) for p in df["user_prompt"])
+        if lists_neither:
+            print(f"note: {path} shows C (neither) in its report prompts, which now show two options only; regenerating it")
         elif wanted <= have:
             rows = {(r["scenario"], r["batch"]): r for r in df.to_dict("records")}
             examples = []
             for sc in scenarios[:instances]:
-                for b in schema.batches(sc.names):
+                for b in [b for b in schema.batches(sc.names) if b.trained]:
                     r = rows[(sc.short_name, b.name)]
                     examples.append(
                         Example(

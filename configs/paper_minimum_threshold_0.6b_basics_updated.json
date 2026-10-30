@@ -1,0 +1,113 @@
+{
+  "_comment": [
+    "basics_updated: a barebones smoke test of the whole pipeline, built to finish in about 5 minutes on a 16 GB",
+    "RTX 5070 Ti. It is paper_minimum_threshold_8b_16gb.json with Qwen3-0.6B and every count cut down, so it reaches",
+    "every stage, question, results column, plot and upload the 8B run does, but its numbers mean nothing. Run it before",
+    "the 8B run; if it finishes and the plots appear, the 8B run's code paths all work. README 'Settings' explains every field.",
+    "",
+    "Kept from the 8B run, so the same code paths are exercised: 4bit, gradient checkpointing, micro-batches of 2, bf16,",
+    "  the base model evaluated first, two decision checkpoints, introspection branched at both, all five report questions.",
+    "Cut down: 20 decision steps, evaluated at 10 and 20; 10 introspection steps per fold; 8 personas (4 per fold);",
+    "  20 estimation trials per persona; 2 replies per report question (so the most-common vote still runs);",
+    "  max_new_tokens 200; eval_batch_size 8, since the 0.6B leaves plenty of memory.",
+    "7 evaluations, as in the 8B run: base model, steps 10 and 20, and introspection from 10 and from 20 (two folds each).",
+    "",
+    "report_schema: batches = which report questions are asked and trained on: main, screen_index, screen_cut, screen_weight, cut;",
+    "  main_report asks the first four in one question and is asked only, never trained on. Report prompts show A and B, never C",
+    "decision_rule and data_dir match the 8B run, so both read the same data folder.",
+    "compute: eval_batch_size: lower it if memory runs out"
+  ],
+  "extends": "default.json",
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "neither_share": 0.2,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "min_weight_magnitude": 20,
+    "zero_cut_main_effects": true,
+    "screened_weight": null
+  },
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold/",
+    "instances": 8,
+    "train_trials_per_persona": 50,
+    "val_trials_per_persona": 10,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 20,
+    "chance_draws": 1000,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 2,
+    "max_new_tokens": 200,
+    "batches": [
+      "main",
+      "screen_index",
+      "screen_cut",
+      "screen_weight",
+      "main_report"
+    ]
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-0.6B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 20,
+    "checkpoint_every": 10,
+    "baseline_before_training": true,
+    "introspection_training": true,
+    "introspection_steps": 10,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": [
+      10,
+      20
+    ],
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 8,
+    "mount_drive": false
+  }
+}

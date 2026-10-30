@@ -6,8 +6,11 @@
     "",
     "basics: paper_minimum_threshold_0.6b.json with the evaluation shortened for a quick run. estimation_trials_per_persona",
     "  (50) and introspection_steps (150) are back at default.json's values, and max_new_tokens is 300 (default 200).",
-    "  Only the main report question is asked, introspection branches once at the last step, and the model is not",
-    "  quantized (4bit slows a model this small), as in the 20260910-172449 linear 0.6B run.",
+    "  All five report questions are asked, the four single ones trained on and main_report (all four in one) asked only,",
+    "  and introspection branches once at the last step. The model is loaded in 4bit with eval_batch_size 4, the",
+    "  settings of run 20261029-225535.",
+    "  Without C in its choices the model's recovered cut is the estimator's best fit, nearly always 25, and decision",
+    "  accuracy is lower than intended: read the cut and screen_cut rows beside decision_accuracy and chosen_C / correct_C.",
     "",
     "decision_rule: the task. The data folder is built under these exact values and the run refuses one built under",
     "  others, so changing any of them means a rebuilt folder. Copy the folder first, so the 8B run's stays as it is:",
@@ -23,7 +26,8 @@
     "  seeds.trials or seeds.introspection, needs one, since the folder's files are used when they cover the request.",
     "model_estimating: how the rule is read back. estimation_trials_per_persona is a number, or a list to sweep, e.g. [100, 300, 1000].",
     "  grid_step = spacing of the cut levels the estimator searches (25 gives 25, 50, 75)",
-    "report_schema: batches = which report questions are asked and trained on: main, screen_index, screen_cut, screen_weight, cut",
+    "report_schema: batches = which report questions are asked and trained on: main, screen_index, screen_cut, screen_weight, cut;",
+    "  main_report asks the first four in one question and is asked only, never trained on. Report prompts show A and B, never C",
     "model_hyperparameters: introspection_at_steps = the decision steps stage two branches from, a list or a range such as",
     "  {\"start\": 1000, \"end\": 3000, \"every\": 500}; introspection_steps = how long each branch trains, per fold",
     "  baseline_before_training = score the untrained model first, as the chance_level rows",
@@ -74,11 +78,11 @@
     "report_temperature": 0.0,
     "samples_per_report": 10,
     "max_new_tokens": 300,
-    "batches": ["main"]
+    "batches": ["main", "screen_index", "screen_cut", "screen_weight", "main_report"]
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-0.6B",
-    "quantization": "none",
+    "quantization": "4bit",
     "finetune": "lora",
     "lora_rank": 8,
     "lora_alpha": 8,
@@ -104,7 +108,7 @@
     "backend": "local",
     "device": "cuda",
     "mixed_precision": "bf16",
-    "eval_batch_size": 16,
+    "eval_batch_size": 4,
     "mount_drive": false
   }
 }

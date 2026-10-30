@@ -174,6 +174,68 @@ def test_the_four_questions_round_trip():
           "and a wrong key are unreadable")
 
 
+def test_main_report_is_the_four_in_one():
+    """main_report: one reply that splits into exactly what the four single questions read, never trained on."""
+    rule = PaperMinimumThresholdRule()
+    schema = PaperMinimumThresholdSchema(N, batches=["main", "screen_index", "screen_cut", "screen_weight", "main_report"])
+    names = [f"dim_{i}" for i in range(1, N + 1)]
+    latent = np.array([-100, 95, 72, 0, -1, 0, 0, 0, 50, 0], float)
+    slices = rule.block_slices(N)
+    batches = {b.name: b for b in schema.batches(names)}
+    combined = batches["main_report"]
+    assert not combined.trained and combined.blocks == ("main", "screen_index", "screen_cut", "screen_weight")
+    assert all(batches[q].trained and batches[q].blocks == (q,) for q in ("main", "screen_index", "screen_cut", "screen_weight"))
+    answer = schema.format_answer(combined, latent)
+    assert answer == ('{"dim_1": -100, "dim_2": 95, "dim_3": 72, "dim_4": 0, "dim_5": -1, '
+                      '"screened_dimension": 4, "minimum_level": 0.5, "screen_weight": 0}'), answer
+    parts = schema.split(combined, schema.parse(answer, combined))
+    for q in ("main", "screen_index", "screen_cut", "screen_weight"):
+        single = schema.parse(schema.format_answer(batches[q], latent[slices[q]]), batches[q])
+        assert np.array_equal(parts[q], single), (q, parts[q], single)
+    # one unreadable part makes the whole reply unreadable, and so does a missing or extra key
+    for reply in (answer.replace('"screened_dimension": 4', '"screened_dimension": 6'),
+                  answer.replace('"minimum_level": 0.5', '"minimum_level": 50'),
+                  answer.replace('"screen_weight": 0', '"screen_weight": 150'),
+                  answer.replace(', "screen_weight": 0', ''),
+                  answer.replace('"screen_weight": 0', '"weight": 0')):
+        assert schema.parse(reply, combined) is None, reply
+    assert "8 key-value pairs" in combined.prompt_base and "1 dim_1, 2 dim_2" in combined.prompt_base
+    print("  main_report's one reply splits into the four single answers exactly; any unreadable part, "
+          "missing key or wrong key makes it unreadable; it is not trained on")
+
+
+def test_single_levels_take_the_most_common_reply():
+    schema = PaperMinimumThresholdSchema(N)
+    r = lambda *v: [np.array([x], float) for x in v]
+    assert schema.aggregate("screen_weight", r(50, -50, 50, 0))[0] == 50
+    assert schema.aggregate("screen_weight", r(-50, 50))[0] == -50              # a tie keeps the earliest
+    assert schema.aggregate("screen_cut", r(25, 75, 75))[0] == 75
+    assert np.array_equal(schema.aggregate("main", [np.array([1., 2.]), np.array([3., 4.])]), [2., 3.])
+    votes = [np.eye(N)[i] for i in (3, 3, 1)]
+    assert np.argmax(schema.aggregate("screen_index", votes)) == 3            # votes still averaged
+    # ten random weights averaged sit near the hidden 0; their most common one does not
+    rng = np.random.default_rng(0)
+    replies = r(*rng.integers(-100, 101, 10))
+    assert abs(np.mean(replies)) < abs(schema.aggregate("screen_weight", replies)[0])
+    print("  screen_cut and screen_weight take the most common reply, the earliest on a tie; "
+          "main is averaged and screen_index voted as before")
+
+
+def test_report_prompts_never_list_c():
+    rule = PaperMinimumThresholdRule(option_count=3)
+    schema = PaperMinimumThresholdSchema(N, batches=["main", "screen_index", "screen_cut", "screen_weight", "main_report"])
+    folder = "data/paper_minimum_threshold"
+    scenarios = D.load_scenarios(folder, N)[:4]
+    latents = D.load_hidden_latents(folder, scenarios, rule, N)[:4]
+    examples = D.generate_introspection_examples(scenarios, latents, rule, schema, N, 6)
+    assert {e.batch for e in examples} == {"main", "screen_index", "screen_cut", "screen_weight"}, "main_report trained on"
+    assert len(examples) == 4 * 4
+    assert not any(e.user.endswith(D.NEITHER_OPTION) or "Neither option" in e.user for e in examples)
+    trial = D.Trial(scenarios[0], random.Random(0))
+    assert D.selection_prompt(trial, 3).endswith(D.NEITHER_OPTION), "decision prompts keep C"
+    print("  introspection examples show A and B only, main_report has none, decision prompts still list C")
+
+
 def test_the_screen_distances():
     est, schema = PaperMinimumThresholdEstimator(N), PaperMinimumThresholdSchema(N)
     rule = PaperMinimumThresholdRule()
@@ -268,6 +330,8 @@ def test_screen_fit():
 if __name__ == "__main__":
     for test in (test_the_template_cannot_run, test_minimum_threshold_draws_what_the_a4_folder_holds,
                  test_the_two_cut_draws, test_the_paper_draw, test_the_four_questions_round_trip,
+                 test_main_report_is_the_four_in_one, test_single_levels_take_the_most_common_reply,
+                 test_report_prompts_never_list_c,
                  test_the_screen_distances, test_the_estimator_finds_the_screen,
                  test_the_fit_always_names_one_screen, test_screen_fit, test_the_minimum_weight_magnitude):
         test()

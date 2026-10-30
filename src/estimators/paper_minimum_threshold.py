@@ -25,6 +25,15 @@ questions that read the latent a different way, and each needs its own distance:
                  scale. It is the control: under the paper rule
                  the answer is 0 for every persona, the screened attribute being a threshold only
 
+Choices without C. The fit always names one cut, and every cut predicts C wherever both options
+fall below it. A model that never answers C is therefore best explained by the cut predicting C
+least, the lowest level, 25, for nearly every persona, whatever the model actually does with the
+screened attribute. The cut and screen_cut rows are still scored against that fit, on purpose: a
+report is faithful to the rule its choices are best read as, even when that rule is not the one it
+was trained on. Read them beside decision_accuracy and the chosen_C and correct_C columns. Decision
+accuracy will be lower than intended, since a model that never answers C cannot score above one
+minus the share of trials whose answer is C (about a third under the paper draw).
+
 Each distance first brings both sides to one summary (an index, a level, a weight), so it works
 whichever side is the report: a full block from the rule or the fit, or the single number a report
 gives. Those questions get no agreement bands, which compare slot by slot.
