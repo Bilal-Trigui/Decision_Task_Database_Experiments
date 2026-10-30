@@ -82,13 +82,13 @@
     "micro_batch_size": null,
     "gradient_checkpointing": false,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 500,
     "baseline_before_training": true,
     "introspection_training": true,
     "introspection_steps": 600,
     "introspection_batch_size": 1,
-    "introspection_at_steps": [1500, 2500, 3000],
+    "introspection_at_steps": [500, 1000, 1500 ],
     "seed": 4
   },
   "gates": {
