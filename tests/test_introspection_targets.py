@@ -168,6 +168,8 @@ def test_the_shuffled_baseline():
     real = float(np.mean([estimator.block_distance(block, template, rules[k]) for k in rules]))
     out = _with_shuffled(estimator, block, same, real, "faithfulness", me, 0, "faithfulness_gap", "faithfulness_shuffled_p")
     assert abs(out["faithfulness_gap"]) < 1e-9 and out["faithfulness_shuffled_p"] > 0.3, out
+    assert _with_shuffled(estimator, block, perfect, 1.0, "faithfulness", {"shuffle_draws": 0}, 0,
+                          "faithfulness_gap", "faithfulness_shuffled_p") == {}, "shuffle_draws 0 should switch it off"
     print(f"  perfect reports: shuffled {perfect_shuffled:.2f}, gap > 0.8, p < 0.01; one report for everyone: gap 0, "
           f"p {out['faithfulness_shuffled_p']:.2f}")
 
@@ -288,8 +290,35 @@ def test_resume_runs_only_the_missing_targets():
     print("  a resume at an introspection point runs only the targets whose pooled rows are missing")
 
 
+def test_the_weight_decided_share():
+    """decision_rule.weight_decided_share draws exactly that share of trials both options pass; off, nothing changes."""
+    from collections import Counter
+
+    from src.rules.paper_minimum_threshold import PaperMinimumThresholdRule
+
+    cfg, comps, data = _paper()
+    people, latents = data.personas[:12], data.latents[:12]
+    off = PaperMinimumThresholdRule()
+    a, _ = D.generate_decision_trials(people, latents, off, 50, 10, 2)
+    b, _ = D.generate_decision_trials(people, latents, comps.rule, 50, 10, 2)
+    assert [[t.label for t in ts] for ts in a] == [[t.label for t in ts] for ts in b]     # off: the draw as before
+    on = PaperMinimumThresholdRule(weight_decided_share=0.6)
+    train, val = D.generate_decision_trials(people, latents, on, 50, 10, 2)
+    for k, (ts, vs) in enumerate(zip(train, val)):
+        kinds = Counter("weights" if on.quota_key(latents[k], t) == "weights" else t.label if t.label == "C" else "screen"
+                        for t in ts)
+        assert kinds == {"weights": 30, "C": 10, "screen": 10}, (k, kinds)
+        assert sum(on.quota_key(latents[k], t) == "weights" for t in vs) == 6
+        for t in ts:      # the labels are still the rule's own
+            assert t.label == on.label(latents[k], t)
+    for bad in (0, 1, 1.5, 0.9):
+        _refused(lambda: PaperMinimumThresholdRule(weight_decided_share=bad), f"weight_decided_share {bad}")
+    print("  off: the trials as drawn before; 0.6: exactly 30 of 50 trials both options pass, 10 C, 10 screen-decided, "
+          "labels unchanged; 0, 1 and shares leaving no room for C refused")
+
+
 if __name__ == "__main__":
-    for test in (test_question_folders_and_toggles, test_a_reworded_question_rebuilds_its_file, test_the_targets,
+    for test in (test_question_folders_and_toggles, test_the_weight_decided_share, test_a_reworded_question_rebuilds_its_file, test_the_targets,
                  test_the_shuffled_baseline, test_the_learning_rate_schedule, test_resume_runs_only_the_missing_targets,
                  test_pipeline_with_targets):
         test()

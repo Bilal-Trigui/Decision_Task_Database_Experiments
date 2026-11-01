@@ -20,7 +20,7 @@ from src import data as D
 # under. check_manifest reads a manifest that predates one as having this value, so data/plunkett,
 # built before min_weight_magnitude and option_count existed, still matches a two-option linear rule
 # with no minimum.
-ADDED_LATER = {"min_weight_magnitude": None, "option_count": 2, "neither_share": None}
+ADDED_LATER = {"min_weight_magnitude": None, "option_count": 2, "neither_share": None, "weight_decided_share": None}
 
 # The answer letters, in order. A trial with two options is answered A or B, Plunkett's task; a
 # rule that can reject both options adds C, "neither". decision_rule.option_count picks how many.
@@ -171,6 +171,14 @@ class Rule:
         drawn without looking at the hidden latent.
         """
         return None
+
+    def quota_key(self, latent, trial):
+        """What a labelled trial counts as against label_quota: its answer letter by default.
+
+        A rule can count trials by something other than the answer (threshold.py counts a trial
+        whose two options both pass the screen as "weights", decided by the weighted sum alone).
+        """
+        return trial.label
 
     # -- build-time hooks --
     # Optional. They run only when a data folder is built (build.py, or the builders in

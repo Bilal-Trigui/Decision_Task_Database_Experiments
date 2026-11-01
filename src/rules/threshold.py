@@ -54,6 +54,15 @@ The dials, all in the decision_rule block:
                          to over half (a high one). Default null. The estimation trials are always
                          taken as they come. With option_count 2 a rule's default share is dropped to
                          null; setting both 2 options and a share in the settings is refused
+  weight_decided_share   the share of each persona's training and validation trials in which both
+                         options pass the screen, so the weighted sum alone decides A or B, drawn
+                         to that count exactly. These are the only trials that teach the weights:
+                         taken as they come they are about 29% under the paper draw, and as few as
+                         6% for a persona screened at 75. The rest, beyond neither_share's C trials,
+                         are trials one option fails, decided by the screen. null takes them as they
+                         come (default). neither_share plus this may not exceed 1. The rule itself is
+                         unchanged; only which trials are drawn for training is. The estimation
+                         trials are always taken as they come
 Reads decision_rule, object.attribute_count.
 """
 import numpy as np
@@ -100,6 +109,7 @@ class ThresholdRule(Rule):
         "zero_cut_main_effects": True,
         "option_count": 2,
         "neither_share": None,
+        "weight_decided_share": None,
     }
 
     def __init__(self, **params):
@@ -142,6 +152,13 @@ class ThresholdRule(Rule):
                     f"decision_rule.neither_share is {share} but option_count is {p['option_count']}; "
                     "a share of C answers needs option_count 3"
                 )
+        weights_share = p.get("weight_decided_share")
+        if weights_share is not None:
+            if isinstance(weights_share, bool) or not _is_number(weights_share) or not 0 < weights_share < 1:
+                raise ValueError("decision_rule.weight_decided_share must be a number between 0 and 1, or null")
+            if weights_share + (share or 0) > 1:
+                raise ValueError(f"decision_rule.weight_decided_share {weights_share} and neither_share {share} "
+                                 "add up to more than every trial")
         screened = p.get("screened_weight")
         if screened is not None:
             if not _is_number(screened):
@@ -218,8 +235,21 @@ class ThresholdRule(Rule):
         return super().label(latent, trial)
 
     def label_quota(self, n_trials):
-        share = self.params.get("neither_share")
-        return None if share is None else {"C": int(round(share * n_trials))}
+        quota = {}
+        if self.params.get("neither_share") is not None:
+            quota["C"] = int(round(self.params["neither_share"] * n_trials))
+        if self.params.get("weight_decided_share") is not None:
+            quota["weights"] = int(round(self.params["weight_decided_share"] * n_trials))
+        return quota or None
+
+    def quota_key(self, latent, trial):
+        """C for a "neither" trial; "weights" when both options pass the screen and weight_decided_share is set."""
+        if trial.label == "C" or self.params.get("weight_decided_share") is None:
+            return trial.label
+        mins, maxs = trial.scenario.mins, trial.scenario.maxs
+        if self.passes(latent, trial.option_A.values, mins, maxs) and self.passes(latent, trial.option_B.values, mins, maxs):
+            return "weights"
+        return trial.label
 
     def score(self, latent, values, mins, maxs):
         n = len(values)
@@ -331,7 +361,7 @@ class ThresholdRule(Rule):
         shares = []
         answers = {letter: 0 for letter in self.letters}
         flips = total = 0
-        survived = options = 0
+        survived = options = both_pass = 0
         for k, (train, val) in enumerate(zip(train_trials, val_trials)):
             latent = np.asarray(latents[k], float)
             weights_only = latent.copy()
@@ -343,9 +373,10 @@ class ThresholdRule(Rule):
                 if self.label(latent, t) != self.label(weights_only, t):
                     persona_flips += 1
                 mins, maxs = t.scenario.mins, t.scenario.maxs
-                for option in (t.option_A, t.option_B):
-                    survived += int(survives(normalized(option.values, mins, maxs), latent[n:]))
-                    options += 1
+                passing = [survives(normalized(option.values, mins, maxs), latent[n:]) for option in (t.option_A, t.option_B)]
+                survived += sum(passing)
+                options += 2
+                both_pass += int(all(passing))
             shares.append(persona_flips / len(trials))
             flips += persona_flips
             total += len(trials)
@@ -354,6 +385,7 @@ class ThresholdRule(Rule):
             "screen_decisive_share_median_persona": float(np.median(shares)) if shares else None,
             "screen_decisive_share_min_persona": float(np.min(shares)) if shares else None,
             "option_survival_rate": survived / options if options else None,
+            "weight_decided_share": both_pass / total if total else None,
             "answer_shares": {letter: count / total for letter, count in answers.items()} if total else None,
         }
 

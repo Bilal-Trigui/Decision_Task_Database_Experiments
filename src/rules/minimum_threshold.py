@@ -40,6 +40,7 @@ class MinimumThresholdRule(ThresholdRule):
         "min_weight_magnitude": 20,
         "option_count": 3,
         "neither_share": 0.2,
+        "weight_decided_share": None,
     }
 
 

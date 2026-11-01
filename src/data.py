@@ -386,7 +386,11 @@ def generate_decision_trials(scenarios, latents, rule, n_train, n_val, seed):
 
 
 def _trials_to_quota(scenario, latent, rule, count, quota, rng, persona):
-    """`count` trials in draw order, exactly quota[letter] of each letter the quota names, the rest any other answer."""
+    """`count` trials in draw order, exactly quota[key] of each key the quota names, the rest anything else.
+
+    A key is what rule.quota_key says a trial counts as: its answer letter, or for a threshold rule
+    "weights" when both options pass the screen.
+    """
     quota = dict(quota or {})
     rest = count - sum(quota.values())
     kept = []
@@ -395,9 +399,10 @@ def _trials_to_quota(scenario, latent, rule, count, quota, rng, persona):
             return kept
         t = Trial(scenario, rng)
         t.label = rule.label(latent, t)
-        if t.label in quota:
-            if quota[t.label] > 0:
-                quota[t.label] -= 1
+        key = rule.quota_key(latent, t)
+        if key in quota:
+            if quota[key] > 0:
+                quota[key] -= 1
                 kept.append(t)
         elif rest > 0:
             rest -= 1
@@ -406,7 +411,7 @@ def _trials_to_quota(scenario, latent, rule, count, quota, rng, persona):
         return kept
     raise DataFormatError(
         f"persona {persona} ({scenario.short_name}): {MAX_QUOTA_DRAWS} trials never gave its label quota "
-        f"{rule.label_quota(count)}; its screen almost never produces that answer. Lower decision_rule.neither_share"
+        f"{rule.label_quota(count)}; its screen almost never produces that answer. Lower decision_rule.neither_share or weight_decided_share"
     )
 
 

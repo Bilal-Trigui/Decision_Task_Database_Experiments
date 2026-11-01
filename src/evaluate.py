@@ -982,8 +982,12 @@ def shuffled_baseline(estimator, block, keyed, draws, seed, name):
 
 
 def _with_shuffled(estimator, block, keyed, real, name, me, seed, gap_name=None, p_name=None):
-    """The shuffled-persona columns for one comparison, with its gap and permutation p-value."""
-    base = shuffled_baseline(estimator, block, keyed, me.get("shuffle_draws", 1000), seed, name)
+    """The shuffled-persona columns for one comparison, with its gap and permutation p-value.
+    model_estimating.shuffle_draws 0 switches them off: the columns stay blank."""
+    draws = me.get("shuffle_draws", 1000)
+    if not draws:
+        return {}
+    base = shuffled_baseline(estimator, block, keyed, draws, seed, name)
     if not base:
         return {}
     draws = base.pop("_draws")

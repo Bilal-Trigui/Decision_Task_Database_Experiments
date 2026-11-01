@@ -20,6 +20,9 @@ draw, so the choices it labels are easy to decide and the latent is easy to name
   option_count           3            A, B, or C, "neither", when both options fall below the cut
   neither_share          0.2          a fifth of each persona's training and validation trials are
                                       answered C, the rest A or B, whatever the persona's cut
+  weight_decided_share   null         the share of training and validation trials both options pass,
+                                      decided by the weights alone; null takes them as they come
+                                      (about 29%). See threshold.py
 
 Any of these can be changed in the settings file. weight_range [low, high] draws every weight
 uniform on that span instead, to two decimals. To give the screened attribute a weight of its own,
@@ -50,6 +53,7 @@ class PaperMinimumThresholdRule(ThresholdRule):
         "zero_cut_main_effects": True,
         "option_count": 3,
         "neither_share": 0.2,
+        "weight_decided_share": None,
     }
 
     def block_aliases(self, n):

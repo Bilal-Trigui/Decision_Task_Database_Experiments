@@ -237,8 +237,8 @@ def validate(cfg):
     if not isinstance(mh["introspection_remeasure_decisions"], bool):
         raise SettingsError("model_hyperparameters.introspection_remeasure_decisions must be true or false")
     draws = me.get("shuffle_draws")
-    if isinstance(draws, bool) or not isinstance(draws, int) or draws < 1:
-        raise SettingsError("model_estimating.shuffle_draws must be a positive integer")
+    if isinstance(draws, bool) or not isinstance(draws, int) or draws < 0:
+        raise SettingsError("model_estimating.shuffle_draws must be a whole number, 0 to switch the shuffled baseline off")
     trials = me["estimation_trials_per_persona"]
     counts = trials if isinstance(trials, list) else [trials]
     if not counts or any(isinstance(t, bool) or not isinstance(t, int) or t < 1 for t in counts):
