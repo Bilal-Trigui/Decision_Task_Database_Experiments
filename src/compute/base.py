@@ -7,8 +7,10 @@ the literal line `LOGIN CREDENTIALS NEEDED HERE: <VAR>` for each one that is
 missing and stops.
 """
 import os
+import sys
 
 CREDENTIALS_MESSAGE = "LOGIN CREDENTIALS NEEDED HERE"
+WINDOWS_GPU_MEMORY_FRACTION = 0.9
 
 
 class MissingCredentials(RuntimeError):
@@ -51,6 +53,12 @@ class Backend:
                 raise RuntimeError(
                     f"compute.device is 'cuda' but no CUDA device is visible on backend '{self.name}'."
                 )
+            if sys.platform == "win32":
+                # On Linux a full card makes the allocation fail, and PyTorch then frees its
+                # cached blocks and retries. On Windows the driver lends system RAM instead
+                # (sysmem fallback), so nothing ever fails, the cache is never freed, and the
+                # run grows into RAM. A per-process cap restores the Linux behaviour.
+                torch.cuda.set_per_process_memory_fraction(WINDOWS_GPU_MEMORY_FRACTION)
         return device
 
     def setup(self):
