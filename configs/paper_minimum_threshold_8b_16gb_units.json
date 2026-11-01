@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "paper_minimum_threshold_8b_16gb.json with the report questions revised after the 20261031-061400 run. Same task, same",
+    "personas, weights, cuts and trials (data/paper_minimum_threshold_units is a copy of data/paper_minimum_threshold,",
+    "so its training files are identical); only the introspection questions differ, which is why it has its own folder:",
+    "its introspection_training.csv is generated for these questions and never mixes with the old run's.",
+    "",
+    "screen_cut -> screen_cut_units: the minimum is asked in the screened attribute's own units, as the options list",
+    "  them (\"35 mg per cup\"), not as a fraction 0 to 1 of a range the model is never shown. The reply names its",
+    "  attribute too, so its value can be put on that attribute's range and scored as screen_cut was.",
+    "screen_weight dropped: under this rule its answer is 0 for every persona, so it measured nothing.",
+    "main_report -> main_report_units: the weights, the screened attribute and the minimum in units, in one reply.",
+    "introspection_steps 600: three passes over a fold's 200 examples (50 personas x 4 questions), as 750 was over 250.",
+    "Evaluation batch sizes as in the resume config: introspection 1, which avoided the out-of-memory after step 1500."
+  ],
+  "extends": "paper_minimum_threshold_8b_16gb.json",
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold_units/"
+  },
+  "report_schema": {
+    "batches": ["main", "screen_index", "screen_cut_units", "main_report_units"]
+  },
+  "model_hyperparameters": {
+    "introspection_steps": 600
+  },
+  "compute": {
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1
+  }
+}

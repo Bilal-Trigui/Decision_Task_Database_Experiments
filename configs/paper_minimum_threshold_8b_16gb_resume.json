@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "paper_minimum_threshold_8b_16gb.json, for resuming a run of it on the same 16 GB card. Only evaluation batch",
+    "sizes change, which a resume allows; anything that changes the experiment is refused (README 'Resuming a run').",
+    "",
+    "The 20261031-061400 run ran out of memory in the validation pass at the end of the first introspection fold",
+    "from step 1500: four introspection prompts at once. decision_eval_batch_size stays at the 4 that ran ten hours",
+    "of decision training and evaluation without trouble; introspection_eval_batch_size drops to 1, for the",
+    "validation pass during introspection training and the reports asked after it.",
+    "",
+    "In run_experiment.ipynb: SETTINGS_FILE = this file, RESUME_RUN_ID = the run's id, RESUME_FROM_STEP = 1500."
+  ],
+  "extends": "paper_minimum_threshold_8b_16gb.json",
+  "compute": {
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1
+  }
+}

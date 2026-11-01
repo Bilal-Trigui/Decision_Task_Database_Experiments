@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "paper_minimum_threshold_8b_16gb_resume.json, extended: decision training continues past 2500 to 4000.",
+    "At 2000 the decision model was still improving (accuracy 0.79, validation loss still falling), so 2500 steps",
+    "was not enough to learn the persona weights. A resume may grow training_steps and change introspection",
+    "points after the step it resumes from; everything up to that step is kept (README 'Resuming a run').",
+    "",
+    "In run_experiment.ipynb: SETTINGS_FILE = this file, RESUME_RUN_ID = the run's id, RESUME_FROM_STEP = 2500",
+    "(after the current run finishes). Introspection branches again at 3000 and 4000."
+  ],
+  "extends": "paper_minimum_threshold_8b_16gb_resume.json",
+  "model_hyperparameters": {
+    "training_steps": 4000,
+    "introspection_at_steps": [1500, 2500, 3000, 4000]
+  }
+}

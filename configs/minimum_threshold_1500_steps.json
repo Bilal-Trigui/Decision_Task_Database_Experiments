@@ -1,0 +1,63 @@
+{
+  "_comment": [
+    "The paper minimum threshold task on Qwen3-8B (16 GB card), 2500 decision steps over twice the training trials, with",
+    "introspection at steps 1500 and 2500 toward two targets. (Named for its first plan, 1500 steps; it now runs to 2500.)",
+    "Extends paper_minimum_threshold_8b_16gb.json; everything not set here is that file's.",
+    "",
+    "Why: the 20261031-061400 run learned the screen (99%) but not the weights (0.40 against 0.85 on Plunkett's linear task",
+    "with the same model): the screen decides about 70% of training answers, and by step 2500 each of its 5000 examples",
+    "had been seen five times, overfitting the decision task and eroding the report format.",
+    "",
+    "model_training: 100 training trials per persona (10000 examples, 2694 of them decided by the weights against 1345 of",
+    "  run 1's 5000), in",
+    "  data/paper_minimum_threshold_100trials/: the same personas, weights and cuts as data/paper_minimum_threshold/, with",
+    "  new trials. Steps of 10: 1500 is 1.5 passes over them, 2500 is 2.5 (run 1 was at 5 by step 2500).",
+    "report_schema.questions: which questions are asked (ask) and trained on in introspection (train), each a folder in",
+    "  questions/paper_minimum_threshold/. The cut is asked in the attribute's own units (screen_cut_units, and inside",
+    "  main_report_units); the fraction wording and the screened weight (always 0, so it measured nothing) are off.",
+    "model_hyperparameters:",
+    "  introspection_targets hidden = the persona's own rule (Plunkett); recovered = the rule read back from the model's",
+    "    own choices at the checkpoint, so every training answer is true of the model. Add shuffled (another persona's",
+    "    rule: the format without the content) or random as controls.",
+    "  introspection_remeasure_decisions: the held-out personas' choices are asked again after report training, and the",
+    "    reports scored against the rule as it then stands too (faithfulness_after), beside the checkpoint's rule.",
+    "  introspection_steps 600: three passes over a fold's 200 examples (50 personas x 4 trained questions).",
+    "  lr_schedule null: constant, as the 20261031 run, so the data is the only change. For a decay:",
+    "    {\"type\": \"linear\", \"warmup_steps\": 0, \"final_fraction\": 0.1}",
+    "  baseline_before_training false: the untrained model's step 0 is the 20261031 run's (same personas, same",
+    "    evaluation trials and report prompts). Set true to score it again here (about 2.5 hours).",
+    "compute: evaluation batches of 4 for decisions and 1 for introspection, which avoided the out-of-memory at step 1500."
+  ],
+  "extends": "paper_minimum_threshold_8b_16gb.json",
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold_100trials/",
+    "train_trials_per_persona": 100
+  },
+  "report_schema": {
+    "batches": null,
+    "questions": {
+      "main":              {"ask": true,  "train": true},
+      "screen_index":      {"ask": true,  "train": true},
+      "screen_cut_units":  {"ask": true,  "train": true},
+      "main_report_units": {"ask": true,  "train": true},
+      "screen_cut":        {"ask": false, "train": false},
+      "screen_weight":     {"ask": false, "train": false},
+      "main_report":       {"ask": false, "train": false},
+      "cut":               {"ask": false, "train": false}
+    }
+  },
+  "model_hyperparameters": {
+    "training_steps": 2500,
+    "checkpoint_every": 500,
+    "introspection_at_steps": [1500, 2500],
+    "introspection_steps": 600,
+    "introspection_targets": ["hidden", "recovered"],
+    "introspection_remeasure_decisions": true,
+    "lr_schedule": null,
+    "baseline_before_training": false
+  },
+  "compute": {
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1
+  }
+}
