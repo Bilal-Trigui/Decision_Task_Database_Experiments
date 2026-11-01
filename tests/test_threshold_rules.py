@@ -320,6 +320,43 @@ def test_the_fit_always_names_one_screen():
     print("  linear choices still get exactly one cut; min_gain, sweeps and active_cuts 2 refused")
 
 
+def test_the_cut_in_units():
+    """screen_cut_units and main_report_units: the minimum in the attribute's own units, scored on its range."""
+    rule = PaperMinimumThresholdRule()
+    schema = PaperMinimumThresholdSchema(N, batches=["main", "screen_index", "screen_cut_units", "main_report_units"])
+    names = [f"dim_{i}" for i in range(1, N + 1)]
+    mins, maxs = [0, 0.1, 1, 300, 0], [70, 10, 10, 1200, 100]
+    latent = np.array([-100, 95, 72, 0, -1, 0, 0, 0, 50, 0], float)    # dim_4, 300 to 1200, screened at 50
+    slices = rule.block_slices(N)
+    batches = {b.name: b for b in schema.batches(names, mins, maxs)}
+    assert "screen_weight" not in batches and "screen_weight" not in batches["main_report_units"].prompt_base
+    single = batches["screen_cut_units"]
+    assert single.block == "screen_cut" and single.trained
+    answer = schema.format_answer(single, latent[slices["screen_cut"]])
+    assert answer == '{"screened_dimension": 4, "minimum_value": 750}', answer
+    assert np.allclose(schema.parse(answer, single), [50.0])
+    combined = batches["main_report_units"]
+    assert combined.blocks == ("main", "screen_index", "screen_cut")
+    answer = schema.format_answer(combined, latent)
+    assert answer == ('{"dim_1": -100, "dim_2": 95, "dim_3": 72, "dim_4": 0, "dim_5": -1, '
+                      '"screened_dimension": 4, "minimum_value": 750}'), answer
+    parts = schema.split(combined, schema.parse(answer, combined))
+    assert np.array_equal(parts["screen_index"], [0, 0, 0, 1, 0]) and np.allclose(parts["screen_cut"], [50.0])
+    # the value is read on the range of the attribute the reply names, right or wrong
+    assert np.allclose(schema.parse('{"screened_dimension": 1, "minimum_value": 17.5}', single), [25.0])
+    for reply in ('{"screened_dimension": 4, "minimum_value": 1300}', '{"screened_dimension": 4, "minimum_value": 0.5}',
+                  '{"screened_dimension": 6, "minimum_value": 750}', '{"minimum_level": 0.5}',
+                  '{"screened_dimension": 4, "minimum_value": 750, "weight": 0}'):
+        assert schema.parse(reply, single) is None, reply
+    try:
+        schema.format_answer(schema.batches(names)[2], latent[slices["screen_cut"]])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a units question was answered without the attribute ranges")
+    print("  a minimum of 750 on 300 to 1200 reads as 50; out of range, a bad index, a wrong or extra key unreadable")
+
+
 def test_screen_fit():
     from src.evaluate import screen_fit
 
@@ -342,7 +379,8 @@ if __name__ == "__main__":
                  test_main_report_is_the_four_in_one, test_single_levels_take_the_most_common_reply,
                  test_report_prompts_never_list_c,
                  test_the_screen_distances, test_the_estimator_finds_the_screen,
-                 test_the_fit_always_names_one_screen, test_screen_fit, test_the_minimum_weight_magnitude):
+                 test_the_fit_always_names_one_screen, test_the_cut_in_units, test_screen_fit,
+                 test_the_minimum_weight_magnitude):
         test()
         print(f"ok  {test.__name__}")
     print("all threshold rule checks passed")

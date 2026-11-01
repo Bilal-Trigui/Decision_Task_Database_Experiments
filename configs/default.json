@@ -38,7 +38,8 @@
     "decision_temperature": 0.0,
     "samples_per_trial": 1,
     "estimation_trials_per_persona": 50,
-    "chance_draws": 1000
+    "chance_draws": 1000,
+    "shuffle_draws": 1000
   },
   "report_schema": {
     "type": "auto",
@@ -64,6 +65,9 @@
     "introspection_steps": 150,
     "introspection_batch_size": 1,
     "introspection_at_steps": null,
+    "introspection_targets": ["hidden"],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
     "seed": 4
   },
   "gates": {
@@ -75,6 +79,8 @@
     "device": "cuda",
     "mixed_precision": "fp16",
     "eval_batch_size": 16,
+    "decision_eval_batch_size": null,
+    "introspection_eval_batch_size": null,
     "mount_drive": false
   }
 }

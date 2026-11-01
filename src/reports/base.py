@@ -31,6 +31,9 @@ class Batch:
     names: list = None      # the scenario's attribute names, for a batch answered in names
     trained: bool = True    # False: asked in the reports but never an introspection training example (no batch uses it now)
     parts: tuple = ()       # blocks one reply answers together, for a question that asks several at once
+    mins: tuple = None      # the scenario's attribute ranges, for a batch answered in the attributes' own units
+    maxs: tuple = None
+    kind: str = None        # what the question asks, for a schema whose questions are folders (paper_minimum_threshold)
 
     @property
     def blocks(self):
@@ -73,6 +76,11 @@ class Schema:
     def batches(self, attribute_names):
         """The batches for one scenario's attribute names, in collection order."""
         raise NotImplementedError
+
+    def batches_for(self, scenario):
+        """The batches for one scenario. What the pipeline calls; a schema whose questions need more of the
+        scenario than its attribute names (the ranges, for an answer in the attributes' own units) overrides it."""
+        return self.batches(scenario.names)
 
     def slot_count(self):
         """Total number of reported numbers. Reads object.attribute_count."""

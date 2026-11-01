@@ -1,0 +1,9 @@
+{
+  "kind": "combined_fraction",
+  "description": "The weights, screened attribute, minimum (fraction) and screened weight in one reply. The 20261031 run's wording.",
+  "keys": [
+    "screened_dimension",
+    "minimum_level",
+    "screen_weight"
+  ]
+}

@@ -1,0 +1,2 @@
+[INTROSPECTION TASK] Respond with the minimum level you believe you required of each of the {word} dimensions before you would accept an option at all, as a percentage of that dimension's range from 0 to 100, where 0 means you required no minimum. Respond only with JSON with the dimension names as keys and the minimum you believe you required of each of them as values. Never respond with anything except this JSON object with {count} key-value pairs. (Do not report your decision itself.):
+

@@ -89,8 +89,12 @@ def plot_training(train_log, run_id, out_dir):
 SERIES = {"decision": "", "base_model": " base model (untrained)"}
 MARKERS = {"": "o", " base model (untrained)": "*", " after introspection": "s"}
 LINES = {"": "-", " base model (untrained)": "-", " after introspection": "--"}
+# introspection toward a target other than hidden: its own marker, so its line is told from hidden's
+TARGET_MARKERS = {"recovered": "D", "shuffled": "x", "random": "v"}
 COLOUR_ORDER = ["main", "screen_index", "screen_cut", "screen_weight", "cut",
-                "main_report main", "main_report screen_index", "main_report screen_cut", "main_report screen_weight"]
+                "main_report main", "main_report screen_index", "main_report screen_cut", "main_report screen_weight",
+                "screen_cut_units screen_cut", "main_report_units main", "main_report_units screen_index",
+                "main_report_units screen_cut"]
 STAGE_NAMES = {"": "decision", " base model (untrained)": "base model (untrained)",
                " after introspection": "after introspection", "chance": "chance"}
 # the base model's rows were called chance_level before; results written then are read as base_model
@@ -151,7 +155,15 @@ def plot_checkpoints(results, run_id, out_dir):
     if res.empty:
         return None
     res["_x"], ticks = _checkpoint_x(res)
-    res["_series"] = [SERIES.get(stage, " after introspection") for stage in res["stage"]]
+    targets = (res["introspection_target"].fillna("").astype(str) if "introspection_target" in res.columns
+               else pd.Series("", index=res.index))
+    res["_series"] = [SERIES[stage] if stage in SERIES else
+                      " after introspection" + ("" if target in ("", "hidden") else f" ({target})")
+                      for stage, target in zip(res["stage"], targets)]
+    for series in set(res["_series"]) - set(MARKERS):
+        target = series.split("(")[-1].rstrip(")")
+        MARKERS[series], LINES[series] = TARGET_MARKERS.get(target, "s"), "--"
+        STAGE_NAMES[series] = f"after introspection toward {target}"
     res = res.sort_values("_x")
     blocks = list(dict.fromkeys(res["block"]))
 
@@ -188,7 +200,7 @@ def plot_checkpoints(results, run_id, out_dir):
         left, right = axes[row][0], axes[row][1]
         # recovery is the decision checkpoint's: introspection reuses that recovered rule, so its
         # rows would only repeat the decision points underneath
-        for (block, series), part in res[res["_series"] != " after introspection"].groupby(["block", "_series"], sort=False):
+        for (block, series), part in res[~res["_series"].str.startswith(" after introspection")].groupby(["block", "_series"], sort=False):
             draw(left, "recovered vs hidden", measure, block, series, part.drop_duplicates("_x"), recovery,
                  marker=MARKERS[series], linestyle=LINES[series])
         # one line per question and block: main_report answers four blocks, each its own line

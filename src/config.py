@@ -94,10 +94,22 @@ OPTIONAL = {
     "object": set(),
     "model_training": {"seeds"},
     "model_hyperparameters": {"gradient_checkpointing", "micro_batch_size", "introspection_at_steps",
-                              "baseline_before_training"},
+                              "baseline_before_training", "lr_schedule", "introspection_targets",
+                              "introspection_remeasure_decisions"},
     "gates": set(),
-    "compute": {"mount_drive"},
+    "compute": {"mount_drive", "decision_eval_batch_size", "introspection_eval_batch_size"},
 }
+
+# The stages whose evaluation batch size can be set apart; each falls back to compute.eval_batch_size.
+EVAL_STAGES = ("decision", "introspection")
+
+# What introspection training can train toward, each its own branch (model_hyperparameters.introspection_targets):
+#   hidden     the persona's own rule, from instilled_weights.csv (Plunkett's Experiment 2)
+#   recovered  the rule read back from the model's own choices at the checkpoint it branched from
+#   shuffled   another training persona's own rule, no persona keeping its own: the format, not the content
+#   random     a rule drawn fresh from the decision rule, for no persona at all
+INTROSPECTION_TARGETS = ("hidden", "recovered", "shuffled", "random")
+LR_SCHEDULES = ("constant", "linear", "cosine")
 
 
 class SettingsError(ValueError):
@@ -122,6 +134,10 @@ def apply_defaults(cfg):
     cfg["model_hyperparameters"].setdefault("micro_batch_size", None)
     cfg["model_hyperparameters"].setdefault("introspection_at_steps", None)
     cfg["model_hyperparameters"].setdefault("baseline_before_training", True)
+    cfg["model_hyperparameters"].setdefault("lr_schedule", None)
+    cfg["model_hyperparameters"].setdefault("introspection_targets", ["hidden"])
+    cfg["model_hyperparameters"].setdefault("introspection_remeasure_decisions", False)
+    cfg["model_estimating"].setdefault("shuffle_draws", 1000)
     return cfg
 
 
@@ -212,6 +228,17 @@ def validate(cfg):
         raise SettingsError("model_hyperparameters.micro_batch_size must be a positive integer or null")
     if not isinstance(mh["baseline_before_training"], bool):
         raise SettingsError("model_hyperparameters.baseline_before_training must be true or false")
+    lr_schedule(cfg)    # refuses a malformed schedule
+    targets = mh["introspection_targets"]
+    if (not isinstance(targets, list) or not targets or len(set(targets)) != len(targets)
+            or any(t not in INTROSPECTION_TARGETS for t in targets)):
+        raise SettingsError(f"model_hyperparameters.introspection_targets must be a non-empty list of distinct names "
+                            f"from {list(INTROSPECTION_TARGETS)}, got {targets!r}")
+    if not isinstance(mh["introspection_remeasure_decisions"], bool):
+        raise SettingsError("model_hyperparameters.introspection_remeasure_decisions must be true or false")
+    draws = me.get("shuffle_draws")
+    if isinstance(draws, bool) or not isinstance(draws, int) or draws < 1:
+        raise SettingsError("model_estimating.shuffle_draws must be a positive integer")
     trials = me["estimation_trials_per_persona"]
     counts = trials if isinstance(trials, list) else [trials]
     if not counts or any(isinstance(t, bool) or not isinstance(t, int) or t < 1 for t in counts):
@@ -242,6 +269,10 @@ def validate(cfg):
     for field in ("min_decision_accuracy", "min_parse_rate"):
         if not 0 <= gates[field] <= 1:
             raise SettingsError(f"gates.{field} must be between 0 and 1")
+    for stage in EVAL_STAGES:
+        size = comp.get(f"{stage}_eval_batch_size")
+        if size is not None and (isinstance(size, bool) or not isinstance(size, int) or size < 1):
+            raise SettingsError(f"compute.{stage}_eval_batch_size must be a positive integer or null")
     if comp["backend"] not in BACKENDS:
         raise SettingsError(f"compute.backend must be one of {BACKENDS}")
     if comp["device"] not in DEVICES:
@@ -249,6 +280,138 @@ def validate(cfg):
     if comp["mixed_precision"] not in PRECISION:
         raise SettingsError(f"compute.mixed_precision must be one of {PRECISION}")
     return cfg
+
+
+def lr_schedule(cfg):
+    """Decision training's learning-rate schedule, filled in: {"type", "warmup_steps", "final_fraction"}.
+
+    model_hyperparameters.lr_schedule null (the default) is a constant rate, as every run before it.
+    Otherwise {"type": "linear" or "cosine" (or "constant"), "warmup_steps": W, "final_fraction": f}:
+    the rate climbs linearly from 0 over the first W steps (default 0), then falls from
+    learning_rate to f x learning_rate (default 0) at training_steps, along a line or a half cosine.
+    Introspection training keeps the constant rate. Refuses a malformed schedule.
+    """
+    mh = cfg["model_hyperparameters"]
+    given = mh.get("lr_schedule")
+    if given is None:
+        return {"type": "constant", "warmup_steps": 0, "final_fraction": 1.0}
+    if not isinstance(given, dict) or set(given) - {"type", "warmup_steps", "final_fraction"} or "type" not in given:
+        raise SettingsError('model_hyperparameters.lr_schedule must be null or {"type": ..., "warmup_steps": ..., '
+                            f'"final_fraction": ...}}, got {given!r}')
+    kind = given["type"]
+    if kind not in LR_SCHEDULES:
+        raise SettingsError(f"model_hyperparameters.lr_schedule.type must be one of {LR_SCHEDULES}, got {kind!r}")
+    warmup = given.get("warmup_steps", 0)
+    final = given.get("final_fraction", 1.0 if kind == "constant" else 0.0)
+    if isinstance(warmup, bool) or not isinstance(warmup, int) or not 0 <= warmup < mh["training_steps"]:
+        raise SettingsError("model_hyperparameters.lr_schedule.warmup_steps must be an integer from 0 to below training_steps")
+    if isinstance(final, bool) or not isinstance(final, NUMBER) or not 0 <= final <= 1:
+        raise SettingsError("model_hyperparameters.lr_schedule.final_fraction must be a number from 0 to 1")
+    return {"type": kind, "warmup_steps": warmup, "final_fraction": float(final)}
+
+
+def learning_rate_at(cfg, step, stage="decision"):
+    """The learning rate for optimizer step `step` (1-based) of `stage`, under lr_schedule."""
+    import math
+
+    base = cfg["model_hyperparameters"]["learning_rate"]
+    sched = lr_schedule(cfg)
+    if stage != "decision" or (sched["type"] == "constant" and sched["warmup_steps"] == 0):
+        return base
+    total, warmup = cfg["model_hyperparameters"]["training_steps"], sched["warmup_steps"]
+    if step <= warmup:
+        return base * step / warmup
+    if sched["type"] == "constant":
+        return base
+    progress = min(1.0, (step - warmup) / max(1, total - warmup))
+    shape = 1.0 - progress if sched["type"] == "linear" else 0.5 * (1.0 + math.cos(math.pi * progress))
+    final = sched["final_fraction"]
+    return base * (final + (1.0 - final) * shape)
+
+
+def decays(cfg):
+    """True when the learning rate depends on where training ends (a schedule other than constant)."""
+    return lr_schedule(cfg)["type"] != "constant"
+
+
+def eval_batch_size(cfg, stage):
+    """The evaluation batch size for `stage`, 'decision' or 'introspection'. Reads compute.
+
+    compute.decision_eval_batch_size covers everything asked of a decision checkpoint (the base
+    model included): the validation pass during decision training, the A/B decisions and the reports.
+    compute.introspection_eval_batch_size covers the validation pass during introspection training
+    and the reports asked after it, whose prompts and answers are far longer. Either one left out or
+    null falls back to compute.eval_batch_size.
+    """
+    if stage not in EVAL_STAGES:
+        raise ValueError(f"eval_batch_size stage must be one of {EVAL_STAGES}, got {stage!r}")
+    comp = cfg["compute"]
+    return comp.get(f"{stage}_eval_batch_size") or comp["eval_batch_size"]
+
+
+# What a resumed run may set differently from the run it continues. Everything else changes the
+# experiment, so a resume refuses it: the continued run must be the same run.
+RESUME_FREE_BLOCKS = ("compute", "gates")
+RESUME_FREE_HYPERPARAMETERS = ("training_steps", "introspection_at_steps")
+
+
+def check_resume(saved, cfg, from_step):
+    """Refuse a resume whose settings would change the experiment. Returns the fields that differ.
+
+    `saved` is the settings.json the run wrote when it started, `cfg` the settings for the resume.
+    compute and gates may differ freely. training_steps may only grow, and must lie beyond from_step.
+    introspection_at_steps may differ only beyond from_step: the points up to and including it are
+    the ones already run (or, for from_step itself, about to be finished), so they must stay as they were.
+    """
+    def strip(c):
+        c = copy.deepcopy({k: v for k, v in c.items() if not k.startswith("_")})
+        for block in RESUME_FREE_BLOCKS:
+            c.pop(block, None)
+        for field in RESUME_FREE_HYPERPARAMETERS:
+            c.get("model_hyperparameters", {}).pop(field, None)
+        return c
+
+    def diff(a, b, path=""):
+        out = []
+        for key in sorted(set(a) | set(b)):
+            here = f"{path}.{key}" if path else key
+            if isinstance(a.get(key), dict) and isinstance(b.get(key), dict):
+                out += diff(a[key], b[key], here)
+            elif a.get(key) != b.get(key):
+                out.append(f"{here}: {a.get(key)!r} -> {b.get(key)!r}")
+        return out
+
+    # fields added to the settings after a run started are absent from its settings.json; they are read
+    # as their defaults, which is what that run ran with
+    saved = apply_defaults(copy.deepcopy(saved))
+    changed = diff(strip(saved), strip(cfg))
+    if changed:
+        raise SettingsError(
+            "a resume continues the same experiment, so only compute, gates, training_steps and later "
+            "introspection points may change; these differ from the run's settings.json:\n  " + "\n  ".join(changed)
+        )
+    old, new = saved["model_hyperparameters"], cfg["model_hyperparameters"]
+    if new["training_steps"] < old["training_steps"]:
+        raise SettingsError(f"training_steps may only grow on a resume: {old['training_steps']} -> {new['training_steps']}")
+    if new["training_steps"] <= from_step:
+        raise SettingsError(f"training_steps {new['training_steps']} leaves nothing to train after step {from_step}")
+    if new["training_steps"] != old["training_steps"] and decays(saved):
+        raise SettingsError(
+            f"training_steps cannot change on a resume under lr_schedule {old['lr_schedule']}: the learning "
+            "rate at every step depends on where training ends, so the steps already taken were set for the "
+            "old end. Start a new run with the longer schedule instead")
+    before = lambda c: [s for s in introspection_points(c) if s <= from_step]
+    if before(saved) != before(cfg):
+        raise SettingsError(
+            f"introspection points up to step {from_step} must stay as they ran: {before(saved)} -> {before(cfg)}"
+        )
+    notes = []
+    for block in RESUME_FREE_BLOCKS:
+        notes += diff({block: saved.get(block, {})}, {block: cfg.get(block, {})})
+    for field in RESUME_FREE_HYPERPARAMETERS:
+        if old.get(field) != new.get(field):
+            notes.append(f"model_hyperparameters.{field}: {old.get(field)!r} -> {new.get(field)!r}")
+    return notes
 
 
 def merge(base, over):
@@ -469,6 +632,8 @@ def hyperparameter_columns(cfg):
         "introspection_at_steps": json.dumps(introspection_points(cfg)),
         "gradient_checkpointing": mh["gradient_checkpointing"],
         "micro_batch_size": mh["micro_batch_size"],
+        "lr_schedule": "" if mh.get("lr_schedule") is None else json.dumps(mh["lr_schedule"], sort_keys=True),
+        "introspection_targets": json.dumps(mh.get("introspection_targets", ["hidden"])),
         "seed": mh["seed"],
         "decision_temperature": me["decision_temperature"],
         "samples_per_trial": me["samples_per_trial"],
@@ -479,4 +644,6 @@ def hyperparameter_columns(cfg):
         "report_temperature": rs["report_temperature"],
         "samples_per_report": rs["samples_per_report"],
         "compute_backend": comp["backend"],
+        # the decision step a resumed run continued from; blank for a run that ran straight through
+        "resumed_from_step": cfg.get("_resumed_from_step", ""),
     }

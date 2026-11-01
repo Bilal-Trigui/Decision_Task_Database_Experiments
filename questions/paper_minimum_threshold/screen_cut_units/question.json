@@ -1,0 +1,8 @@
+{
+  "kind": "screen_cut_units",
+  "description": "The screened attribute and its minimum in that attribute's own units, as the options list them. Scored on block screen_cut.",
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ]
+}

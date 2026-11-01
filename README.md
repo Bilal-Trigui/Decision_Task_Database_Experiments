@@ -215,10 +215,13 @@ no Plunkett equivalent.
 | model_estimating.samples_per_trial | 1 | one response per trial |
 | model_estimating.estimation_trials_per_persona | 50 | 50 verification decisions per agent. New: a list such as `[25, 50, 100, 200]` sweeps it. The model decides once, on the largest count, and the rule is recovered again from each persona's first N decisions for every N, so finding how many trials the rule needs costs no model time. Every count gets its own results rows (`estimation_trials`) and recovered file, and the run draws `<run_id>_estimation_trials.png` |
 | model_estimating.chance_draws | 1000 | new; he used the off-the-shelf model's reports as the control |
+| model_estimating.shuffle_draws | 1000 | new; reshufflings for the shuffled-persona baseline: every report scored against other personas' rules, no persona keeping its own (results.csv, "The shuffled-persona baseline") |
 | report_schema.type | auto | his five-slot JSON; auto means the schema named after the rule, a name or a list of names overrides it |
 | report_schema.report_temperature | 0 | `temperature=0` |
 | report_schema.samples_per_report | 10 | `tests_per_scenario=10`, each with a fresh option pair |
 | report_schema.max_new_tokens | 200 | new |
+| report_schema.questions | (paper_minimum_threshold only) unset | new; which questions are asked and which trained on, `{"<question>": {"ask": true, "train": true}, ...}` in the order to ask them. Each question is a folder under `questions/paper_minimum_threshold/` ("Questions" below). Asked but not trained is a held-out probe; trained but not asked is refused. With it set, the data folder keeps one introspection file per question in `introspection/`, rewritten when a question's wording changes. The older `report_schema.batches` list still works and means ask and train each; a file that extends one with `batches` and wants `questions` sets `"batches": null` |
+| report_schema.questions_dir | questions/paper_minimum_threshold | new; where the question folders are read from, so a whole alternative question set can be a copied folder |
 | model_hyperparameters.model_name | Qwen/Qwen3-0.6B | new; replaces GPT-4o |
 | model_hyperparameters.quantization | 4bit | new; none or 4bit |
 | model_hyperparameters.finetune | lora | new; lora or full |
@@ -236,10 +239,15 @@ no Plunkett equivalent.
 | decision_rule.neither_share | (threshold rules only) 0.2 | new; with option_count 3, the share of each persona's training and validation trials answered C, drawn to that count exactly (10 of 50, 2 of 10), so every persona sees the same number of "neither" trials whatever its cut. null takes the trials as they come, from a few percent to over half per persona. The estimation trials are always taken as they come. With option_count 2 the default drops to null |
 | decision_rule.min_weight_magnitude | null | new; the smallest magnitude a weight that counts may have, on either side of 0. The weights are drawn again until every one clears it. null in `default.json` allows any; `minimum_threshold_8b.json` and `paper_minimum_threshold_8b.json` set 20, as do both threshold rules when the setting is left out. Since every config inherits `default.json`'s null, a config that wants a minimum must set it. Every rule takes it (linear, interaction, both threshold rules) |
 | model_hyperparameters.introspection_at_steps | null | new; the decision steps introspection training branches from: a list such as `[1500, 2500, 3000]`, or a range `{"start": 1000, "end": 3000, "every": 500}` naming start, start + every, and so on, with end always included (`every` left out branches at start and end only). null means the last step only, his design. How long each branch trains is `introspection_steps`. Each listed step is checkpointed even off the `checkpoint_every` schedule. At each one both folds train from the decision adapter as it stands, are scored on their held-out halves, and are then undone, adapter and random state both, so decision training carries on exactly as it would have without them |
+| model_hyperparameters.introspection_targets | ["hidden"] | new; what introspection training trains toward, one branch per entry at every introspection step, each with both folds: `hidden` the persona's own rule from `instilled_weights.csv` (his Experiment 2); `recovered` the rule read back from the model's own choices at the checkpoint it branches from, so every training answer is true of the model (his Appendix D retrains on learned weights); `shuffled` another training persona's rule, never its own and never a held-out persona's, which teaches the format without the content; `random` a fresh draw from the rule. A recovered fit with no screen (choices all one letter) has nothing to report and is left out of training, listed in `left_out.txt`. Rows carry `introspection_target`; checkpoints and files of a target other than hidden are named `introspection-from-<N>-<target>-fold<k>`. What each fold trained on is written to `results/<run>/introspection_data/from-<N>/<target>/fold<k>_train/` and `_val/`, one CSV per question |
+| model_hyperparameters.introspection_remeasure_decisions | false | new; after each introspection fold, ask the held-out personas' A/B decisions again and recover their rule again, and score the reports against that rule too: `decision_accuracy_after`, `choices_unchanged`, `recovered_after_vs_before`, `faithfulness_after` and its shuffled baseline. It checks whether report training moved the behaviour it is scored against. About 25 minutes per fold at 8B with 400 trials |
+| model_hyperparameters.lr_schedule | null | new; decision training's learning rate. null is constant, as before. `{"type": "linear" or "cosine", "warmup_steps": W, "final_fraction": f}` climbs linearly from 0 over W steps (default 0), then falls to f x learning_rate (default 0) at training_steps. Introspection training stays constant. The rate is a function of the step, so a resume needs no saved scheduler, but a resume may not change training_steps under a decaying schedule, since the end fixes every step's rate. train_log.csv records the rate used at each step |
 | model_hyperparameters.seed | 4 | `FINE_TUNING_API_SEED = 4` |
 | gates.min_decision_accuracy | 0.8 | new; his models scored 82.6% and 82.8% |
 | gates.min_parse_rate | 0.8 | new; his GPT-4o-mini parsed 80.7% |
 | compute.backend, device, mixed_precision, eval_batch_size, mount_drive | colab, cuda, fp16, 16, false | new |
+| compute.decision_eval_batch_size | null, which takes eval_batch_size | new; the batch for everything asked of a decision checkpoint and the base model: the validation pass during decision training, the A/B decisions and the reports |
+| compute.introspection_eval_batch_size | null, which takes eval_batch_size | new; the batch for the validation pass during introspection training and the reports asked after it, whose prompts and answers are far longer. Lower this first if introspection runs out of memory |
 
 `model_estimating.type` is independent of `decision_rule.type`, so a linear
 estimator can be run on interaction data on purpose. `report_schema.type` can be
@@ -287,8 +295,100 @@ range of positive values only (for example `"weight_range": [0.5, 2.0]`) makes c
 weights sit high by chance (about 0.75), so read that row against its chance column, or use the
 centred cosine.
 
+**Paper minimum threshold, revised questions.** `configs/paper_minimum_threshold_8b_16gb_units.json`,
+over `data/paper_minimum_threshold_units/` (a copy of the paper folder: same personas, weights, cuts
+and trials). Two changes to the questions after the 20261031 run. The cut is asked in the screened
+attribute's own units, as the options list them (`screen_cut_units`, keys `screened_dimension` and
+`minimum_value`), not as a fraction of a range the model never sees; the value is put on the named
+attribute's range and scored on the `screen_cut` block as before. The screened weight is no longer
+asked, since its answer is 0 for every persona. `main_report_units` is the weights, the attribute and
+the minimum in one reply. The old batches remain so the earlier runs still resume.
+
+**1500 steps over 100 trials, two introspection targets.** `configs/minimum_threshold_1500_steps.json`,
+over `data/paper_minimum_threshold_100trials/`: the paper minimum threshold task at 8B on 16 GB, with the
+same personas, weights and cuts as `data/paper_minimum_threshold/` but 100 training trials per persona
+(10000 examples, 2694 of them decided by the weights, against 1345 of 5000), 1500 steps (1.5 passes),
+introspection at step 1500 toward `hidden` and `recovered`, decisions re-measured after, the cut asked
+in units, the screened weight not asked, a constant learning rate and no step-0 baseline (it would
+repeat the 20261031 run's). The 20261031 run learned the screen but not the weights, and by step
+2500 had passed over its 5000 examples five times, overfitting the decision task and eroding the
+report format; this run doubles the examples and stops at 1.5 passes.
+
 **Re-evaluating a saved checkpoint** without retraining:
 `from src.evaluate import evaluate_checkpoint; evaluate_checkpoint(cfg, "checkpoints/<run_id>/decision/step-1500")`.
+
+### Resuming a run
+
+A run that stopped part way, out of memory or with the machine gone, carries on from any decision
+checkpoint it saved and finished evaluating. In `run_experiment.ipynb` set `RESUME_RUN_ID` to the
+run's folder name under `results/` and `RESUME_FROM_STEP` to the step, or call
+`run(cfg, resume={"run_id": ..., "from_step": 1500})`. The resume:
+
+- keeps the run's id, so its rows land in the same `results.csv`, `train_log.csv` and folders, each
+  marked with `resumed_from_step`, and writes its settings beside the original as
+  `settings_resume_<time>_from-<step>.json`;
+- loads the adapter saved at that step, and the optimizer and training state saved beside it
+  (`optimizer.pt`, `training_state.pt`), so it carries on exactly as a run that never stopped would.
+  Checkpoints from before these files existed hold the adapter only: the data order is then replayed
+  from the seed, which gives the same batches, and AdamW starts fresh, which it says;
+- skips the base model and every evaluation up to that step, runs an introspection branch at that
+  step whose results never got written (reading that checkpoint's decisions back from its
+  `selections_` file and fitting its rule again, which is deterministic), then trains on from the
+  next step with the usual checkpoints, evaluations and introspection branches;
+- refuses settings that change the experiment. Only `compute`, `gates`, `training_steps` (larger)
+  and introspection points after the resume step may differ from the run's `settings.json`;
+- refuses to start when the run already has results past that step (pass `"overwrite": True` to
+  add a second copy anyway), or while another resume of the run holds `RESUMING.lock` in its
+  results folder. A lock left behind by a process that was killed outright is deleted by hand.
+
+`configs/paper_minimum_threshold_8b_16gb_resume.json` is the 16 GB config with only
+`introspection_eval_batch_size` lowered to 1, for resuming the run that ran out of memory in its
+first introspection validation pass. That pass now also scores the answer positions only, rather
+than making logits for every prompt token, which is the same loss in a fraction of the memory.
+`python -m tests.test_resume` checks that a resumed run ends with exactly the weights and losses of
+one that never stopped.
+
+## Questions
+
+The paper minimum threshold schema's questions are folders, one per question, under
+`questions/paper_minimum_threshold/`:
+
+```
+questions/paper_minimum_threshold/<name>/prompt.txt      the wording, word for word
+questions/paper_minimum_threshold/<name>/question.json   {"kind": ..., "keys": [...], "description": ...}
+```
+
+The folder's name is the question's name: what `report_schema.questions` selects, the `report_batch`
+column of its rows, and the name of its introspection file. `prompt.txt` takes the placeholders
+`{word}` (the attribute count as a word), `{count}`, `{listing}` ("1 caffeine_content, 2 leaf_size,
+..."), `{keys}` and `{units_keys}`; a literal brace is written `{{` or `}}`. `question.json`'s
+`kind` says how the answer is written and read, and so which block it is scored on:
+
+| kind | asks | scored on |
+|---|---|---|
+| weights | the n weights, -100 to 100 (Plunkett's question) | main |
+| screen_index | which attribute, 1 to n, is screened | screen_index |
+| screen_cut_fraction | the minimum as a fraction 0 to 1 of the range | screen_cut |
+| screen_cut_units | the screened attribute and its minimum in its own units, as the options list them | screen_cut |
+| screen_weight | the screened attribute's own weight (always 0 under the paper rule) | screen_weight |
+| combined_fraction | weights, attribute, fraction and screened weight in one reply | main, screen_index, screen_cut, screen_weight |
+| combined_units | weights, attribute and minimum in units in one reply | main, screen_index, screen_cut |
+| cut | a cut point per attribute | cut |
+
+`keys` renames the answer's JSON keys (not for weights and cut, which answer under the attribute
+names); change the wording in `prompt.txt` to match. To reword a question, edit its `prompt.txt`;
+the data folder's file for it is rebuilt on the next run. To try two wordings side by side, copy the
+folder under a new name and select both. A new kind needs code in `src/reports/paper_minimum_threshold.py`.
+The folders `screen_cut`, `screen_weight` and `main_report` are the 20261031 run's wording, kept so
+it still resumes; `tests/test_threshold_rules.py` and `tests/test_introspection_targets.py` check them.
+
+## Re-scoring a finished run
+
+`python tools/rescore_shuffled.py results/<run_id>` adds the shuffled-persona baseline to a run scored
+before it existed, from the run's saved reports and recovered rules, and writes
+`results/<run_id>/shuffled_baseline.csv` beside it; nothing is retrained and `results.csv` is left
+alone. Introspection folds are pooled, and scored against the rule recovered at the decision step
+they branched from, as the pipeline scores them.
 
 ## Making a new dataset
 
@@ -334,6 +434,10 @@ are the same on every run; the file is appended to.
 | faithfulness | mean per-persona cosine between the reported latent and the recovered latent, this block; never against the hidden latent |
 | faithfulness_centred, _pearson, _spearman | the same comparison by the other three measures |
 | chance | faithfulness with the report replaced by random latents from the rule's distribution, averaged over chance_draws |
+| shuffled_faithfulness (_centred, _pearson, _spearman, _low, _high), faithfulness_gap, faithfulness_shuffled_p | the shuffled-persona baseline: the same reports scored against other personas' recovered rules, over shuffle_draws reshufflings with nobody keeping their own; the gap is faithfulness minus it, and the p-value the share of reshufflings scoring at least the real pairing. Unlike chance it keeps the model's own answer habits, so it asks whether a report is about this persona. Each persona has its own scenario, so it removes a template the model gives everyone, not preferences the model holds about one product whoever the persona is: for that, read hidden_vs_reported, whose hidden weights were drawn at random |
+| shuffled_hidden_vs_reported (and measures), hidden_vs_reported_gap, hidden_vs_reported_shuffled_p | the same for the report against the rule the persona was given |
+| introspection_target | what an introspection row's training trained toward: hidden, recovered, shuffled or random; blank for decision and base-model rows |
+| decision_accuracy_after, choices_unchanged, recovered_after_vs_before, faithfulness_after (and measures), shuffled_faithfulness_after, faithfulness_after_gap | with introspection_remeasure_decisions: the held-out personas' decisions asked again after report training, the share answered as before, how far the recovered rule moved, and the reports against that rule |
 | chance_centred, _pearson, _spearman | chance for each of the other three measures. Each measure has its own: random weight vectors with every value positive score about 0.73 on cosine and about 0 on the other three |
 | parse_rate | share of report replies for this block's batch that parsed |
 | parse_gate | whether parse_rate cleared gates.min_parse_rate |

@@ -1,0 +1,7 @@
+{
+  "kind": "screen_index",
+  "description": "Which attribute, by its number 1 to n, carried the minimum threshold. Scored on block screen_index (identification).",
+  "keys": [
+    "screened_dimension"
+  ]
+}

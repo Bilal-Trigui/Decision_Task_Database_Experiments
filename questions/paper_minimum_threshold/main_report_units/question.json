@@ -1,0 +1,8 @@
+{
+  "kind": "combined_units",
+  "description": "The weights, the screened attribute and its minimum in units, in one reply.",
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ]
+}

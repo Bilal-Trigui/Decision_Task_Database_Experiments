@@ -71,8 +71,35 @@ side.
      run id and every settings field. A block the schema never asks about still gets a row,
      carrying recovery without a report.
 
+THE SHUFFLED-PERSONA BASELINE
+Beside faithfulness and hidden_vs_reported, every row with a report carries the same comparison
+made against the wrong persona: each persona's report scored against another persona's rule,
+over model_estimating.shuffle_draws reshufflings in which no persona keeps its own partner. It
+keeps the model's own answer habits (a model that always names attribute 1 scores, shuffled,
+exactly the share of personas screened on 1), so it is the baseline for "persona-specific":
+  shuffled_faithfulness[_centred, _pearson, _spearman]   the mean over reshufflings, each measure
+  shuffled_faithfulness_low, _high                       the middle 95% of the reshuffled means
+  faithfulness_gap                                       faithfulness minus shuffled_faithfulness
+  faithfulness_shuffled_p                                the share of reshufflings scoring at least the
+                                                         real pairing: a permutation test
+and the same for hidden_vs_reported (shuffled_hidden_vs_reported, hidden_vs_reported_gap,
+hidden_vs_reported_shuffled_p). chance asks "better than a random rule"; this asks "better than
+the same answers given to the wrong persona".
+
+LEARNED AGAINST REPORTED
+learned_vs_reported_<tag>.csv holds, per persona and block asked, how well the rule was learned
+(recovered vs hidden), how well it is reported (reported vs hidden, reported vs recovered), and
+each report's expected score against every other persona (its own shuffled baseline), with the
+persona's band of learning (below 0.2, 0.2 to 0.6, 0.6 and above). A model that reports what it
+learned reports better in the higher bands.
+
 AFTER INTROSPECTION TRAINING
-Only step 4 runs. Steps 1 to 3c are taken from the decision checkpoint the stage branched from
+Only step 4 runs, unless model_hyperparameters.introspection_remeasure_decisions is true: then
+step 1 and 2 run as well, on the held-out personas, after report training, and the row adds
+decision_accuracy_after, choices_unchanged (share of the same trials answered as before),
+recovered_after_vs_before, and faithfulness_after[_centred, _pearson, _spearman] with its own
+shuffled baseline and gap: the reports against the rule as it stands after report training. The
+rule the main faithfulness columns use stays the one below. Steps 1 to 3c are taken from the decision checkpoint the stage branched from
 (collect's `reuse`): its decisions, its recovered rule and so its decision_accuracy and
 recovered_vs_hidden. Report training teaches the model to describe its rule, and the rule it is
 scored against is the one decision training left. The model is never asked an A/B question after
@@ -132,6 +159,7 @@ FILES WRITTEN PER CHECKPOINT, in results/<run_id>/
   persona_scores_<tag>.csv                   every persona's cosine, centred cosine and rank
                                              correlation behind each mean (pooled Pearson has
                                              no per-persona value: it is the aggregate itself)
+  learned_vs_reported_<tag>.csv               per persona: learned, reported, and their shuffled baselines
 <tag> is the stage, fold and step, for example decision_step-300 or introspection-fold1_step-150.
 Introspection from the pipeline also names the decision step it branched from, for example
 introspection-from-1500-fold1_step-300, so a run with several introspection points keeps them apart.
@@ -140,7 +168,7 @@ Reads: model_estimating (decision_temperature, samples_per_trial,
 estimation_trials_per_persona, chance_draws), report_schema (report_temperature,
 samples_per_report, max_new_tokens), gates, object.attribute_count,
 model_training.seeds (verification, reports), model_hyperparameters.seed,
-compute.eval_batch_size.
+compute.eval_batch_size (through decision_eval_batch_size and introspection_eval_batch_size).
 """
 import json
 import time
@@ -153,7 +181,7 @@ import torch
 
 from src import data as D
 from src.chance import chance_level
-from src.config import estimation_counts, hyperparameter_columns
+from src.config import estimation_counts, eval_batch_size, hyperparameter_columns
 from src.estimators.base import AGREEMENT_COLUMNS, agreement, pooled_pearson
 from src.train import end_token_id, stage_label
 from src.uncertainty import bootstrap_mean_distance, screen_correlation_row
@@ -167,6 +195,7 @@ METRIC_COLUMNS = [
     "stage",
     "introspection_fold",
     "introspection_from_step",      # the decision step stage two branched from; blank for stage one
+    "introspection_target",         # what stage two trained toward: hidden, recovered, shuffled, random; blank for stage one
     "checkpoint_step",
     "block",
     "estimation_trials",            # decisions per persona the rule was recovered from; one value per row of a sweep
@@ -192,6 +221,14 @@ METRIC_COLUMNS = [
     "faithfulness_spearman",
     "faithfulness_ci_low",
     "faithfulness_ci_high",
+    "shuffled_faithfulness",        # step 5, the same reports against other personas' rules
+    "shuffled_faithfulness_centred",
+    "shuffled_faithfulness_pearson",
+    "shuffled_faithfulness_spearman",
+    "shuffled_faithfulness_low",
+    "shuffled_faithfulness_high",
+    "faithfulness_gap",
+    "faithfulness_shuffled_p",
     "chance",                       # step 6, one chance level per measure
     "chance_centred",
     "chance_pearson",
@@ -202,6 +239,21 @@ METRIC_COLUMNS = [
     "hidden_vs_reported_centred",
     "hidden_vs_reported_pearson",
     "hidden_vs_reported_spearman",
+    "shuffled_hidden_vs_reported",
+    "shuffled_hidden_vs_reported_centred",
+    "shuffled_hidden_vs_reported_pearson",
+    "shuffled_hidden_vs_reported_spearman",
+    "hidden_vs_reported_gap",
+    "hidden_vs_reported_shuffled_p",
+    "decision_accuracy_after",      # after introspection, with introspection_remeasure_decisions
+    "choices_unchanged",
+    "recovered_after_vs_before",
+    "faithfulness_after",
+    "faithfulness_after_centred",
+    "faithfulness_after_pearson",
+    "faithfulness_after_spearman",
+    "shuffled_faithfulness_after",
+    "faithfulness_after_gap",
     "n_personas_reported",          # step 4
     "n_personas_scored",            # step 5
 ] + list(AGREEMENT_COLUMNS) + [f"chance_{c}" for c in AGREEMENT_COLUMNS]   # step 5, then step 6
@@ -356,9 +408,20 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir,
         _screen_fit(by_count, data, persona_indices, rule_slices, est_slices, tag, out_dir)
     if reuse is None:
         print(f"  decisions: {len(decisions)} rows, accuracy {(decisions['selection'] == decisions['label']).mean():.3f}, {time.time() - t0:.0f}s")
-    reported, parse = _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir, t0)
+    after = {}
+    if reuse is not None and cfg["model_hyperparameters"].get("introspection_remeasure_decisions"):
+        # the held-out personas' choices again, after report training, and the rule read back from them
+        decisions_after = _decisions(model, tok, cfg, rule, data, device, persona_indices, tag, out_dir)
+        after = {"decisions_after": decisions_after,
+                 "recovered_after": _recover(estimator, decisions_after, data, persona_indices, tag, out_dir)}
+        print(f"  decisions after introspection: accuracy {(decisions_after['selection'] == decisions_after['label']).mean():.3f}"
+              f" (before {(decisions['selection'] == decisions['label']).mean():.3f}), {time.time() - t0:.0f}s")
+    # reports after introspection training (reuse given) are asked at the introspection batch size
+    reported, parse = _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir, t0,
+                               "introspection" if reuse is not None else "decision")
 
     return {
+        **after,
         "hidden": {k: data.latents[k] for k in persona_indices},
         "recovered": recovered,
         "recovered_by_count": by_count,
@@ -388,7 +451,7 @@ def _decisions(model, tok, cfg, rule, data, device, persona_indices, tag, out_di
             texts.append(chat_prompt(tok, D.selection_prompt(trial, rule.option_count)))
             index.append((k, t_i))
     letters = rule.letters
-    logits, argmax, ids = choice_logits(model, tok, texts, cfg["compute"]["eval_batch_size"], device, letters)
+    logits, argmax, ids = choice_logits(model, tok, texts, eval_batch_size(cfg, "decision"), device, letters)
     temperature, samples = me["decision_temperature"], me["samples_per_trial"]
     rng = np.random.default_rng(cfg["model_hyperparameters"]["seed"])
     decisions = []
@@ -532,7 +595,7 @@ def _screen_fit(by_count, data, persona_indices, rule_slices, est_slices, tag, o
           f"cut too for {int(main['estimator_cut_matches_absolute'].sum())}/{len(main)}")
 
 
-def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir, t0):
+def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir, t0, stage="decision"):
     """Step 4: reports in fresh contexts, one freshly drawn option pair per sample.
 
     For every schema and every way of asking (batch): the model's replies, parsed into numbers,
@@ -549,21 +612,21 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     rule, schemas = comps.rule, comps.schemas
     rs, seeds = cfg["report_schema"], cfg["model_training"]["seeds"]
     n, personas = data.attribute_count, data.personas
-    batch_size = cfg["compute"]["eval_batch_size"]
+    batch_size = eval_batch_size(cfg, stage)
     report_trials = D.fresh_trials(personas, rs["samples_per_report"], seeds["reports"])
     reported, parse, raw = {}, {}, []
     for schema in schemas:
         reported[schema.name], parse[schema.name] = {}, {}
-        n_batches = len(schema.batches(personas[persona_indices[0]].names))
+        n_batches = len(schema.batches_for(personas[persona_indices[0]]))
         for b_i in range(n_batches):
             # Batch name, block and key count are the same for every persona; only the
             # keys' wording differs. Take them from one persona so nothing downstream
             # depends on the reply loop having run at least once.
-            meta = schema.batches(personas[persona_indices[0]].names)[b_i]
+            meta = schema.batches_for(personas[persona_indices[0]])[b_i]
             batch_name = meta.name
             texts, index = [], []
             for k in persona_indices:
-                batch = schema.batches(personas[k].names)[b_i]
+                batch = schema.batches_for(personas[k])[b_i]
                 for s, trial in enumerate(report_trials[k]):
                     # two options only, never C: see data.generate_introspection_examples
                     texts.append(chat_prompt(tok, batch.prompt_base + trial.generate_choice()))
@@ -573,7 +636,7 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
             parsed_rows = {block: [] for block in meta.blocks}
             readable = 0
             for (k, s), reply in zip(index, replies):
-                batch = schema.batches(personas[k].names)[b_i]
+                batch = schema.batches_for(personas[k])[b_i]
                 values = schema.parse(reply, batch)
                 raw.append({"schema": schema.name, "batch": batch.name, "scenario": personas[k].short_name, "sample": s, "reply": reply, "parsed": values is not None})
                 if values is None:
@@ -621,13 +684,15 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
 # --- scoring: summarize() and steps 3, 5 and 6 ---------------------------------------
 
 
-def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, from_step=None, scores_path=None):
+def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, from_step=None, scores_path=None,
+              target=None):
     """Turn one or more `collect` details (one per fold) into results rows, one per schema and block.
 
     Steps 3, 5 and 6, and both gates. Passing both folds' details at once is how the pooled
     "both" row is made. `from_step` is the decision step an introspection stage branched from.
     `scores_path`, when given, receives every persona's own cosine, centred cosine and rank
     correlation behind the row means (persona_scores_<tag>.csv), so an aggregate can be checked.
+    `target` is an introspection stage's target, written in the introspection_target column.
     """
     rule, estimator, schemas = comps.rule, comps.estimator, comps.schemas
     gates, me = cfg["gates"], cfg["model_estimating"]
@@ -652,6 +717,7 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
 
     base = {"run_id": run_id, "timestamp": datetime.now().isoformat(timespec="seconds"), **hyperparameter_columns(cfg)}
     choices = _choice_counts(details) if "cut" in rule_slices else {}
+    after = _after(details)
     rows = []
     # Chance depends on the rule, the block and the recovered latents, never on the
     # report schema, so it is computed once per block and trial count and reused across schemas.
@@ -680,6 +746,7 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                     "stage": stage,
                     "introspection_fold": fold,
                     "introspection_from_step": "" if from_step is None else from_step,
+                    "introspection_target": "" if stage != "introspection" else (target or "hidden"),
                     "checkpoint_step": checkpoint_step,
                     "block": block,
                     "estimation_trials": count,
@@ -705,6 +772,8 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                     columns, scores = _score_faithfulness(estimator, block, rep, rec, hid, me, seed)
                     row.update(columns)
                     per_persona += [{**where, **s} for s in scores]
+                if after and main:
+                    row.update(_score_after(estimator, block, rep, rec, after, est_slices, me, seed))
                 if rec and block in rule_slices:
                     if (count, block) not in chance_by_block:
                         chance_by_block[count, block] = chance_level(rule, block, rec, n, me["chance_draws"], seed, estimator=estimator)
@@ -854,12 +923,168 @@ def _score_faithfulness(estimator, block, rep, rec, hid, me, seed):
         # how close, not just how well shaped, over the same personas the mean covers
         if estimator.block_has_bands(block):
             out.update(agreement(kept, absolute=estimator.block_is_absolute(block)))
+        keyed = [(k, rep[k], rec[k]) for k in rep if k in rec and not np.isnan(estimator.block_distance(block, rep[k], rec[k]))]
+        out.update(_with_shuffled(estimator, block, keyed, out["faithfulness"], "faithfulness", me, seed,
+                                  gap_name="faithfulness_gap", p_name="faithfulness_shuffled_p"))
     if hid:
         # absolute faithfulness: the report against the rule the persona was given, not the one it learned
         columns, _, scores = _compare(estimator, block, [(k, hid[k], rep[k]) for k in rep if k in hid], "hidden_vs_reported")
         out.update(columns)
         records += scores
+        keyed = [(k, hid[k], rep[k]) for k in rep if k in hid and not np.isnan(estimator.block_distance(block, hid[k], rep[k]))]
+        out.update(_with_shuffled(estimator, block, keyed, out["hidden_vs_reported"], "hidden_vs_reported", me, seed,
+                                  gap_name="hidden_vs_reported_gap", p_name="hidden_vs_reported_shuffled_p"))
     return out, records
+
+
+def shuffled_baseline(estimator, block, keyed, draws, seed, name):
+    """The comparison `name` made against the wrong persona: each first vector scored against another's second.
+
+    `keyed` is _compare's list of (persona, vector, vector), the pairs the real comparison scores. Over
+    `draws` reshufflings in which no persona keeps its own partner, the mean of every measure the
+    block has (its own distance always; centred and rank where it is a direction; pooled Pearson).
+    Returns shuffled_<name>[_centred, _pearson, _spearman], shuffled_<name>_low / _high (the middle
+    95% of the reshuffled means of the block's own distance) and the reshuffled means themselves
+    (key "_draws"), from which the caller takes the gap and the permutation p-value.
+    """
+    m = len(keyed)
+    if m < 2:
+        return {}
+    first, second = [a for _, a, _ in keyed], [b for _, _, b in keyed]
+    shape = estimator.block_has_shape(block)
+    dist, centred, rank = (np.full((m, m), np.nan) for _ in range(3))
+    for i in range(m):
+        for j in range(m):
+            if i != j:
+                dist[i, j] = estimator.block_distance(block, first[i], second[j])
+                if shape:
+                    centred[i, j] = estimator.block_distance_centred(block, first[i], second[j])
+                    rank[i, j] = estimator.block_rank_correlation(block, first[i], second[j])
+    rng = np.random.default_rng(seed)
+    rows, means = np.arange(m), {"": [], "_centred": [], "_spearman": [], "_pearson": []}
+    for _ in range(draws):
+        perm = rng.permutation(m)
+        while np.any(perm == rows):     # a derangement: nobody keeps their own partner
+            perm = rng.permutation(m)
+        means[""].append(np.nanmean(dist[rows, perm]) if np.isfinite(dist[rows, perm]).any() else np.nan)
+        if shape:
+            means["_centred"].append(_nanmean(list(centred[rows, perm])))
+            means["_spearman"].append(_nanmean(list(rank[rows, perm])))
+        pairs = [(first[i], second[perm[i]]) for i in rows if not np.isnan(dist[i, perm[i]])]
+        means["_pearson"].append(_pearson(estimator, block, pairs) if len(pairs) > 1 else np.nan)
+    own = np.array(means[""], float)
+    out = {f"shuffled_{name}{suffix}": _nanmean(values) for suffix, values in means.items() if values}
+    finite = own[np.isfinite(own)]
+    out[f"shuffled_{name}_low"] = float(np.percentile(finite, 2.5)) if finite.size else float("nan")
+    out[f"shuffled_{name}_high"] = float(np.percentile(finite, 97.5)) if finite.size else float("nan")
+    out["_draws"] = finite
+    return out
+
+
+def _with_shuffled(estimator, block, keyed, real, name, me, seed, gap_name=None, p_name=None):
+    """The shuffled-persona columns for one comparison, with its gap and permutation p-value."""
+    base = shuffled_baseline(estimator, block, keyed, me.get("shuffle_draws", 1000), seed, name)
+    if not base:
+        return {}
+    draws = base.pop("_draws")
+    out = {k: v for k, v in base.items() if not k.endswith(("_low", "_high")) or name == "faithfulness"}
+    if gap_name:
+        out[gap_name] = real - base[f"shuffled_{name}"] if not np.isnan(real) else float("nan")
+    if p_name:
+        # a tie counts as scoring at least the real pairing; the tolerance stops float rounding of equal means
+        # (the same report for everyone gives every reshuffling the real mean) from passing for a difference
+        out[p_name] = (float((1 + np.sum(draws >= real - 1e-9)) / (1 + draws.size))
+                       if draws.size and not np.isnan(real) else float("nan"))
+    return out
+
+
+def _after(details):
+    """The decisions and rule after introspection training, merged across the details passed, or {} when not measured."""
+    if not all("recovered_after" in d for d in details):
+        return {}
+    recovered, before, after = {}, [], []
+    for d in details:
+        recovered.update(d["recovered_after"])
+        before.append(d["decisions"])
+        after.append(d["decisions_after"])
+    before, after = pd.concat(before, ignore_index=True), pd.concat(after, ignore_index=True)
+    same = before.merge(after, on=["persona", "trial", "sample"], suffixes=("_before", "_after"))
+    return {"recovered": recovered,
+            "decision_accuracy_after": float((after["selection"] == after["label"]).mean()),
+            "choices_unchanged": float((same["selection_before"] == same["selection_after"]).mean()) if len(same) else float("nan")}
+
+
+def _score_after(estimator, block, rep, rec, after, est_slices, me, seed):
+    """After introspection: decisions again, the rule they give, and the reports scored against it."""
+    out = {"decision_accuracy_after": after["decision_accuracy_after"], "choices_unchanged": after["choices_unchanged"]}
+    if block not in est_slices:
+        return out
+    rec_after = {k: v[est_slices[block]] for k, v in after["recovered"].items()}
+    out["recovered_after_vs_before"], _ = _scored(estimator, block, [(rec_after[k], rec[k]) for k in rec_after if k in rec])
+    if rep:
+        keyed = [(k, rep[k], rec_after[k]) for k in rep if k in rec_after]
+        columns, _, _ = _compare(estimator, block, keyed, "faithfulness_after")
+        out.update(columns)
+        kept = [(k, a, b) for k, a, b in keyed if not np.isnan(estimator.block_distance(block, a, b))]
+        shuffled = _with_shuffled(estimator, block, kept, columns["faithfulness_after"], "faithfulness_after", me, seed,
+                                  gap_name="faithfulness_after_gap")
+        out.update({k: v for k, v in shuffled.items() if k in ("shuffled_faithfulness_after", "faithfulness_after_gap")})
+    return out
+
+
+LEARNED_BANDS = ((-np.inf, 0.2, "below 0.2"), (0.2, 0.6, "0.2 to 0.6"), (0.6, np.inf, "0.6 and above"))
+
+
+def learned_vs_reported(details, comps, data, path=None, quiet=False):
+    """Per persona and block asked: how well its rule was learned, how well it is reported, and the shuffled baselines.
+
+    learned        recovered vs hidden, the block's own distance
+    reported_vs_hidden, faithfulness          the report against the rule it was given, and against the one recovered
+    reported_vs_hidden_shuffled, faithfulness_shuffled
+                   the same report's mean score against every other persona's rule: what it would score
+                   for being a report at all, so the excess is what is specific to this persona
+    band           the persona's band of learning (LEARNED_BANDS)
+    Written to `path` when given; prints the mean of each column per band for each block asked.
+    """
+    rule, estimator = comps.rule, comps.estimator
+    n = data.attribute_count
+    rule_slices, est_slices = rule.block_slices(n), estimator.block_slices()
+    hidden = {k: v for d in details for k, v in d["hidden"].items()}
+    recovered = {k: v for d in details for k, v in d["recovered"].items()}
+    lines = []
+    for schema in comps.schemas:
+        reported, _ = _merge_folds(details, schema.name)
+        for key, (block, rep) in reported.items():
+            if block not in rule_slices or block not in est_slices or not rep:
+                continue
+            hid = {k: v[rule_slices[block]] for k, v in hidden.items()}
+            rec = {k: v[est_slices[block]] for k, v in recovered.items()}
+            people = [k for k in rep if k in hid and k in rec]
+            for k in people:
+                others = [j for j in people if j != k]
+                learned = estimator.block_distance(block, rec[k], hid[k])
+                band = next((label for low, high, label in LEARNED_BANDS if low <= learned < high), "")
+                lines.append({
+                    "report_schema": schema.name, "report_batch": key.split("/")[0], "block": block, "persona": k,
+                    "scenario": data.personas[k].short_name, "learned": learned, "band": band,
+                    "reported_vs_hidden": estimator.block_distance(block, hid[k], rep[k]),
+                    "reported_vs_hidden_shuffled": _nanmean([estimator.block_distance(block, hid[j], rep[k]) for j in others]),
+                    "faithfulness": estimator.block_distance(block, rep[k], rec[k]),
+                    "faithfulness_shuffled": _nanmean([estimator.block_distance(block, rep[k], rec[j]) for j in others]),
+                })
+    frame = pd.DataFrame(lines)
+    if path is not None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        frame.to_csv(path, index=False)
+    if not quiet and not frame.empty:
+        numbers = ["learned", "reported_vs_hidden", "reported_vs_hidden_shuffled", "faithfulness", "faithfulness_shuffled"]
+        order = {label: i for i, (_, _, label) in enumerate(LEARNED_BANDS)}
+        for (batch, block), part in frame.groupby(["report_batch", "block"], sort=False):
+            table = part.groupby("band")[numbers].mean().assign(personas=part.groupby("band").size())
+            table = table.sort_index(key=lambda idx: idx.map(order)).round(3)
+            print(f"  learned against reported [{batch}/{block}], by band of learning:")
+            print("    " + table.to_string().replace("\n", "\n    "))
+    return frame
 
 
 def _score_chance(chance):
@@ -889,7 +1114,8 @@ def faithfulness_view(results):
       absolute faithfulness  what it says against what it was given (reported vs hidden)
       faithfulness           what it says against what it does (reported vs recovered)
       chance                 what a random report scores against what it does, the control
-    Read faithfulness against chance on the same line: each measure has its own chance level.
+      shuffled               what the same reports score against other personas' rules
+    Read faithfulness against chance and shuffled on the same line: each measure has its own.
 
         from src.evaluate import faithfulness_view
         faithfulness_view(pd.read_csv("results/results.csv"))
@@ -897,7 +1123,7 @@ def faithfulness_view(results):
     frame = pd.DataFrame(results)
     if "report_batch" in frame:
         frame = frame[frame["report_batch"].fillna("").astype(str) != ""]
-    keys = [c for c in ("run_id", "stage", "introspection_fold", "introspection_from_step", "checkpoint_step",
+    keys = [c for c in ("run_id", "stage", "introspection_target", "introspection_fold", "introspection_from_step", "checkpoint_step",
                         "report_schema", "report_batch", "block", "estimation_trials") if c in frame]
     lines = []
     for _, row in frame.iterrows():
@@ -906,7 +1132,8 @@ def faithfulness_view(results):
             line["measure"] = {"": row.get("distance", "cosine") or "cosine", "_centred": "centred",
                                "_pearson": "pearson", "_spearman": "spearman"}[suffix]
             for base, name in (("recovered_vs_hidden", "learned"), ("hidden_vs_reported", "absolute_faithfulness"),
-                               ("faithfulness", "faithfulness"), ("chance", "chance")):
+                               ("faithfulness", "faithfulness"), ("chance", "chance"),
+                               ("shuffled_faithfulness", "shuffled")):
                 line[name] = row.get(f"{base}{suffix}", float("nan"))
             lines.append(line)
     return pd.DataFrame(lines)
@@ -957,19 +1184,49 @@ def append_results(rows, cfg, path="results/results.csv"):
 
 
 def evaluate_model(model, tok, cfg, comps, data, device, run_id, stage, fold, checkpoint_step, persona_indices,
-                   results_dir="results", from_step=None, reuse=None):
+                   results_dir="results", from_step=None, reuse=None, target=None):
     """Steps 1 to 7 for a model already in memory. Returns (rows, detail).
 
     `reuse`, a decision checkpoint's detail, skips steps 1 to 3c and scores the reports against
-    that checkpoint's recovered rule. The pipeline passes it after introspection training.
+    that checkpoint's recovered rule. The pipeline passes it after introspection training, with
+    `target`, what that training trained toward.
     """
-    tag = f"{stage_label(stage, fold, from_step)}_step-{checkpoint_step}"
+    tag = f"{stage_label(stage, fold, from_step, target)}_step-{checkpoint_step}"
     print(f"evaluating {tag} on {len(persona_indices)} personas")
     detail = collect(model, tok, cfg, comps, data, device, list(persona_indices), tag, Path(results_dir) / run_id, reuse)
     rows = summarize([detail], cfg, comps, data, run_id, stage, fold, checkpoint_step, from_step,
-                     scores_path=Path(results_dir) / run_id / f"persona_scores_{tag}.csv")
+                     scores_path=Path(results_dir) / run_id / f"persona_scores_{tag}.csv", target=target)
     append_results(rows, cfg, Path(results_dir) / "results.csv")
+    learned_vs_reported([detail], comps, data, Path(results_dir) / run_id / f"learned_vs_reported_{tag}.csv",
+                        quiet=stage == "introspection")    # an introspection fold prints it once, for both folds
     return rows, detail
+
+
+def decision_detail_from_files(cfg, comps, data, run_dir, checkpoint_step, persona_indices):
+    """The `reuse` detail of a decision checkpoint already evaluated, rebuilt from its saved files.
+
+    An introspection branch needs the decisions its decision checkpoint made and the rule recovered
+    from them. A resumed run did not hold that evaluation in memory, so the decisions are read back
+    from selections_decision_step-<N>.csv and the rule is fitted again from them. The fit is
+    deterministic, so it is the rule the evaluation recovered; it is written to a scratch folder,
+    never over the run's own recovered files.
+    """
+    import tempfile
+
+    tag = f"{stage_label('decision')}_step-{checkpoint_step}"
+    path = Path(run_dir) / f"selections_{tag}.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"{path} is missing, so the decision checkpoint at step {checkpoint_step} cannot be reused")
+    decisions = pd.read_csv(path)
+    missing = sorted(set(persona_indices) - set(decisions["persona"]))
+    if missing:
+        raise ValueError(f"{path} has no decisions for personas {missing[:10]}")
+    counts = estimation_counts(cfg)
+    with tempfile.TemporaryDirectory() as scratch:
+        by_count = {N: _recover(comps.estimator, decisions, data, list(persona_indices), tag, Path(scratch),
+                                trials=N if N < counts[-1] else None)
+                    for N in counts}
+    return {"decisions": decisions, "recovered_by_count": by_count}
 
 
 def evaluate_checkpoint(cfg, checkpoint_dir, run_id=None, stage="decision", fold=0, step=None, results_dir="results",

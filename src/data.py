@@ -512,19 +512,33 @@ def introspection_example(scenario, prompt, batch, values, schema):
     )
 
 
-def generate_introspection_examples(scenarios, latents, rule, schema, attribute_count, seed):
+def generate_introspection_examples(scenarios, latents, rule, schema, attribute_count, seed, skipped=None):
     """Experiment 2 examples: the seed is reset before each persona's trial, as Plunkett did.
+
+    `latents` need not be the hidden ones: an introspection target other than "hidden" passes the
+    latents it trains toward (the rule recovered from the model's choices, another persona's, a
+    random one), and the prompts are the same whatever the target. With `skipped` (a list), a persona
+    whose latent cannot answer every trained question (a recovered fit with no screen, from choices
+    that were all one letter) is left out and its scenario name appended there, instead of raising.
 
     Reads model_training.seeds.introspection and report_schema (through `schema`).
     """
     slices = rule.block_slices(attribute_count)
     examples = []
     for k, sc in enumerate(scenarios):
+        if skipped is not None:
+            try:
+                persona = generate_introspection_examples([sc], [latents[k]], rule, schema, attribute_count, seed)
+            except ValueError:
+                skipped.append(sc.short_name)
+                continue
+            examples += persona
+            continue
         rng = random.Random(seed)
         # Report prompts show the two options only, as Plunkett's do: the pair sets the scene for a
         # decision, and C (neither) is an answer to a decision, which a report never gives.
         prompt = Trial(sc, rng).generate_choice()
-        for batch in schema.batches(sc.names):
+        for batch in schema.batches_for(sc):
             if not batch.trained:
                 continue    # asked in the reports only
             if batch.block not in slices:
@@ -538,16 +552,59 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
     return examples
 
 
-def load_introspection_examples(cfg, scenarios, latents, rule, schema):
-    """Stage-two examples for all `instances` personas, from introspection_training.csv or generated and saved.
+INTROSPECTION_DIR = "introspection"     # one <question>.csv per question, for settings that choose report_schema.questions
+INTROSPECTION_COLUMNS = ["scenario", "batch", "user_prompt", "assistant_answer"]
 
-    Reads model_training (data_dir, instances, seeds.introspection), object.attribute_count.
+
+def examples_frame(examples):
+    """Introspection examples as the rows of an introspection file."""
+    return pd.DataFrame([{"scenario": e.scenario, "batch": e.batch, "user_prompt": e.user, "assistant_answer": e.answer}
+                         for e in examples], columns=INTROSPECTION_COLUMNS)
+
+
+def write_question_files(examples, folder, note=True):
+    """One <question>.csv per question in `folder`, rewritten only where its content changed. Returns the paths."""
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    frame, paths = examples_frame(examples), []
+    for question, rows in frame.groupby("batch", sort=False):
+        path = folder / f"{question}.csv"
+        rows = rows.reset_index(drop=True)
+        if path.exists():
+            if pd.read_csv(path, dtype=str, keep_default_na=False).equals(rows.astype(str)):
+                paths.append(path)
+                continue
+            if note:
+                print(f"note: {path} no longer matches the question's wording or answers; rebuilt it")
+        elif note:
+            print(f"note: wrote {path}")
+        rows.to_csv(path, index=False)
+        paths.append(path)
+    return paths
+
+
+def load_introspection_examples(cfg, scenarios, latents, rule, schema):
+    """Stage-two examples for all `instances` personas: the hidden target, the persona's own rule.
+
+    With report_schema.questions (questions chosen by folder), the examples are generated from
+    instilled_weights.csv, which is deterministic, and kept as one file per question in the data
+    folder's introspection/ subfolder, each rewritten when its question's wording or answers change,
+    so the files always show what is trained on and are never read stale. Editing one by hand
+    therefore does nothing lasting: edit the question's prompt.txt instead.
+    Otherwise (the older single file), from introspection_training.csv, or generated and saved there.
+
+    Reads model_training (data_dir, instances, seeds.introspection), object.attribute_count, report_schema.questions.
     """
     mt = cfg["model_training"]
     data_dir, instances = Path(mt["data_dir"]), mt["instances"]
     n = cfg["object"]["attribute_count"]
+    if "questions" in cfg.get("report_schema", {}):
+        examples = generate_introspection_examples(
+            scenarios[:instances], latents[:instances], rule, schema, n, mt["seeds"]["introspection"])
+        write_question_files(examples, data_dir / INTROSPECTION_DIR)
+        return examples
     path = data_dir / INTROSPECTION_TRAINING_CSV
-    wanted = {(sc.short_name, b.name) for sc in scenarios[:instances] for b in schema.batches(sc.names) if b.trained}
+    wanted = {(sc.short_name, b.name) for sc in scenarios[:instances] for b in schema.batches_for(sc) if b.trained}
     if path.exists():
         df = pd.read_csv(path).fillna("")
         expected = ["scenario", "batch", "user_prompt", "assistant_answer"]
@@ -562,7 +619,7 @@ def load_introspection_examples(cfg, scenarios, latents, rule, schema):
             rows = {(r["scenario"], r["batch"]): r for r in df.to_dict("records")}
             examples = []
             for sc in scenarios[:instances]:
-                for b in [b for b in schema.batches(sc.names) if b.trained]:
+                for b in [b for b in schema.batches_for(sc) if b.trained]:
                     r = rows[(sc.short_name, b.name)]
                     examples.append(
                         Example(

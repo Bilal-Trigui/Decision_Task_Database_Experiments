@@ -5,7 +5,9 @@ lora_alpha, learning_rate, batch_size, loss_mask_answer_only, training_steps,
 checkpoint_every, introspection_steps, introspection_batch_size, seed);
 compute (device, mixed_precision). Loss is masked to the answer tokens.
 Checkpoints are saved every `checkpoint_every` steps and at the last step, and
-accuracy and loss per step go to results/train_log.csv.
+accuracy and loss per step go to results/train_log.csv. A decision checkpoint also
+holds the optimizer state and the training state (optimizer.pt, training_state.pt),
+so a run can be resumed from it exactly; see train_stage's start_step and resume.
 """
 import csv
 import os
@@ -15,6 +17,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn.functional as F
+
+from src.config import eval_batch_size, learning_rate_at
 
 LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 TRAIN_LOG_COLUMNS = [
@@ -31,7 +36,12 @@ TRAIN_LOG_COLUMNS = [
     "val_answer_token_accuracy",
     "learning_rate",
     "elapsed_seconds",
+    "resumed_from_step",
+    "introspection_target",
 ]
+
+OPTIMIZER_STATE = "optimizer.pt"            # AdamW's moments, saved beside a decision checkpoint's adapter
+TRAINING_STATE = "training_state.pt"        # step, data order and random generators, for an exact resume
 
 
 def _from_pretrained(name, **kwargs):
@@ -213,38 +223,74 @@ def _autocast(device, precision):
     return torch.autocast("cpu", enabled=False)
 
 
+def _decoder_and_head(model):
+    """The transformer body and the output layer, under any PEFT wrapper; (None, None) when it has neither."""
+    base = model.get_base_model() if hasattr(model, "get_base_model") else model
+    # the body by its declared name ("model" for Qwen3), not get_decoder(): in transformers 4.56 that
+    # recurses one level too far and returns None for Qwen3ForCausalLM
+    prefix = getattr(base, "base_model_prefix", None)
+    decoder = getattr(base, prefix, None) if prefix else None
+    head = base.get_output_embeddings() if hasattr(base, "get_output_embeddings") else None
+    return (decoder, head) if decoder is not None and head is not None else (None, None)
+
+
 @torch.no_grad()
 def evaluate_examples(model, tok, encoded, batch_size, device, precision, first_token=True):
     """Mean loss over answer tokens, first-token accuracy and all-answer-token accuracy on held-out examples.
 
     `first_token` False leaves the first token unread and its accuracy NaN, for stage two.
+
+    The output layer is applied at the answer positions only. A full forward pass makes logits
+    for every prompt token over Qwen3's 152k-token vocabulary, then an fp32 copy for the loss:
+    over a gigabyte for four long introspection prompts, which is what ran a 16 GB card out of
+    memory. The loss and accuracies are the same numbers, since only answer positions were ever
+    scored; what changes is that the rest are never made. A model without a separate body and
+    output layer gets the full forward pass, read at the same positions.
     """
     model.eval()
-    losses, weights, firsts, correct, valid = [], [], [], 0, 0
+    decoder, head = _decoder_and_head(model)
+    total_loss, total_tokens, firsts, correct = 0.0, 0, [], 0
     for i in range(0, len(encoded), batch_size):
         input_ids, attention, labels = collate(encoded[i : i + batch_size], tok.pad_token_id, device)
+        target = labels[:, 1:]
+        valid = target != -100
         with _autocast(device, precision):
-            out = model(input_ids=input_ids, attention_mask=attention, labels=labels)
-        n_tokens = (labels[:, 1:] != -100).sum().item()
-        losses.append(out.loss.item() * n_tokens)
-        weights.append(n_tokens)
-        f, c, v = _accuracy_counts(out.logits, labels, first_token)
-        firsts += f
-        correct += c
-        valid += v
+            if decoder is not None:
+                hidden = decoder(input_ids=input_ids, attention_mask=attention).last_hidden_state
+                logits = head(hidden[:, :-1][valid])    # (answer tokens, vocabulary), rows in batch order
+                del hidden
+            else:
+                logits = model(input_ids=input_ids, attention_mask=attention, labels=labels).logits[:, :-1][valid]
+        logits = logits.float()
+        answers = target[valid]
+        total_loss += F.cross_entropy(logits, answers, reduction="sum").item()
+        total_tokens += answers.numel()
+        hits = logits.argmax(-1) == answers
+        correct += hits.sum().item()
+        if first_token:
+            start = 0
+            for count in valid.sum(1).tolist():
+                if count:
+                    firsts.append(hits[start].item())
+                start += count
+        del logits
     model.train()
     first_acc = float(np.mean(firsts)) if firsts else float("nan")
-    return sum(losses) / max(sum(weights), 1), first_acc, correct / max(valid, 1)
+    return total_loss / max(total_tokens, 1), first_acc, correct / max(total_tokens, 1)
 
 
-def stage_label(stage, fold=0, from_step=None):
+def stage_label(stage, fold=0, from_step=None, target=None):
     """The name a stage's checkpoints and detail files go under.
 
     decision, introspection-fold1, or introspection-from-1500-fold1 when the folds branched
     from decision step 1500. The pipeline always names the step it branched from, so several
-    introspection points in one run never share a folder.
+    introspection points in one run never share a folder. An introspection target other than
+    hidden is named too, introspection-from-1500-recovered-fold1; hidden keeps the plain name it
+    always had, so earlier runs' folders and files read as they were.
     """
     name = stage if from_step is None else f"{stage}-from-{from_step}"
+    if target and target != "hidden":
+        name = f"{name}-{target}"
     return name if not fold else f"{name}-fold{fold}"
 
 
@@ -292,6 +338,9 @@ def train_stage(
     on_checkpoint=None,
     extra_checkpoints=(),
     from_step=None,
+    start_step=0,
+    resume=None,
+    target=None,
 ):
     """Train for `steps` optimizer steps, logging every step and checkpointing every `checkpoint_every`.
 
@@ -299,8 +348,21 @@ def train_stage(
     the regular schedule. `from_step` is the decision step an introspection stage branched from;
     it names the checkpoint folder and fills the log's introspection_from_step column.
     Examples are shuffled anew each epoch. Reads model_hyperparameters
-    (learning_rate, loss_mask_answer_only, seed), compute (mixed_precision).
+    (learning_rate, loss_mask_answer_only, seed), compute (mixed_precision, and the
+    decision or introspection eval batch size for the validation pass).
     Returns the list of (step, checkpoint_dir).
+
+    `start_step` resumes: training continues at start_step + 1, with the adapter already loaded by
+    the caller. `resume` is load_training_state's dict for that checkpoint. Its training state puts
+    the data order back exactly; without one, the order is replayed from the seed, which gives the
+    same batches. Its optimizer state restores AdamW's moments; without one the optimizer starts
+    fresh, the one way such a resume differs from a run that never stopped, and it says so.
+    Decision checkpoints save both files, so a resume from any of them is exact.
+
+    The learning rate is set before every step from model_hyperparameters.lr_schedule
+    (config.learning_rate_at), a function of the step alone, so a resume needs no scheduler state.
+    Introspection stages keep the constant rate. `target` is an introspection stage's target (hidden,
+    recovered, shuffled, random): it names the checkpoint folder and fills the log's column.
     """
     mh, comp = cfg["model_hyperparameters"], cfg["compute"]
     precision = comp["mixed_precision"] if device == "cuda" else "no"
@@ -318,8 +380,33 @@ def train_stage(
     scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
     rng = random.Random(mh["seed"] + (0 if stage == "decision" else 100 * (fold + 1)))
     order = []
+    # stage two's validation prompts are whole report questions with JSON answers, far longer than an A/B trial
+    val_batch = eval_batch_size(cfg, "decision" if stage == "decision" else "introspection")
+    resumed = cfg.get("_resumed_from_step", "")
+    if start_step:
+        state = (resume or {}).get("training_state")
+        if state is not None:
+            if state["step"] != start_step:
+                raise ValueError(f"training state is for step {state['step']}, not {start_step}")
+            rng.setstate(state["order_rng"])
+            order = list(state["order"])
+        else:
+            for _ in range(start_step):      # replay the draws, so step start_step + 1 sees its own batch
+                if len(order) < batch_size:
+                    fresh = list(range(len(encoded)))
+                    rng.shuffle(fresh)
+                    order += fresh
+                order = order[batch_size:]
+        if (resume or {}).get("optimizer") is not None:
+            optimizer.load_state_dict(resume["optimizer"])
+            if scaler is not None and state is not None and state.get("scaler"):
+                scaler.load_state_dict(state["scaler"])
+            print(f"resumed at step {start_step}: optimizer and data order restored")
+        else:
+            print(f"resumed at step {start_step}: data order {'restored' if state is not None else 'replayed from the seed'}; "
+                  "no optimizer state was saved with this checkpoint, so AdamW starts fresh")
     checkpoints = []
-    stage_dir = Path(checkpoint_root) / run_id / stage_label(stage, fold, from_step)
+    stage_dir = Path(checkpoint_root) / run_id / stage_label(stage, fold, from_step, target)
     extra = set(extra_checkpoints)
     model.train()
     t0 = time.time()
@@ -331,7 +418,7 @@ def train_stage(
     # A/B accuracy. Stage two's answer is a whole JSON object whose first token is always "{",
     # so stage two never reads the first token: it is measured over every answer token instead.
     first_token = stage == "decision"
-    win_loss, win_firsts, win_correct, win_valid, win_start = 0.0, [], 0, 0, 1
+    win_loss, win_firsts, win_correct, win_valid, win_start = 0.0, [], 0, 0, start_step + 1
 
     def window_text(step):
         nonlocal win_loss, win_firsts, win_correct, win_valid, win_start
@@ -344,12 +431,14 @@ def train_stage(
         win_loss, win_firsts, win_correct, win_valid, win_start = 0.0, [], 0, 0, step + 1
         return text
 
+    target_text = "" if stage == "decision" else ", target " + (target or "hidden")
     print(
         f"training stage '{stage}'{'' if not fold else f' fold {fold}'}"
-        f"{'' if from_step is None else f' from decision step {from_step}'}: {len(encoded)} examples, {steps} steps, "
+        f"{'' if from_step is None else f' from decision step {from_step}'}{target_text}: {len(encoded)} examples, {steps} steps, "
         f"batch {batch_size}" + (f" in micro-batches of {micro}" if micro < batch_size else "")
+        + (f", resuming after step {start_step}" if start_step else "")
     )
-    for step in range(1, steps + 1):
+    for step in range(start_step + 1, steps + 1):
         if len(order) < batch_size:
             fresh = list(range(len(encoded)))
             rng.shuffle(fresh)
@@ -379,6 +468,9 @@ def train_stage(
             # Drop each chunk's outputs at once: the logits are the largest tensor
             # in the step, and the checkpoint evaluation below is the memory peak.
             del out, loss
+        rate = learning_rate_at(cfg, step, stage)
+        for group in optimizer.param_groups:
+            group["lr"] = rate
         if scaler is not None:
             scaler.step(optimizer)
             scaler.update()
@@ -403,17 +495,23 @@ def train_stage(
             "val_loss": "",
             "val_first_token_accuracy": "",
             "val_answer_token_accuracy": "",
-            "learning_rate": mh["learning_rate"],
+            "learning_rate": rate,
             "elapsed_seconds": round(time.time() - t0, 2),
+            "resumed_from_step": resumed,
+            "introspection_target": "" if stage == "decision" else (target or "hidden"),
         }
         if step % checkpoint_every == 0 or step == steps or step in extra:
+            if device == "cuda":
+                torch.cuda.empty_cache()     # hand back the training step's cached blocks before the validation pass
             val_loss, val_first, val_answer = evaluate_examples(
-                model, tok, encoded_val, comp["eval_batch_size"], device, precision, first_token)
+                model, tok, encoded_val, val_batch, device, precision, first_token)
             row["val_loss"], row["val_answer_token_accuracy"] = val_loss, val_answer
             row["val_first_token_accuracy"] = val_first if first_token else ""
             ckpt = stage_dir / f"step-{step}"
             ckpt.mkdir(parents=True, exist_ok=True)
             model.save_pretrained(str(ckpt))
+            if stage == "decision":
+                save_training_state(ckpt, optimizer, scaler, step, rng, order)
             checkpoints.append((step, ckpt))
             print(
                 f"  step {step}/{steps} {window_text(step)} | val loss {val_loss:.4f} "
@@ -426,6 +524,8 @@ def train_stage(
             if on_checkpoint is not None:
                 on_checkpoint(step, ckpt)
                 model.train()
+            if stage == "decision":
+                mark_evaluated(ckpt)
         else:
             rows.append(row)
             if step % 50 == 0:
@@ -433,6 +533,74 @@ def train_stage(
     if rows:
         _append_log(log_path, rows)
     return checkpoints
+
+
+def save_training_state(ckpt, optimizer, scaler, step, order_rng, order):
+    """optimizer.pt and training_state.pt beside a checkpoint's adapter, so a resume from it is exact.
+
+    Saved before the checkpoint is evaluated, so a crash during the evaluation still leaves a
+    checkpoint to resume from. The random generators are saved again once the evaluation is done
+    (mark_evaluated), since the run after it continues from their state then.
+    """
+    ckpt = Path(ckpt)
+    torch.save(optimizer.state_dict(), ckpt / OPTIMIZER_STATE)
+    torch.save({
+        "step": step,
+        "order_rng": order_rng.getstate(),
+        "order": list(order),
+        "scaler": scaler.state_dict() if scaler is not None else None,
+        "rng": rng_state(),
+        "evaluated": False,
+    }, ckpt / TRAINING_STATE)
+
+
+def mark_evaluated(ckpt):
+    """Record that the checkpoint's evaluation finished, with the random generators as it left them."""
+    path = Path(ckpt) / TRAINING_STATE
+    if path.exists():
+        state = torch.load(path, weights_only=False)
+        state["rng"], state["evaluated"] = rng_state(), True
+        torch.save(state, path)
+
+
+def load_training_state(ckpt, device):
+    """A checkpoint's saved optimizer and training state, each None where the checkpoint has none.
+
+    Checkpoints written before these files existed hold the adapter only.
+    """
+    ckpt = Path(ckpt)
+    optimizer = (torch.load(ckpt / OPTIMIZER_STATE, map_location=device, weights_only=False)
+                 if (ckpt / OPTIMIZER_STATE).exists() else None)
+    state = torch.load(ckpt / TRAINING_STATE, weights_only=False) if (ckpt / TRAINING_STATE).exists() else None
+    return {"optimizer": optimizer, "training_state": state}
+
+
+def load_checkpoint_weights(model, ckpt, cfg, device):
+    """Put a saved checkpoint's trained weights into a model built by apply_finetune."""
+    ckpt = Path(ckpt)
+    if cfg["model_hyperparameters"]["finetune"] == "lora":
+        from peft import set_peft_model_state_dict
+        from peft.utils import load_peft_weights
+
+        weights = load_peft_weights(str(ckpt), device=device)
+        result = set_peft_model_state_dict(model, weights)
+        missing = [k for k in getattr(result, "missing_keys", []) if "lora_" in k]
+        unexpected = list(getattr(result, "unexpected_keys", []))
+        if missing or unexpected:
+            raise RuntimeError(f"{ckpt} does not fit this model: missing {missing[:5]}, unexpected {unexpected[:5]}")
+        print(f"loaded adapter {ckpt} ({len(weights)} tensors)")
+    else:
+        from safetensors.torch import load_file
+
+        files = sorted(ckpt.glob("*.safetensors"))
+        if not files:
+            raise FileNotFoundError(f"no weights in {ckpt}")
+        state = {}
+        for f in files:
+            state.update(load_file(str(f), device=device))
+        model.load_state_dict(state, strict=True)
+        print(f"loaded full weights {ckpt}")
+    return model
 
 
 def snapshot(model):
