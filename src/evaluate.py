@@ -624,21 +624,27 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
             # depends on the reply loop having run at least once.
             meta = schema.batches_for(personas[persona_indices[0]])[b_i]
             batch_name = meta.name
-            texts, index = [], []
+            texts, questions, index = [], [], []
             for k in persona_indices:
                 batch = schema.batches_for(personas[k])[b_i]
                 for s, trial in enumerate(report_trials[k]):
                     # two options only, never C: see data.generate_introspection_examples
-                    texts.append(chat_prompt(tok, batch.prompt_base + trial.generate_choice()))
+                    question = batch.prompt_base + trial.generate_choice()
+                    texts.append(chat_prompt(tok, question))
+                    questions.append(question)
                     index.append((k, s))
             replies = generate_texts(model, tok, texts, rs["max_new_tokens"], rs["report_temperature"], batch_size, device)
             per_persona = {block: {} for block in meta.blocks}
             parsed_rows = {block: [] for block in meta.blocks}
             readable = 0
-            for (k, s), reply in zip(index, replies):
+            for (k, s), question, reply in zip(index, questions, replies):
                 batch = schema.batches_for(personas[k])[b_i]
                 values = schema.parse(reply, batch)
-                raw.append({"schema": schema.name, "batch": batch.name, "scenario": personas[k].short_name, "sample": s, "reply": reply, "parsed": values is not None})
+                # the question exactly as asked (the user turn, before the chat template), so every
+                # reply can be read beside what produced it; parsed_values as the scorer read them
+                raw.append({"schema": schema.name, "batch": batch.name, "scenario": personas[k].short_name, "sample": s,
+                            "question": question, "reply": reply, "parsed": values is not None,
+                            "parsed_values": None if values is None else np.asarray(values, dtype=float).ravel().tolist()})
                 if values is None:
                     continue
                 readable += 1

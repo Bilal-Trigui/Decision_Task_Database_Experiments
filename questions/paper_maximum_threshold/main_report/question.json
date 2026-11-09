@@ -1,0 +1,9 @@
+{
+  "kind": "combined_fraction",
+  "description": "The weights, screened attribute, maximum (fraction) and screened weight in one reply.",
+  "keys": [
+    "screened_dimension",
+    "maximum_level",
+    "screen_weight"
+  ]
+}

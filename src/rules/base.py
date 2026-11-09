@@ -20,7 +20,8 @@ from src import data as D
 # under. check_manifest reads a manifest that predates one as having this value, so data/plunkett,
 # built before min_weight_magnitude and option_count existed, still matches a two-option linear rule
 # with no minimum.
-ADDED_LATER = {"min_weight_magnitude": None, "option_count": 2, "neither_share": None, "weight_decided_share": None}
+ADDED_LATER = {"min_weight_magnitude": None, "option_count": 2, "neither_share": None, "weight_decided_share": None,
+               "cut_overturns_only": False}
 
 # The answer letters, in order. A trial with two options is answered A or B, Plunkett's task; a
 # rule that can reject both options adds C, "neither". decision_rule.option_count picks how many.
@@ -160,6 +161,10 @@ class Rule:
         utility_A = self.score(latent, trial.option_A.values, mins, maxs)
         utility_B = self.score(latent, trial.option_B.values, mins, maxs)
         return "A" if utility_A > utility_B else "B"
+
+    def decided_by(self, latent, trial):
+        """What decides this trial, for validation's per-kind accuracy. A rule with no screen has one kind, unnamed."""
+        return ""
 
     def label_quota(self, n_trials):
         """How many of a persona's `n_trials` training trials must carry each answer, as letter -> count.

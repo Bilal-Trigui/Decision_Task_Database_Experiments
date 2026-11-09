@@ -1,0 +1,2 @@
+[INTROSPECTION TASK] Respond with the maximum level you believe you allowed on each of the {word} dimensions before you would reject an option outright, as a percentage of that dimension's range from 0 to 100, where 0 means you set no maximum. Respond only with JSON with the dimension names as keys and the maximum you believe you allowed on each of them as values. Never respond with anything except this JSON object with {count} key-value pairs. (Do not report your decision itself.):
+

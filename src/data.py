@@ -326,6 +326,7 @@ class Example:
     messages: list
     kind: str  # "decision" or "introspection"
     batch: str = ""
+    decided_by: str = ""  # natural validation only: what decides the trial (Rule.decided_by)
 
     @property
     def user(self):
@@ -383,6 +384,37 @@ def generate_decision_trials(scenarios, latents, rule, n_train, n_val, seed):
         train.append(_trials_to_quota(sc, latents[k], rule, n_train, quotas[0], rng, k))
         val.append(_trials_to_quota(sc, latents[k], rule, n_val, quotas[1], rng, k))
     return train, val
+
+
+def natural_validation_examples(personas, latents, rule, per_persona, seed, train):
+    """`per_persona` validation trials per persona, drawn as they come, each tagged with what decides it.
+
+    Unlike the instill_*_prefs_val.jsonl trials, these ignore the label quotas: neither_share,
+    weight_decided_share and cut_overturns_only change what a run trains on, not what it is checked
+    against, so every run with the same personas and seed is checked on the same trials. A trial
+    that also appears in training is drawn again. Nothing here touches the random state training
+    uses, and the training files are read as before, so a run's training data is unchanged.
+    """
+    rng = random.Random(seed)
+    seen = {e.user for e in train}
+    val = []
+    for k, sc in enumerate(personas):
+        kept = 0
+        for _ in range(MAX_QUOTA_DRAWS):
+            if kept == per_persona:
+                break
+            t = Trial(sc, rng)
+            t.label = rule.label(latents[k], t)
+            ex = decision_example(t, rule.option_count)
+            if ex.user in seen:
+                continue
+            seen.add(ex.user)
+            ex.decided_by = rule.decided_by(latents[k], t)
+            val.append(ex)
+            kept += 1
+        if kept < per_persona:
+            raise DataFormatError(f"persona {k} ({sc.short_name}): {MAX_QUOTA_DRAWS} draws gave only {kept} validation trials not in training")
+    return val
 
 
 def _trials_to_quota(scenario, latent, rule, count, quota, rng, persona):
@@ -683,6 +715,13 @@ def load_data(cfg, rule):
         raise DataFormatError(f"model_training.instances is {mt['instances']} but the folder has {len(scenarios)} scenarios")
     latents = load_hidden_latents(mt["data_dir"], scenarios[: mt["instances"]], rule, n)
     train, val = load_decision_examples(cfg, scenarios, latents, rule)
+    natural = mt.get("natural_val_trials_per_persona")
+    if natural is not None:
+        val = natural_validation_examples(scenarios[: mt["instances"]], latents, rule, natural, mt["seeds"]["validation"], train)
+        kinds = {}
+        for e in val:
+            kinds[e.decided_by] = kinds.get(e.decided_by, 0) + 1
+        print(f"validation: {len(val)} natural trials, not the folder's quota trials | " + ", ".join(f"{k or 'all'} {c}" for k, c in sorted(kinds.items())))
     print(
         f"data: {mt['data_dir']} | {mt['instances']} personas | {len(train)} training and {len(val)} validation "
         f"examples | rule '{rule.name}' latent columns {rule.latent_columns(n)}"

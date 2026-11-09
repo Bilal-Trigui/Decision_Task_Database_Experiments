@@ -311,10 +311,11 @@ def test_the_weight_decided_share():
         assert sum(on.quota_key(latents[k], t) == "weights" for t in vs) == 6
         for t in ts:      # the labels are still the rule's own
             assert t.label == on.label(latents[k], t)
-    for bad in (0, 1, 1.5, 0.9):
+    for bad in (-0.1, 1, 1.5, 0.9):
         _refused(lambda: PaperMinimumThresholdRule(weight_decided_share=bad), f"weight_decided_share {bad}")
+    PaperMinimumThresholdRule(weight_decided_share=0)     # every trial C or decided by the screen (the cut sweep's end)
     print("  off: the trials as drawn before; 0.6: exactly 30 of 50 trials both options pass, 10 C, 10 screen-decided, "
-          "labels unchanged; 0, 1 and shares leaving no room for C refused")
+          "labels unchanged; below 0, 1 and shares leaving no room for C refused, 0 allowed")
 
 
 if __name__ == "__main__":

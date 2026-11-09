@@ -34,6 +34,11 @@ TRAIN_LOG_COLUMNS = [
     "val_loss",
     "val_first_token_accuracy",
     "val_answer_token_accuracy",
+    "val_acc_weights",
+    "val_acc_neither",
+    "val_acc_cut_agrees",
+    "val_acc_cut_overturns",
+    "grad_norm",
     "learning_rate",
     "elapsed_seconds",
     "resumed_from_step",
@@ -42,6 +47,9 @@ TRAIN_LOG_COLUMNS = [
 
 OPTIMIZER_STATE = "optimizer.pt"            # AdamW's moments, saved beside a decision checkpoint's adapter
 TRAINING_STATE = "training_state.pt"        # step, data order and random generators, for an exact resume
+VAL_KINDS = ("weights", "neither", "cut_agrees", "cut_overturns")     # Rule.decided_by's kinds, each a log column
+VAL_DROP_WARNING = 0.10     # warn when a kind's validation accuracy falls this far below its best so far
+VAL_DROP_MIN_TRIALS = 20    # below this many trials of a kind, a drop that size is noise
 
 
 def _from_pretrained(name, **kwargs):
@@ -235,7 +243,7 @@ def _decoder_and_head(model):
 
 
 @torch.no_grad()
-def evaluate_examples(model, tok, encoded, batch_size, device, precision, first_token=True):
+def evaluate_examples(model, tok, encoded, batch_size, device, precision, first_token=True, first_hits=None):
     """Mean loss over answer tokens, first-token accuracy and all-answer-token accuracy on held-out examples.
 
     `first_token` False leaves the first token unread and its accuracy NaN, for stage two.
@@ -276,6 +284,8 @@ def evaluate_examples(model, tok, encoded, batch_size, device, precision, first_
         del logits
     model.train()
     first_acc = float(np.mean(firsts)) if firsts else float("nan")
+    if first_hits is not None:      # one True or False per example, in order, for accuracy by trial kind
+        first_hits.extend(firsts)
     return total_loss / max(total_tokens, 1), first_acc, correct / max(total_tokens, 1)
 
 
@@ -382,6 +392,10 @@ def train_stage(
     order = []
     # stage two's validation prompts are whole report questions with JSON answers, far longer than an A/B trial
     val_batch = eval_batch_size(cfg, "decision" if stage == "decision" else "introspection")
+    val_kinds = [getattr(e, "decided_by", "") for e in val_examples]
+    val_best = {}       # a kind's best validation accuracy so far, for the drop warning
+    max_norm = mh.get("max_grad_norm")
+    win_grad_max, win_clipped = 0.0, 0
     resumed = cfg.get("_resumed_from_step", "")
     if start_step:
         state = (resume or {}).get("training_state")
@@ -401,7 +415,8 @@ def train_stage(
             optimizer.load_state_dict(resume["optimizer"])
             if scaler is not None and state is not None and state.get("scaler"):
                 scaler.load_state_dict(state["scaler"])
-            print(f"resumed at step {start_step}: optimizer and data order restored")
+            print(f"resumed at step {start_step}: optimizer restored, data order "
+                  + ("restored" if state is not None else "drawn from the seed over this data"))
         else:
             print(f"resumed at step {start_step}: data order {'restored' if state is not None else 'replayed from the seed'}; "
                   "no optimizer state was saved with this checkpoint, so AdamW starts fresh")
@@ -468,6 +483,16 @@ def train_stage(
             # Drop each chunk's outputs at once: the logits are the largest tensor
             # in the step, and the checkpoint evaluation below is the memory peak.
             del out, loss
+        # Measured on every run, so train_log.csv shows the gradients a run actually saw; changes them
+        # only when max_grad_norm is set. Under fp16 they are unscaled first, so the limit is on true sizes.
+        if scaler is not None:
+            scaler.unscale_(optimizer)
+        if max_norm is None:
+            grad_norm = torch.norm(torch.stack([p.grad.detach().norm() for p in params if p.grad is not None])).item()
+        else:
+            grad_norm = torch.nn.utils.clip_grad_norm_(params, max_norm).item()
+            win_clipped += grad_norm > max_norm
+        win_grad_max = max(win_grad_max, grad_norm)
         rate = learning_rate_at(cfg, step, stage)
         for group in optimizer.param_groups:
             group["lr"] = rate
@@ -495,6 +520,8 @@ def train_stage(
             "val_loss": "",
             "val_first_token_accuracy": "",
             "val_answer_token_accuracy": "",
+            **{f"val_acc_{kind}": "" for kind in VAL_KINDS},
+            "grad_norm": grad_norm,
             "learning_rate": rate,
             "elapsed_seconds": round(time.time() - t0, 2),
             "resumed_from_step": resumed,
@@ -503,21 +530,40 @@ def train_stage(
         if step % checkpoint_every == 0 or step == steps or step in extra:
             if device == "cuda":
                 torch.cuda.empty_cache()     # hand back the training step's cached blocks before the validation pass
+            val_started, val_hits = time.time(), []
             val_loss, val_first, val_answer = evaluate_examples(
-                model, tok, encoded_val, val_batch, device, precision, first_token)
+                model, tok, encoded_val, val_batch, device, precision, first_token, val_hits)
+            val_seconds = time.time() - val_started
             row["val_loss"], row["val_answer_token_accuracy"] = val_loss, val_answer
             row["val_first_token_accuracy"] = val_first if first_token else ""
+            for kind in VAL_KINDS:
+                hits = [h for h, k in zip(val_hits, val_kinds) if k == kind]
+                if hits:
+                    accuracy = float(np.mean(hits))
+                    row[f"val_acc_{kind}"] = accuracy
+                    best_step, best = val_best.get(kind, (step, accuracy))
+                    if len(hits) >= VAL_DROP_MIN_TRIALS and best - accuracy >= VAL_DROP_WARNING:
+                        print(f"  WARNING step {step}: validation accuracy on {kind} trials fell to {accuracy:.3f} "
+                              f"from {best:.3f} at step {best_step} ({len(hits)} trials)")
+                    if accuracy >= best:
+                        best_step, best = step, accuracy
+                    val_best[kind] = (best_step, best)
             ckpt = stage_dir / f"step-{step}"
             ckpt.mkdir(parents=True, exist_ok=True)
             model.save_pretrained(str(ckpt))
-            if stage == "decision":
+            # save_optimizer "last": AdamW's state only at the final step, to keep disk use down
+            if stage == "decision" and (cfg["model_hyperparameters"].get("save_optimizer", "all") == "all" or step == steps):
                 save_training_state(ckpt, optimizer, scaler, step, rng, order)
             checkpoints.append((step, ckpt))
             print(
                 f"  step {step}/{steps} {window_text(step)} | val loss {val_loss:.4f} "
                 f"val {'acc' if first_token else 'answer acc'} {val_first if first_token else val_answer:.3f} "
-                f"| saved {ckpt} | {time.time() - t0:.0f}s"
+                + "".join(f"{kind} {row[f'val_acc_{kind}']:.3f} " for kind in VAL_KINDS if row[f"val_acc_{kind}"] != "")
+                + f"({len(encoded_val)} trials, {val_seconds:.0f}s) | largest gradient {win_grad_max:.2f}"
+                + (f", {win_clipped} steps clipped at {max_norm}" if max_norm is not None else "")
+                + f" | saved {ckpt} | {time.time() - t0:.0f}s"
             )
+            win_grad_max, win_clipped = 0.0, 0
             rows.append(row)
             _append_log(log_path, rows)
             rows = []

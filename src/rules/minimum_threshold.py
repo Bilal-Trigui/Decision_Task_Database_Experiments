@@ -41,6 +41,7 @@ class MinimumThresholdRule(ThresholdRule):
         "option_count": 3,
         "neither_share": 0.2,
         "weight_decided_share": None,
+        "cut_overturns_only": False,
     }
 
 

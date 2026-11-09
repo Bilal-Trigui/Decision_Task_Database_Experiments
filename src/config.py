@@ -32,6 +32,7 @@ DEFAULT_SEEDS = {
     "weights": 1,
     "trials": 2,
     "verification": 5,
+    "validation": 8,
     "introspection": 6,
     "reports": 7,
 }
@@ -92,10 +93,10 @@ REQUIRED = {
 # is built.
 OPTIONAL = {
     "object": set(),
-    "model_training": {"seeds"},
+    "model_training": {"seeds", "natural_val_trials_per_persona"},
     "model_hyperparameters": {"gradient_checkpointing", "micro_batch_size", "introspection_at_steps",
                               "baseline_before_training", "lr_schedule", "introspection_targets",
-                              "introspection_remeasure_decisions"},
+                              "introspection_remeasure_decisions", "start_from", "save_optimizer", "run_tag", "max_grad_norm"},
     "gates": set(),
     "compute": {"mount_drive", "decision_eval_batch_size", "introspection_eval_batch_size"},
 }
@@ -114,6 +115,41 @@ LR_SCHEDULES = ("constant", "linear", "cosine")
 
 class SettingsError(ValueError):
     """A settings file that the pipeline refuses to run."""
+
+
+SAVE_OPTIMIZER = ("all", "last")
+RUN_TAG_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+
+
+def _check_branch(mh):
+    """start_from, save_optimizer and run_tag.
+
+    start_from {"run_id": ..., "step": N} starts decision training from another run's step-N
+    checkpoint (its adapter, and its AdamW state when that was saved) instead of the base model, as
+    a new run: steps N+1 to training_steps, numbered on from N, over this file's own data.
+    save_optimizer "last" keeps AdamW's state (about 170 MB at 8B) at the final checkpoint only;
+    every checkpoint still keeps its adapter. run_tag is added to the run id.
+    """
+    branch = mh["start_from"]
+    if branch is not None:
+        if (not isinstance(branch, dict) or set(branch) != {"run_id", "step"}
+                or not isinstance(branch["run_id"], str) or not branch["run_id"]
+                or isinstance(branch["step"], bool) or not isinstance(branch["step"], int) or branch["step"] < 1):
+            raise SettingsError('model_hyperparameters.start_from must be null or {"run_id": "<run>", "step": <positive integer>}')
+        if branch["step"] >= mh["training_steps"]:
+            raise SettingsError(f"model_hyperparameters.start_from step {branch['step']} must be below training_steps "
+                                f"{mh['training_steps']}: training runs from the step after it up to training_steps")
+        if mh["introspection_training"]:
+            raise SettingsError("model_hyperparameters.start_from works with decision training only; "
+                                "set introspection_training to false")
+        if mh["baseline_before_training"]:
+            raise SettingsError("model_hyperparameters.start_from starts from a trained checkpoint, so there is no "
+                                "untrained model to score; set baseline_before_training to false")
+    if mh["save_optimizer"] not in SAVE_OPTIMIZER:
+        raise SettingsError(f"model_hyperparameters.save_optimizer must be one of {SAVE_OPTIMIZER}, got {mh['save_optimizer']!r}")
+    tag = mh["run_tag"]
+    if tag is not None and (not isinstance(tag, str) or not tag or not set(tag) <= RUN_TAG_CHARS):
+        raise SettingsError("model_hyperparameters.run_tag must be null or letters, digits, - and _")
 
 
 def apply_defaults(cfg):
@@ -137,6 +173,11 @@ def apply_defaults(cfg):
     cfg["model_hyperparameters"].setdefault("lr_schedule", None)
     cfg["model_hyperparameters"].setdefault("introspection_targets", ["hidden"])
     cfg["model_hyperparameters"].setdefault("introspection_remeasure_decisions", False)
+    cfg["model_hyperparameters"].setdefault("start_from", None)
+    cfg["model_hyperparameters"].setdefault("save_optimizer", "all")
+    cfg["model_hyperparameters"].setdefault("run_tag", None)
+    cfg["model_hyperparameters"].setdefault("max_grad_norm", None)
+    cfg["model_training"].setdefault("natural_val_trials_per_persona", None)
     cfg["model_estimating"].setdefault("shuffle_draws", 1000)
     return cfg
 
@@ -193,8 +234,17 @@ def validate(cfg):
     for key in DEFAULT_SEEDS:
         if key not in mt["seeds"] or isinstance(mt["seeds"][key], bool) or not isinstance(mt["seeds"][key], int):
             raise SettingsError(f"model_training.seeds.{key} must be an integer")
-    if mt["instances"] < 2:
-        raise SettingsError("model_training.instances must be at least 2 (introspection training uses two folds)")
+    if mt["instances"] < 1:
+        raise SettingsError("model_training.instances must be at least 1")
+    natural = mt["natural_val_trials_per_persona"]
+    if natural is not None and (isinstance(natural, bool) or not isinstance(natural, int) or natural < 1):
+        raise SettingsError("model_training.natural_val_trials_per_persona must be null or a positive integer")
+    limit = mh["max_grad_norm"]
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, NUMBER) or limit <= 0):
+        raise SettingsError("model_hyperparameters.max_grad_norm must be null or a positive number")
+    if mt["instances"] < 2 and mh["introspection_training"]:
+        raise SettingsError("model_training.instances must be at least 2 when introspection_training is on "
+                            "(introspection training uses two folds)")
     for field in ("train_trials_per_persona", "val_trials_per_persona"):
         if mt[field] < 1:
             raise SettingsError(f"model_training.{field} must be at least 1")
@@ -248,6 +298,7 @@ def validate(cfg):
         )
     if len(set(counts)) != len(counts):
         raise SettingsError(f"model_estimating.estimation_trials_per_persona lists a count twice: {trials}")
+    _check_branch(mh)
     at = mh["introspection_at_steps"]
     if at is not None:
         at = _introspection_steps(at)
@@ -619,6 +670,7 @@ def hyperparameter_columns(cfg):
         "instances": mt["instances"],
         "train_trials_per_persona": mt["train_trials_per_persona"],
         "val_trials_per_persona": mt["val_trials_per_persona"],
+        "natural_val_trials_per_persona": "" if mt.get("natural_val_trials_per_persona") is None else mt["natural_val_trials_per_persona"],
         "model_name": mh["model_name"],
         "quantization": mh["quantization"],
         "finetune": mh["finetune"],
@@ -633,6 +685,7 @@ def hyperparameter_columns(cfg):
         "gradient_checkpointing": mh["gradient_checkpointing"],
         "micro_batch_size": mh["micro_batch_size"],
         "lr_schedule": "" if mh.get("lr_schedule") is None else json.dumps(mh["lr_schedule"], sort_keys=True),
+        "max_grad_norm": "" if mh.get("max_grad_norm") is None else mh["max_grad_norm"],
         "introspection_targets": json.dumps(mh.get("introspection_targets", ["hidden"])),
         "seed": mh["seed"],
         "decision_temperature": me["decision_temperature"],

@@ -81,7 +81,31 @@ def make_run_id(cfg):
     It builds a unique name for the run. It takes the timestamp, decision rule and the model.
     """
     short = cfg["model_hyperparameters"]["model_name"].split("/")[-1]
-    return f"{datetime.now():%Y%m%d-%H%M%S}_{cfg['decision_rule']['type']}_{short}"
+    tag = cfg["model_hyperparameters"].get("run_tag")
+    return f"{datetime.now():%Y%m%d-%H%M%S}_{cfg['decision_rule']['type']}_{short}" + (f"_{tag}" if tag else "")
+
+
+def branch_checkpoint(cfg, checkpoint_root="checkpoints", results_dir="results"):
+    """The decision checkpoint model_hyperparameters.start_from names, checked to exist and to fit.
+
+    Refuses a source run trained on another model or adapter shape, since its adapter would not load
+    or would mean something else here.
+    """
+    branch = cfg["model_hyperparameters"]["start_from"]
+    ckpt = Path(checkpoint_root) / branch["run_id"] / stage_label("decision") / f"step-{branch['step']}"
+    if not (ckpt / "adapter_model.safetensors").exists() and not list(ckpt.glob("*.safetensors")):
+        have = sorted(p.name for p in (Path(checkpoint_root) / branch["run_id"] / "decision").glob("step-*"))
+        raise SettingsError(f"start_from: no decision checkpoint at {ckpt}; that run has {have or 'no checkpoints'}")
+    source = Path(results_dir) / branch["run_id"] / "settings.json"
+    if source.exists():
+        theirs = json.loads(source.read_text())["model_hyperparameters"]
+        ours = cfg["model_hyperparameters"]
+        differ = [k for k in ("model_name", "quantization", "finetune", "lora_rank", "lora_alpha")
+                  if theirs.get(k) != ours.get(k)]
+        if differ:
+            raise SettingsError(f"start_from: {branch['run_id']} was trained with other {differ}: "
+                                + ", ".join(f"{k} {theirs.get(k)!r} there, {ours.get(k)!r} here" for k in differ))
+    return ckpt
 
 
 def _resume_plan(cfg, run_id, from_step, results_dir, checkpoint_root, overwrite):
@@ -177,6 +201,10 @@ def _run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None)
     data = D.load_data(cfg, comps.rule)
 
     start_step, introspect_first, state = 0, [], None
+    branch = mh.get("start_from") if not resume else None
+    if branch:
+        branch_ckpt = branch_checkpoint(cfg, checkpoint_root, results_dir)
+        start_step = branch["step"]
     if resume:
         run_id, start_step = resume["run_id"], int(resume["from_step"])
         ckpt, introspect_first, notes = _resume_plan(cfg, run_id, start_step, results_dir, checkpoint_root,
@@ -192,6 +220,9 @@ def _run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None)
         run_dir = Path(results_dir) / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "settings.json").write_text(json.dumps(cfg, indent=2) + "\n")
+        if branch:
+            print(f"branching from {branch['run_id']} decision step {branch['step']} ({branch_ckpt}); "
+                  f"training steps {start_step + 1} to {mh['training_steps']} on {mt['data_dir']}")
     print(
         f"run {run_id}: rule={comps.rule.name} estimator={comps.estimator.name} "
         f"schemas={[s.name for s in comps.schemas]} settings={cfg.get('_source')}"
@@ -208,6 +239,11 @@ def _run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None)
         saved_rng = (state["training_state"] or {}).get("rng")
         if saved_rng is not None:
             set_rng_state(saved_rng)
+    elif branch:
+        # The source's adapter and AdamW state, but not its data order or random state: those
+        # belonged to its own data. train_stage draws this run's order fresh from the seed.
+        load_checkpoint_weights(model, branch_ckpt, cfg, device)
+        state = {"optimizer": load_training_state(branch_ckpt, device)["optimizer"], "training_state": None}
     all_personas = list(range(mt["instances"]))
     all_rows = []
     points = introspection_points(cfg)  # the decision steps stage two branches from; [] when it is off

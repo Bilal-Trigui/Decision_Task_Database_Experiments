@@ -59,7 +59,7 @@ model_estimating (grid_step).
 """
 import numpy as np
 
-from src.rules.minimum_threshold import cut_column, survives
+from src.rules.minimum_threshold import cut_column
 
 from .base import Estimator, fit_logistic, rescale_to_100
 
@@ -103,11 +103,13 @@ class MinimumThresholdEstimator(Estimator):
         Not used by the fit. It is the design the screen would add to a logistic regression, kept
         for step 3b's check of how tangled the screen is with the attribute it screens on.
         """
-        screen = np.array(
-            [float(survives(xa[t], cuts)) - float(survives(xb[t], cuts)) for t in range(len(xa))],
-            dtype=float,
-        )
+        screen = self._passes(xa, cuts).astype(float) - self._passes(xb, cuts).astype(float)
         return np.column_stack([xa - xb, screen])
+
+    def _passes(self, x, cuts):
+        """The rule's survives(), for every trial at once: a cut of 0 is no constraint."""
+        cuts = np.asarray(cuts, float)
+        return np.all((cuts <= 0) | (x >= cuts / 100.0), axis=1)
 
     def levels(self):
         """The cut levels the search tries, in percent of range: every multiple of grid_step strictly inside 0 to 100."""
@@ -126,10 +128,7 @@ class MinimumThresholdEstimator(Estimator):
 
         Returns an array of 'A', 'B', 'C' or '' per trial, '' where the weighted sum decides.
         """
-        # survives(), for every trial at once: a cut of 0 is no constraint
-        cuts = np.asarray(cuts, float)
-        pass_a = np.all((cuts <= 0) | (xa >= cuts / 100.0), axis=1)
-        pass_b = np.all((cuts <= 0) | (xb >= cuts / 100.0), axis=1)
+        pass_a, pass_b = self._passes(xa, cuts), self._passes(xb, cuts)
         branch = np.full(len(xa), "", dtype=object)
         branch[pass_a & ~pass_b] = "A"
         branch[~pass_a & pass_b] = "B"

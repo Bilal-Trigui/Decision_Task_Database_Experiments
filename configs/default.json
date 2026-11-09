@@ -24,6 +24,7 @@
     "instances": 100,
     "train_trials_per_persona": 50,
     "val_trials_per_persona": 10,
+    "natural_val_trials_per_persona": null,
     "seeds": {
       "roles": 0,
       "weights": 1,
@@ -68,6 +69,10 @@
     "introspection_targets": ["hidden"],
     "introspection_remeasure_decisions": false,
     "lr_schedule": null,
+    "max_grad_norm": null,
+    "start_from": null,
+    "save_optimizer": "all",
+    "run_tag": null,
     "seed": 4
   },
   "gates": {

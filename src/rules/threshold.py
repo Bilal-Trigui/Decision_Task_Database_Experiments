@@ -28,6 +28,7 @@ cannot be run: build() refuses, so no settings file can name it and no data fold
 it. An experiment is a subclass that sets its own values:
   minimum_threshold.py         the values here, unchanged (the A4 runs)
   paper_minimum_threshold.py   the paper's design: Plunkett's weights, screened weight 0, cuts 25, 50 or 75
+  paper_maximum_threshold.py   that design with the screen reversed: an option above the cut fails
 
 The dials, all in the decision_rule block:
   active_cuts            how many of the n attributes carry a nonzero cut point (default 1)
@@ -60,9 +61,15 @@ The dials, all in the decision_rule block:
                          taken as they come they are about 29% under the paper draw, and as few as
                          6% for a persona screened at 75. The rest, beyond neither_share's C trials,
                          are trials one option fails, decided by the screen. null takes them as they
-                         come (default). neither_share plus this may not exceed 1. The rule itself is
+                         come (default). 0 draws none: every trial is C or decided by the screen.
+                         neither_share plus this may not exceed 1. The rule itself is
                          unchanged; only which trials are drawn for training is. The estimation
                          trials are always taken as they come
+  cut_overturns_only     with weight_decided_share set: the trials one option fails (beyond the
+                         weights' and C's shares) are only those where the screen changes the
+                         answer, the failing option being the one the weighted sum alone would
+                         have picked. false also keeps those where the passing option wins on the
+                         weights anyway, about half of them (default false)
 Reads decision_rule, object.attribute_count.
 """
 import numpy as np
@@ -99,6 +106,9 @@ class ThresholdRule(Rule):
     name = "threshold"
     DECISIVE_FLOOR = 0.05       # a screen deciding less than this share of trials is warned about
     option_counts = (2, 3)      # a trial both options fail can be answered C
+    survives = staticmethod(survives)   # the screen's test; paper_maximum_threshold.py reverses it
+    DECISIVE_HINT = "cut points set very high reject both options and hand every trial back to the weighted sum"
+    DRAW_NOTE = "a cut near 50% bites hardest; near 100% both options fail and the screen decides nothing"
     defaults = {
         "active_cuts": 1,
         "cut_range": [30, 70],
@@ -110,6 +120,7 @@ class ThresholdRule(Rule):
         "option_count": 2,
         "neither_share": None,
         "weight_decided_share": None,
+        "cut_overturns_only": False,
     }
 
     def __init__(self, **params):
@@ -154,11 +165,17 @@ class ThresholdRule(Rule):
                 )
         weights_share = p.get("weight_decided_share")
         if weights_share is not None:
-            if isinstance(weights_share, bool) or not _is_number(weights_share) or not 0 < weights_share < 1:
-                raise ValueError("decision_rule.weight_decided_share must be a number between 0 and 1, or null")
+            if isinstance(weights_share, bool) or not _is_number(weights_share) or not 0 <= weights_share < 1:
+                raise ValueError("decision_rule.weight_decided_share must be a number from 0 up to but not including 1, or null")
             if weights_share + (share or 0) > 1:
                 raise ValueError(f"decision_rule.weight_decided_share {weights_share} and neither_share {share} "
                                  "add up to more than every trial")
+        overturns = p.get("cut_overturns_only", False)
+        if not isinstance(overturns, bool):
+            raise ValueError("decision_rule.cut_overturns_only must be true or false")
+        if overturns and weights_share is None:
+            raise ValueError("decision_rule.cut_overturns_only needs weight_decided_share set, so the trials "
+                             "the weights decide are counted apart from those the screen decides")
         screened = p.get("screened_weight")
         if screened is not None:
             if not _is_number(screened):
@@ -224,7 +241,7 @@ class ThresholdRule(Rule):
     def passes(self, latent, values, mins, maxs):
         """True when an option clears every cut point of the latent: the screen half of the rule."""
         n = len(values)
-        return survives(normalized(values, mins, maxs), latent[n:])
+        return self.survives(normalized(values, mins, maxs), latent[n:])
 
     def label(self, latent, trial):
         """C when both options fail the screen and the trial offers C; otherwise the shared A or B choice."""
@@ -240,16 +257,48 @@ class ThresholdRule(Rule):
             quota["C"] = int(round(self.params["neither_share"] * n_trials))
         if self.params.get("weight_decided_share") is not None:
             quota["weights"] = int(round(self.params["weight_decided_share"] * n_trials))
+        if self.params.get("cut_overturns_only"):
+            quota["cut_agrees"] = 0     # a screen trial the weights would have answered the same way: none
         return quota or None
 
     def quota_key(self, latent, trial):
-        """C for a "neither" trial; "weights" when both options pass the screen and weight_decided_share is set."""
+        """C for a "neither" trial; "weights" when both options pass the screen and weight_decided_share is set.
+
+        With cut_overturns_only, a trial one option fails is "cut_overturns" when the weighted sum
+        alone would have picked the failing option, so the screen changed the answer, and
+        "cut_agrees" when it would have picked the passing one anyway.
+        """
         if trial.label == "C" or self.params.get("weight_decided_share") is None:
             return trial.label
         mins, maxs = trial.scenario.mins, trial.scenario.maxs
         if self.passes(latent, trial.option_A.values, mins, maxs) and self.passes(latent, trial.option_B.values, mins, maxs):
             return "weights"
+        if self.params.get("cut_overturns_only"):
+            return "cut_agrees" if self.weights_choice(latent, trial) == trial.label else "cut_overturns"
         return trial.label
+
+    def decided_by(self, latent, trial):
+        """weights (both pass), neither (both fail), cut_overturns (one fails, and the screen changes the answer) or cut_agrees.
+
+        Through passes and weights_choice, so a rule that reverses the screen gets its own kinds.
+        """
+        mins, maxs = trial.scenario.mins, trial.scenario.maxs
+        a = self.passes(latent, trial.option_A.values, mins, maxs)
+        b = self.passes(latent, trial.option_B.values, mins, maxs)
+        if a and b:
+            return "weights"
+        if not a and not b:
+            return "neither"
+        return "cut_agrees" if self.weights_choice(latent, trial) == ("A" if a else "B") else "cut_overturns"
+
+    def weights_choice(self, latent, trial):
+        """A or B by the weighted sum alone, as if there were no screen."""
+        mins, maxs = trial.scenario.mins, trial.scenario.maxs
+        n = len(trial.option_A.values)
+        weights = [float(w) for w in latent[:n]]
+        a = sum(w * x for w, x in zip(weights, normalized(trial.option_A.values, mins, maxs)))
+        b = sum(w * x for w, x in zip(weights, normalized(trial.option_B.values, mins, maxs)))
+        return "A" if a > b else "B"     # a tie goes to B, as in Rule.label
 
     def score(self, latent, values, mins, maxs):
         n = len(values)
@@ -259,7 +308,7 @@ class ThresholdRule(Rule):
         for i in range(n):
             weighted_sum += float(weights[i]) * xhat[i]
         screen = sum(abs(float(weights[i])) for i in range(n)) + 1.0
-        return screen * float(survives(xhat, cuts)) + weighted_sum
+        return screen * float(self.survives(xhat, cuts)) + weighted_sum
 
     # -- describing a folder --
 
@@ -327,7 +376,7 @@ class ThresholdRule(Rule):
         if share is not None and share < self.DECISIVE_FLOOR:
             notes.append(
                 f"the screen decides only {share:.1%} of trials, under the {self.DECISIVE_FLOOR:.0%} floor; "
-                "cut points set very high reject both options and hand every trial back to the weighted sum"
+                f"{self.DECISIVE_HINT}"
             )
         return notes
 
@@ -350,7 +399,7 @@ class ThresholdRule(Rule):
             f"weights                {mains.min():g} to {mains.max():g}",
             f"|w| of nonzero mains   {np.abs(mains[mains != 0]).mean():.2f} mean",
             f"screened attributes    {', '.join(f'{k} x{c}' for k, c in sorted(where.items(), key=lambda kv: -kv[1]))}",
-            "a cut near 50% bites hardest; near 100% both options fail and the screen decides nothing",
+            self.DRAW_NOTE,
         ]
 
     def dataset_stats(self, train_trials, val_trials, latents, n):
@@ -373,7 +422,7 @@ class ThresholdRule(Rule):
                 if self.label(latent, t) != self.label(weights_only, t):
                     persona_flips += 1
                 mins, maxs = t.scenario.mins, t.scenario.maxs
-                passing = [survives(normalized(option.values, mins, maxs), latent[n:]) for option in (t.option_A, t.option_B)]
+                passing = [self.survives(normalized(option.values, mins, maxs), latent[n:]) for option in (t.option_A, t.option_B)]
                 survived += sum(passing)
                 options += 2
                 both_pass += int(all(passing))

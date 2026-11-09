@@ -59,7 +59,7 @@ def test_minimum_threshold_draws_what_the_a4_folder_holds():
     assert frame.equals(held), "minimum_threshold no longer draws the shipped folder's latent"
     # with no minimum weight size, the draw is the A4 one, byte for byte
     _, a4 = roll_weights(MinimumThresholdRule(min_weight_magnitude=None), scenarios, N, seed=1)
-    assert hashlib.sha256(a4.to_csv(index=False).encode()).hexdigest()[:16] == A4_WEIGHTS
+    assert hashlib.sha256(a4.to_csv(index=False, lineterminator="\n").encode()).hexdigest()[:16] == A4_WEIGHTS
     print(f"  all {len(held)} shipped latents redrawn identically; min_weight_magnitude null redraws A4's file exactly")
 
 
