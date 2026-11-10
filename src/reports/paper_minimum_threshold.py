@@ -8,9 +8,9 @@ Every question is a folder under questions/paper_minimum_threshold/ (or report_s
                                                           optionally "show_trial": false
 
 By default the question is followed by a trial: the persona line and two options (data.report_prompt).
-"show_trial": false follows it with the persona line alone ("Imagine you are Djedefre. Which loose leaf
-tea would you prefer?"), no option values, so the reply cannot react to a particular pair (reject it,
-copy a number off it). With report_temperature 0 such a question is the same prompt every sample, so it
+"show_trial": false shows nothing after it: the question names the persona itself, right after
+[INTROSPECTION TASK] ({persona} = "Imagine you are Djedefre."), and shows no option values, so the reply
+cannot react to a particular pair (reject it, copy a number off it). With report_temperature 0 such a question is the same prompt every sample, so it
 is asked once per persona per checkpoint (evaluate.report).
 
 The folder's name is the question's name: the name a settings file selects it by, the report_batch
@@ -43,6 +43,9 @@ wording and the key names are the folder's; the kinds are code, so a new kind ne
                        as the options list them ("35 mg per cup"). The value is put on the named
                        attribute's range and scored on block screen_cut, so the reply is not told
                        which attribute is screened. Needs the scenario's ranges (batches_for)
+  screen_cut_percent   the screened attribute's number and its minimum as a percentage of that
+                       attribute's range, 0 to 100 (50 under a cut at the middle). Scored on block
+                       screen_cut like screen_cut_units, with no units to convert
   screen_weight        the screened attribute's own weight once passed, -100 to 100. Always 0 under
                        the paper rule, so it can be answered with no self-knowledge. Block screen_weight
   cut                  the minimum threshold schema's per-attribute cut report. Block cut
@@ -92,6 +95,7 @@ KINDS = {
     "screen_index": {"block": "screen_index", "keys": 1},
     "screen_cut_fraction": {"block": "screen_cut", "keys": 1},
     "screen_cut_units": {"block": "screen_cut", "keys": 2},
+    "screen_cut_percent": {"block": "screen_cut", "keys": 2},
     "screen_weight": {"block": "screen_weight", "keys": 1},
     "combined_fraction": {"block": "main", "keys": 3, "parts": ("main", "screen_index", "screen_cut", "screen_weight")},
     "combined_units": {"block": "main", "keys": 2, "parts": ("main", "screen_index", "screen_cut")},
@@ -100,7 +104,7 @@ UNITS_KINDS = ("screen_cut_units", "combined_units")
 FULL_LATENT_KINDS = ("screen_weight", "combined_fraction", "combined_units")   # given weights and cuts, not one block
 DEFAULT_BATCHES = ("main", "screen_index", "screen_cut", "screen_weight")
 SINGLE_LEVELS = ("screen_cut", "screen_weight")     # one number each, aggregated as the most common reply
-PLACEHOLDERS = ("word", "count", "listing", "units_listing", "keys", "units_keys")
+PLACEHOLDERS = ("word", "count", "listing", "units_listing", "keys", "units_keys", "persona")
 
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
@@ -123,12 +127,21 @@ def _units_listing(names, units=None, mins=None, maxs=None):
     return ", ".join(parts)
 
 
-def screen_prompt(template, names, units=None, mins=None, maxs=None):
-    """A prompt.txt filled in for one scenario's attribute names (and, for {units_listing}, units and ranges)."""
+def persona_line(question):
+    """ "Imagine you are Djedefre." out of the persona line "Imagine you are Djedefre. Which loose leaf tea would
+    you prefer?" (data.assemble_scenarios glues the role to the question as "Imagine you are {role}. {question}")."""
+    head, sep, _ = question.rpartition(". ")
+    return head + "." if sep and head.startswith("Imagine you are ") else question
+
+
+def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=None):
+    """A prompt.txt filled in for one scenario's attribute names (and, for {units_listing}, units and ranges;
+    for {persona}, the persona sentence, left as the literal {persona} when no persona is given)."""
     n = len(names)
     listing = ", ".join(f"{i} {name}" for i, name in enumerate(names, start=1))
     return template.format(word=_word(n), listing=listing, count=n,
                            units_listing=_units_listing(names, units, mins, maxs),
+                           persona="{persona}" if persona is None else persona,
                            keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"])
 
 
@@ -169,6 +182,8 @@ def load_question(folder):
     if not isinstance(show_trial, bool):
         raise ValueError(f"{spec_path}: show_trial must be true or false, got {show_trial!r}")
     template = prompt_path.read_bytes().decode("utf-8")
+    if not show_trial and "{persona}" not in template:
+        raise ValueError(f"{prompt_path}: a question with show_trial false must name the persona with {{persona}}")
     try:
         screen_prompt(template, ["a", "b"])
     except (KeyError, IndexError, ValueError) as err:
@@ -229,9 +244,9 @@ class PaperMinimumThresholdSchema(Schema):
         mins, maxs = getattr(scenario, "mins", None), getattr(scenario, "maxs", None)
         attributes = getattr(scenario, "attributes", None) or []
         units = [a.get("units", "") for a in attributes] if attributes else None
-        return self.batches(scenario.names, mins, maxs, units)
+        return self.batches(scenario.names, mins, maxs, units, persona=persona_line(scenario.question))
 
-    def batches(self, attribute_names, mins=None, maxs=None, units=None):
+    def batches(self, attribute_names, mins=None, maxs=None, units=None, persona=None):
         names = list(attribute_names)[: self.n]
         ranges = dict(mins=None if mins is None else tuple(float(v) for v in mins[: self.n]),
                       maxs=None if maxs is None else tuple(float(v) for v in maxs[: self.n]))
@@ -241,7 +256,7 @@ class PaperMinimumThresholdSchema(Schema):
             spec = self.specs[question]
             kind = KINDS[spec["kind"]]
             keys = names + list(spec["keys"]) if kind.get("parts") else (spec["keys"] or names)
-            prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"])
+            prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"], persona)
             out.append(Batch(name=question, block=kind["block"], keys=list(keys),
                              prompt_base=prompt_base, names=names,
                              trained=self.trained[question], parts=tuple(kind.get("parts", ())),
@@ -295,6 +310,10 @@ class PaperMinimumThresholdSchema(Schema):
             votes, percent = read
             # screen_cut_units is scored on screen_cut alone; its index only says which range the value is on
             return percent if kind == "screen_cut_units" else np.concatenate([values[:n], votes, percent])
+        if kind == "screen_cut_percent":
+            # (screened_dimension, minimum as a percentage of range): scored on screen_cut alone, like units
+            votes, percent = self._screen_value("screen_index", float(values[-2])), float(values[-1])
+            return np.array([percent]) if votes is not None and 0 <= percent <= 100 else None
         if kind == "combined_fraction":
             # the n weights as they are, then each screen answer read as its own question reads it
             screen = [self._screen_value(k, float(v)) for k, v in
@@ -340,6 +359,8 @@ class PaperMinimumThresholdSchema(Schema):
             mins, maxs = self._ranges(batch)
             value = mins[j] + cuts[j] / 100.0 * (maxs[j] - mins[j])
             return [j + 1, json_number(round(value, _decimals(mins[j], maxs[j])))]
+        if kind == "screen_cut_percent":
+            return [j + 1, json_number(cuts[j])]
         answers = {"screen_index": j + 1, "screen_cut_fraction": json_number(cuts.max() / 100.0),
                    "screen_weight": json_number(weights[j])}
         if kind == "combined_fraction":
@@ -354,7 +375,8 @@ class PaperMinimumThresholdSchema(Schema):
 
     def format_answer(self, batch, values):
         """The JSON training answer. A screen or combined question is given the full latent (weights then
-        cuts), screen_index, screen_cut_fraction and screen_cut_units the cut block alone, as the pipeline does."""
+        cuts), screen_index, screen_cut_fraction, screen_cut_units and screen_cut_percent the cut block alone,
+        as the pipeline does."""
         values = np.asarray(values, dtype=float)
         kind, n = batch.kind or batch.name, self.n
         if kind == "cut":

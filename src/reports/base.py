@@ -34,7 +34,7 @@ class Batch:
     mins: tuple = None      # the scenario's attribute ranges, for a batch answered in the attributes' own units
     maxs: tuple = None
     kind: str = None        # what the question asks, for a schema whose questions are folders (paper_minimum_threshold)
-    show_trial: bool = True  # False: the question is followed by the persona line only, no options (data.report_prompt)
+    show_trial: bool = True  # False: no options; the question names the persona itself after [INTROSPECTION TASK]
 
     @property
     def blocks(self):

@@ -1,5 +1,5 @@
 {
   "kind": "weights",
   "show_trial": false,
-  "description": "The weights when an option went above that maximum, asked with no trial (persona line only). Read and scored as weights on block main, but the persona's weights are NOT its right answer: under the paper rule such an option is rejected whatever its other values. Read its replies directly; do not train on it until its answer is decided."
+  "description": "The weights when an option went above that maximum, asked with no trial (the persona line opens the question). Read and scored as weights on block main, but the persona's weights are NOT its right answer: under the paper rule such an option is rejected whatever its other values. Read its replies directly; do not train on it until its answer is decided."
 }

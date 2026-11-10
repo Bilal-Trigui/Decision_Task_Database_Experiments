@@ -633,7 +633,7 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                 if not batch.show_trial and rs["report_temperature"] == 0:
                     trials = trials[:1]
                 for s, trial in enumerate(trials):
-                    # two options only, never C, or the persona line alone: see data.report_prompt
+                    # two options only, never C, or nothing (show_trial false): see data.report_prompt
                     question = D.report_prompt(batch, trial)
                     texts.append(chat_prompt(tok, question))
                     questions.append(question)

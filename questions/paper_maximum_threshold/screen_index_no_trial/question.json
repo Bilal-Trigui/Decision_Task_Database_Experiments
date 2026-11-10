@@ -4,5 +4,5 @@
   "keys": [
     "screened_dimension"
   ],
-  "description": "Which dimension, 1 to n, carried the maximum threshold, asked with no trial. Block screen_index."
+  "description": "Which dimension, 1 to n, carried the maximum threshold, asked with no trial (the persona line opens the question). Block screen_index."
 }

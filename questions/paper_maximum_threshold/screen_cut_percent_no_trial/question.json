@@ -1,0 +1,9 @@
+{
+  "kind": "screen_cut_percent",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension",
+    "maximum_percent"
+  ],
+  "description": "The screened dimension and its maximum as a percentage of its range (0 bottom, 100 top), asked with no trial (the persona line opens the question). The same question as screen_cut_units_no_trial with the answer in percent instead of units. Block screen_cut."
+}

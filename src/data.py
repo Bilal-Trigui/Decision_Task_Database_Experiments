@@ -62,8 +62,9 @@ def selection_prompt(trial, option_count=2):
 def report_context(batch, trial):
     """What follows a report question's wording: by default the trial's persona line and its two options
     (never C: see generate_introspection_examples). A question whose question.json sets "show_trial": false
-    gets the persona line alone, so its reply cannot react to a particular pair of options."""
-    return trial.generate_choice() if getattr(batch, "show_trial", True) else trial.scenario.question
+    gets nothing: it names the persona itself, right after [INTROSPECTION TASK] ({persona} in its prompt.txt),
+    and shows no options, so its reply cannot react to a particular pair of options."""
+    return trial.generate_choice() if getattr(batch, "show_trial", True) else ""
 
 
 def report_prompt(batch, trial):
@@ -586,7 +587,7 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
         rng = random.Random(seed)
         # Report prompts show the two options only, as Plunkett's do: the pair sets the scene for a
         # decision, and C (neither) is an answer to a decision, which a report never gives.
-        # A question with "show_trial": false is followed by the persona line alone (report_prompt).
+        # A question with "show_trial": false names the persona itself and shows no options (report_prompt).
         trial = Trial(sc, rng)
         for batch in schema.batches_for(sc):
             if not batch.trained:

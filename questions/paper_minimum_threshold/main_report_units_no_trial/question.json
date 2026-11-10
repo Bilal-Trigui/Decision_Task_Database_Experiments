@@ -5,5 +5,5 @@
     "screened_dimension",
     "minimum_value"
   ],
-  "description": "The weights, the screened dimension and its minimum in units in one reply, asked with no trial."
+  "description": "The weights, the screened dimension and its minimum in units in one reply, asked with no trial (the persona line opens the question)."
 }

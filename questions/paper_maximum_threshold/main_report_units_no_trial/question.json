@@ -5,5 +5,5 @@
     "screened_dimension",
     "maximum_value"
   ],
-  "description": "The weights, the screened dimension and its maximum in units in one reply, asked with no trial."
+  "description": "The weights, the screened dimension and its maximum in units in one reply, asked with no trial (the persona line opens the question)."
 }

@@ -5,5 +5,5 @@
     "screened_dimension",
     "maximum_value"
   ],
-  "description": "The screened dimension and its maximum in its own units, asked with no trial: units and ranges are listed in the question, so there are no option values to copy. Block screen_cut."
+  "description": "The screened dimension and its maximum in its own units, asked with no trial (the persona line opens the question): units and ranges are listed in the question, so there are no option values to copy. Block screen_cut."
 }
