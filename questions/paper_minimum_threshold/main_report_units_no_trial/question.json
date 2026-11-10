@@ -1,0 +1,9 @@
+{
+  "kind": "combined_units",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ],
+  "description": "The weights, the screened dimension and its minimum in units in one reply, asked with no trial."
+}

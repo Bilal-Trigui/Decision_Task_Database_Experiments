@@ -1,0 +1,5 @@
+{
+  "kind": "weights",
+  "show_trial": false,
+  "description": "The weights once an option stayed at or below that maximum, asked with no trial (persona line only). Scored on block main against the persona's weights, which is the right answer here: the screened dimension's own weight is 0 once passed."
+}

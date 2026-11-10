@@ -4,7 +4,14 @@ THE QUESTIONS LIVE IN FOLDERS
 Every question is a folder under questions/paper_minimum_threshold/ (or report_schema.questions_dir):
 
   questions/paper_minimum_threshold/<name>/prompt.txt     the wording, word for word, with placeholders
-  questions/paper_minimum_threshold/<name>/question.json  its kind, its answer keys, a description
+  questions/paper_minimum_threshold/<name>/question.json  its kind, its answer keys, a description, and
+                                                          optionally "show_trial": false
+
+By default the question is followed by a trial: the persona line and two options (data.report_prompt).
+"show_trial": false follows it with the persona line alone ("Imagine you are Djedefre. Which loose leaf
+tea would you prefer?"), no option values, so the reply cannot react to a particular pair (reject it,
+copy a number off it). With report_temperature 0 such a question is the same prompt every sample, so it
+is asked once per persona per checkpoint (evaluate.report).
 
 The folder's name is the question's name: the name a settings file selects it by, the report_batch
 column of its results rows, and the name of its introspection training file. To reword a question,
@@ -16,6 +23,8 @@ prompt.txt placeholders, filled per scenario:
   {word}        the attribute count as a word ("five")
   {count}       the attribute count as a number
   {listing}     the attributes in order with their numbers: "1 caffeine_content, 2 leaf_size, ..."
+  {units_listing} the same with each attribute's units and range: "1 caffeine_content (mg per cup, 0 to 70), ..."
+                (for questions shown no trial, which have no options to read units off)
   {keys}        the key count of a combined_fraction reply (n + 3)
   {units_keys}  the key count of a combined_units reply (n + 2)
 
@@ -91,7 +100,7 @@ UNITS_KINDS = ("screen_cut_units", "combined_units")
 FULL_LATENT_KINDS = ("screen_weight", "combined_fraction", "combined_units")   # given weights and cuts, not one block
 DEFAULT_BATCHES = ("main", "screen_index", "screen_cut", "screen_weight")
 SINGLE_LEVELS = ("screen_cut", "screen_weight")     # one number each, aggregated as the most common reply
-PLACEHOLDERS = ("word", "count", "listing", "keys", "units_keys")
+PLACEHOLDERS = ("word", "count", "listing", "units_listing", "keys", "units_keys")
 
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
@@ -100,11 +109,26 @@ def _word(n):
     return _NUMBER_WORDS.get(n, str(n))
 
 
-def screen_prompt(template, names):
-    """A prompt.txt filled in for one scenario's attribute names."""
+def _units_listing(names, units=None, mins=None, maxs=None):
+    """ "1 caffeine_content (mg per cup, 0 to 70), 2 leaf_size (millimeters, 0.1 to 10), ..." : each dimension's
+    units and range, for a question shown no trial, which has no options to read them off."""
+    parts = []
+    for i, name in enumerate(names):
+        about = []
+        if units is not None:
+            about.append(str(units[i]))
+        if mins is not None and maxs is not None:
+            about.append(f"{float(mins[i]):g} to {float(maxs[i]):g}")
+        parts.append(f"{i + 1} {name}" + (f" ({', '.join(about)})" if about else ""))
+    return ", ".join(parts)
+
+
+def screen_prompt(template, names, units=None, mins=None, maxs=None):
+    """A prompt.txt filled in for one scenario's attribute names (and, for {units_listing}, units and ranges)."""
     n = len(names)
     listing = ", ".join(f"{i} {name}" for i, name in enumerate(names, start=1))
     return template.format(word=_word(n), listing=listing, count=n,
+                           units_listing=_units_listing(names, units, mins, maxs),
                            keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"])
 
 
@@ -141,6 +165,9 @@ def load_question(folder):
     if want is not None and (not isinstance(keys, list) or len(keys) != want or len(set(keys)) != want
                              or not all(isinstance(k, str) and k for k in keys)):
         raise ValueError(f"{spec_path}: a {kind} question needs {want} distinct key names, got {keys!r}")
+    show_trial = spec.get("show_trial", True)
+    if not isinstance(show_trial, bool):
+        raise ValueError(f"{spec_path}: show_trial must be true or false, got {show_trial!r}")
     template = prompt_path.read_bytes().decode("utf-8")
     try:
         screen_prompt(template, ["a", "b"])
@@ -148,7 +175,7 @@ def load_question(folder):
         raise ValueError(f"{prompt_path}: placeholder {err} is not one of {{{'}, {'.join(PLACEHOLDERS)}}}; "
                          "write a literal brace as {{ or }}") from None
     return {"name": folder.name, "kind": kind, "keys": keys, "description": spec.get("description", ""),
-            "template": template}
+            "template": template, "show_trial": show_trial}
 
 
 def available_questions(path=None):
@@ -200,21 +227,25 @@ class PaperMinimumThresholdSchema(Schema):
 
     def batches_for(self, scenario):
         mins, maxs = getattr(scenario, "mins", None), getattr(scenario, "maxs", None)
-        return self.batches(scenario.names, mins, maxs)
+        attributes = getattr(scenario, "attributes", None) or []
+        units = [a.get("units", "") for a in attributes] if attributes else None
+        return self.batches(scenario.names, mins, maxs, units)
 
-    def batches(self, attribute_names, mins=None, maxs=None):
+    def batches(self, attribute_names, mins=None, maxs=None, units=None):
         names = list(attribute_names)[: self.n]
         ranges = dict(mins=None if mins is None else tuple(float(v) for v in mins[: self.n]),
                       maxs=None if maxs is None else tuple(float(v) for v in maxs[: self.n]))
+        units = None if units is None else list(units)[: self.n]
         out = []
         for question in self.chosen:
             spec = self.specs[question]
             kind = KINDS[spec["kind"]]
             keys = names + list(spec["keys"]) if kind.get("parts") else (spec["keys"] or names)
+            prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"])
             out.append(Batch(name=question, block=kind["block"], keys=list(keys),
-                             prompt_base=screen_prompt(spec["template"], names), names=names,
+                             prompt_base=prompt_base, names=names,
                              trained=self.trained[question], parts=tuple(kind.get("parts", ())),
-                             kind=spec["kind"], **ranges))
+                             kind=spec["kind"], show_trial=spec["show_trial"], **ranges))
         return out
 
     # -- reading a single screen answer --

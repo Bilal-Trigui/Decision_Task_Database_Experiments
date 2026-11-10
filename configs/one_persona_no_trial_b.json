@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "No-trial report questions, persona B (loose_leaf_tea, weights 0 / 100 / 20 / -50 / -70, caffeine screened at 35 mg):",
+    "the same as one_persona_no_trial_a.json, on persona B's data folder. Repeats run 20261109-214726 (same data, seeds,",
+    "clipping, 3000 steps) with the no-trial questions asked beside the old ones. See that file for the questions."
+  ],
+  "extends": "one_persona_no_trial_a.json",
+  "model_training": {
+    "data_dir": "data/one_persona_minimum_threshold_b/"
+  },
+  "model_hyperparameters": {
+    "run_tag": "no-trial-b"
+  }
+}

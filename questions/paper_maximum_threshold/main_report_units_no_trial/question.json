@@ -1,0 +1,9 @@
+{
+  "kind": "combined_units",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension",
+    "maximum_value"
+  ],
+  "description": "The weights, the screened dimension and its maximum in units in one reply, asked with no trial."
+}

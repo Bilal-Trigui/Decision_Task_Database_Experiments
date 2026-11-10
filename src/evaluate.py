@@ -627,9 +627,14 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
             texts, questions, index = [], [], []
             for k in persona_indices:
                 batch = schema.batches_for(personas[k])[b_i]
-                for s, trial in enumerate(report_trials[k]):
-                    # two options only, never C: see data.generate_introspection_examples
-                    question = batch.prompt_base + trial.generate_choice()
+                # A question shown no trial is the same prompt every sample; at temperature 0 every reply
+                # would be the same too, so it is asked once.
+                trials = report_trials[k]
+                if not batch.show_trial and rs["report_temperature"] == 0:
+                    trials = trials[:1]
+                for s, trial in enumerate(trials):
+                    # two options only, never C, or the persona line alone: see data.report_prompt
+                    question = D.report_prompt(batch, trial)
                     texts.append(chat_prompt(tok, question))
                     questions.append(question)
                     index.append((k, s))

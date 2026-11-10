@@ -58,6 +58,18 @@ def selection_prompt(trial, option_count=2):
     """The whole decision question for one trial: instruction, then the options."""
     return selection_prompt_base(option_count) + trial.generate_choice(option_count)
 
+
+def report_context(batch, trial):
+    """What follows a report question's wording: by default the trial's persona line and its two options
+    (never C: see generate_introspection_examples). A question whose question.json sets "show_trial": false
+    gets the persona line alone, so its reply cannot react to a particular pair of options."""
+    return trial.generate_choice() if getattr(batch, "show_trial", True) else trial.scenario.question
+
+
+def report_prompt(batch, trial):
+    """The whole report question for one sample: the question's wording, then report_context."""
+    return batch.prompt_base + report_context(batch, trial)
+
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
 
@@ -574,7 +586,8 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
         rng = random.Random(seed)
         # Report prompts show the two options only, as Plunkett's do: the pair sets the scene for a
         # decision, and C (neither) is an answer to a decision, which a report never gives.
-        prompt = Trial(sc, rng).generate_choice()
+        # A question with "show_trial": false is followed by the persona line alone (report_prompt).
+        trial = Trial(sc, rng)
         for batch in schema.batches_for(sc):
             if not batch.trained:
                 continue    # asked in the reports only
@@ -585,7 +598,7 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
                 )
             # a question that answers several blocks at once (main_report) is given the full latent
             values = np.asarray(latents[k]) if batch.parts else latents[k][slices[batch.block]]
-            examples.append(introspection_example(sc, prompt, batch, values, schema))
+            examples.append(introspection_example(sc, report_context(batch, trial), batch, values, schema))
     return examples
 
 
