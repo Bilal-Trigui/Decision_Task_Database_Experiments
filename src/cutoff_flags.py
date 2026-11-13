@@ -17,14 +17,15 @@ Flags, one row per reply (cutoff_flags.csv):
   readable          the reply is a JSON object with the question's two keys and numbers for both
   named_dim, dim_right          the dimension number given, and whether it is the persona's screened one
   stated, true_cut, distance    the stated cut, the persona's (mg, or percent of range), stated - true
-  exact, within_1, within_5     |distance| = 0, <= 1, <= 5 (units); for percent within_2 and within_10
+  exact, within_a, within_b     |distance| = 0, <= 1, <= 5 mg (units; for another attribute the same share of its
+                                range, see _units_scale); for percent within 2 and within 10 points
   right             dim_right and within 1 (units) or within 2 points (percent)
   range_end         the stated number is an end of the named dimension's range (0 or 70 mg; 0 or 100 %)
   trial shown only (the option values are read back from the prompt saved with the reply):
   kind              weights (both options pass the cut), screen (one fails), neither (both fail); no_trial otherwise
   copies_named_dim  the stated number equals option A's or B's value on the named dimension
   copies_any_dim    ... on any dimension (for a percent reply, this catches an mg value written as a percent)
-  cut_shown_near    an option's value on the screened dimension is within 2 (units) of the true cut, so a copy
+  cut_shown_near    an option's value on the screened dimension is within 2 mg (scaled by range) of the true cut, so a copy
                     could look right; set on every trial-shown question, in units of that dimension
   right_not_copy    right, and not a copy of an option value on the named dimension
 Summary per step, question and kind (cutoff_flags_summary.csv): n asked, n readable, and the share of the
@@ -44,6 +45,17 @@ UNITS_KEYS = ("cutoff_value", "minimum_value")
 PERCENT_KEYS = ("cutoff_percent", "minimum_percent")
 TOL = {"units": (1.0, 5.0), "percent": (2.0, 10.0)}     # (right / first band, second band)
 NEAR_SHOWN = 2.0            # an option within 2 units of the true cut on the screened dimension
+# The units bands and NEAR_SHOWN are in mg for caffeine_content, whose range is 70 wide. For another screened
+# attribute they are scaled by its range: steeping_time (1 to 7 minutes) gets 1/70*6, 5/70*6 and 2/70*6 minutes,
+# the same share of its range. Percent bands are already on one scale.
+UNITS_SPAN = 70.0
+
+
+def _units_scale(rule):
+    s = rule.screen
+    if s.low is None or s.high is None:
+        return 1.0
+    return (s.high - s.low) / UNITS_SPAN
 EPS = 1e-6
 FLAGS = ["dim_right", "exact", "within_a", "within_b", "right", "range_end",
          "copies_named_dim", "copies_any_dim", "cut_shown_near", "right_not_copy"]
@@ -105,7 +117,8 @@ def flag(row, rule, keys, scale):
         j = screen.position - 1
         out["A_screened"], out["B_screened"] = options["A"][j], options["B"][j]
         # whether a copy could look right: units of the screened dimension, the same test for a percent question
-        out["cut_shown_near"] = any(abs(options[x][j] - screen.value) <= NEAR_SHOWN for x in "AB")
+        out["cut_shown_near"] = any(abs(options[x][j] - screen.value) <= NEAR_SHOWN * _units_scale(rule) + EPS
+                                    for x in "AB")
     d = _read(row["reply"])
     value_key = [k for k in keys if k != "screened_dimension"][0]
     named = _num(d.get("screened_dimension")) if d else None
@@ -117,6 +130,8 @@ def flag(row, rule, keys, scale):
     out["dim_right"] = abs(named - screen.position) < EPS
     dist = stated - true_cut
     a, b = TOL[scale]
+    if scale == "units":
+        a, b = a * _units_scale(rule), b * _units_scale(rule)
     out.update(distance=dist, exact=abs(dist) < EPS, within_a=abs(dist) <= a + EPS, within_b=abs(dist) <= b + EPS)
     out["right"] = out["dim_right"] and out["within_a"]
     valid = named.is_integer() and 1 <= named <= len(dims)

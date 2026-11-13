@@ -416,6 +416,11 @@ def check_resume(saved, cfg, from_step):
     """
     def strip(c):
         c = copy.deepcopy({k: v for k, v in c.items() if not k.startswith("_")})
+        # a data folder that moved (src/data_paths.py) is the same data: compare where it lives now
+        mt = c.get("model_training", {})
+        if "data_dir" in mt:
+            from src import data_paths
+            mt["data_dir"] = data_paths.resolve(mt["data_dir"]).replace("\\", "/").rstrip("/")
         for block in RESUME_FREE_BLOCKS:
             c.pop(block, None)
         for field in RESUME_FREE_HYPERPARAMETERS:

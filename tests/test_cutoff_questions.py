@@ -11,6 +11,7 @@ from src import cutoff_flags as CF
 from src import data as D
 from src.persona_rule import Rule, Screen
 from src.reports.paper_minimum_threshold import PaperMinimumThresholdSchema
+from tests import config_path
 
 import numpy as np
 
@@ -21,9 +22,9 @@ NEW = {   # name: (shows a trial, scale, answer keys)
     "cutoff_units_no_trial": (False, "units", ["screened_dimension", "cutoff_value"]),
     "cutoff_percent_no_trial": (False, "percent", ["screened_dimension", "cutoff_percent"]),
 }
-PERSONAS = {"A": "data/one_persona_minimum_threshold", "B": "data/one_persona_minimum_threshold_b",
-            "A-inverse": "data/one_persona_minimum_threshold_a_inverse",
-            "B-inverse": "data/one_persona_minimum_threshold_b_inverse"}
+PERSONAS = {"A": "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold", "B": "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b",
+            "A-inverse": "data/minimum_threshold_one_persona/inverse/one_persona_minimum_threshold_a_inverse",
+            "B-inverse": "data/minimum_threshold_one_persona/inverse/one_persona_minimum_threshold_b_inverse"}
 BANNED = re.compile(r"\b(minimum|minimal|lowest|least|smallest|bottom|floor)\b", re.I)
 DIMS = ["caffeine_content", "leaf_size", "oxidation_level", "steeping_time", "resteep_potential"]
 
@@ -93,7 +94,7 @@ def test_old_cut_questions_render_exactly_as_before():
     # rendered by the code at commit cc7891b, before the cutoff questions were added
     frozen = json.loads((ROOT / "tests" / "fixtures" / "old_cut_questions.json").read_text(encoding="utf-8"))
     names = sorted({k.split("|")[1] for k in frozen})
-    for folder in ("data/one_persona_minimum_threshold", "data/one_persona_minimum_threshold_b"):
+    for folder in ("data/minimum_threshold_one_persona/base/one_persona_minimum_threshold", "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b"):
         _, _, by = _rendered(folder, names, option_count=2)
         for name, (b, prompt) in by.items():
             base, full, keys = frozen[f"{folder}|{name}"]
@@ -103,11 +104,11 @@ def test_old_cut_questions_render_exactly_as_before():
 def test_configs_ask_the_four():
     from src import config as C
     for n in ("one_persona_probes_a", "one_persona_probes_b", "one_persona_a_inverse", "one_persona_b_inverse"):
-        q = C.load(str(ROOT / "configs" / f"{n}.json"))["report_schema"]["questions"]
+        q = C.load(str(config_path(n)))["report_schema"]["questions"]
         assert all(q.get(name) == {"ask": True, "train": False} for name in NEW), n
     for n in ("one_persona_no_trial_a", "one_persona_no_trial_b", "one_persona_minimum_threshold",
               "one_persona_minimum_threshold_b", "one_persona_linear"):
-        q = C.load(str(ROOT / "configs" / f"{n}.json"))["report_schema"].get("questions", {})
+        q = C.load(str(config_path(n)))["report_schema"].get("questions", {})
         assert not any(name in q for name in NEW), n     # old configs ask what they asked
 
 
@@ -166,6 +167,28 @@ def test_percent_flags_catch_an_mg_value_written_as_a_percent():
     assert f["right"] and f["within_a"] and not f["exact"] and f["right_not_copy"]
     f = CF.flag(_row("cutoff_percent_no_trial", '{"screened_dimension": 1, "cutoff_percent": 100}', "[INTROSPECTION TASK] x"), RULE, keys, "percent")
     assert f["kind"] == "no_trial" and f["range_end"] and "copies_any_dim" not in f
+
+
+def test_units_bands_scale_with_the_screened_range():
+    # steeping_time (1 to 7 minutes, 6 wide) screened at 4 minutes: bands 1/70*6 and 5/70*6 minutes
+    rule = Rule(DIMS, np.array([-100, -83, -38, 0, 31.0]),
+                Screen(4, "steeping_time", "minutes", 4.0, 50.0, "minimum", 1.0, 7.0),
+                np.array([0, 0.1, 0, 1, 1.0]), np.array([70, 10, 100, 7, 8.0]))
+    keys = NEW["cutoff_units"][2]
+    def f(value, a_steep=2.0, b_steep=6.0):
+        prompt = _trial_prompt(30.0, 40.0).replace("steeping_time: 1.0 minutes", f"steeping_time: {a_steep} minutes", 1)
+        prompt = prompt.replace("steeping_time: 1.0 minutes", f"steeping_time: {b_steep} minutes", 1)
+        return CF.flag(_row("cutoff_units", '{"screened_dimension": 4, "cutoff_value": %s}' % value, prompt), rule, keys, "units")
+    assert f(4.05)["within_a"] and f(4.05)["right"]
+    assert not f(4.3)["within_a"] and f(4.3)["within_b"]
+    assert not f(5)["within_b"]
+    assert f(4)["kind"] == "screen" and not f(4)["cut_shown_near"]          # 2 and 6 are far from 4
+    assert f(4, a_steep=4.0)["cut_shown_near"] and f(4, a_steep=4.0)["copies_named_dim"]
+    assert f(7)["range_end"] and f(1)["range_end"]
+    # caffeine keeps 1 and 5 mg exactly
+    keys_c = NEW["cutoff_units"][2]
+    g = CF.flag(_row("cutoff_units", '{"screened_dimension": 1, "cutoff_value": 40}', _trial_prompt(23.0, 41.0)), RULE, keys_c, "units")
+    assert g["within_b"] and not g["within_a"]
 
 
 def s_readable(summary, question, kind):

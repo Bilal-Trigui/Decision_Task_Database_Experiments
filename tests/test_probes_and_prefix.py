@@ -17,6 +17,7 @@ from src.persona_rule import Screen
 MIN35 = Screen(1, "caffeine_content", "mg per cup", 35.0, 50.0, "minimum")
 from src.reports.paper_minimum_threshold import PaperMinimumThresholdSchema
 from tests.test_no_trial_questions import TEA
+from tests import config_path
 
 
 def _schema(names):
@@ -119,7 +120,7 @@ def test_probe_configs_load_with_the_prefix_on():
     from src import config as C
     for name in ("one_persona_probes_a", "one_persona_probes_b", "one_persona_a_inverse", "one_persona_b_inverse",
                  "one_persona_linear"):
-        cfg = C.load(f"configs/{name}.json")
+        cfg = C.load(str(config_path(name)))
         assert E.reply_prefix(cfg) == "{", name
         assert cfg["report_schema"]["show_neither"] is True, name
         assert cfg["model_hyperparameters"]["introspection_training"] is False, name
@@ -168,12 +169,12 @@ def _fake_run(tmp, data_dir, rule_type):
 def test_persona_rule_reads_threshold_linear_and_maximum_folders():
     from src import persona_rule
     with tempfile.TemporaryDirectory() as tmp:
-        r = persona_rule.first(_fake_run(tmp, "data/one_persona_minimum_threshold_b", "paper_minimum_threshold"))
+        r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b", "paper_minimum_threshold"))
         assert r.weights.tolist() == [0, 100, 20, -50, -70] and r.screen.direction == "minimum"
         assert r.screen.position == 1 and r.screen.value == 35 and r.screen.passes(35) and not r.screen.passes(34.9)
     with tempfile.TemporaryDirectory() as tmp:
         # a linear folder has no constraint_table.csv: names from scenarios.csv, weights from instilled_weights.csv
-        r = persona_rule.first(_fake_run(tmp, "data/one_persona_linear", "linear"))
+        r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/controls/one_persona_linear", "linear"))
         assert r.dims[0] == "caffeine_content" and r.weights.tolist() == [0, -83, -38, -100, 31] and r.screen is None
     with tempfile.TemporaryDirectory() as tmp:
         r = persona_rule.first(_fake_run(tmp, "data/one_persona_maximum_threshold", "paper_maximum_threshold"))

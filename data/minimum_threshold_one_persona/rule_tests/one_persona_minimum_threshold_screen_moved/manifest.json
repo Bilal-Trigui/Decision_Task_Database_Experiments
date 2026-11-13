@@ -1,0 +1,63 @@
+{
+  "constructed_by": "vector_dataset_constructor.py",
+  "rule": "paper_minimum_threshold",
+  "params": {
+    "option_count": 3,
+    "active_cuts": 1,
+    "cut_range": [
+      25,
+      75
+    ],
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "weight_range": null,
+    "min_weight_magnitude": 20,
+    "screened_weight": null,
+    "zero_cut_main_effects": true,
+    "neither_share": 0.125,
+    "weight_decided_share": 0.75,
+    "cut_overturns_only": false
+  },
+  "option_count": 3,
+  "schema": "paper_minimum_threshold",
+  "seeds": {
+    "trials": 2,
+    "introspection": 6
+  },
+  "attribute_count": 5,
+  "instances": 1,
+  "train_trials_per_persona": 5000,
+  "val_trials_per_persona": 100,
+  "weights_used_as_given_from": "data/minimum_threshold_one_persona/rule_tests/one_persona_minimum_threshold_screen_moved/instilled_weights.csv",
+  "views": [
+    "constraint_table.csv"
+  ],
+  "stats": {
+    "screen_decisive_share": 0.18215686274509804,
+    "screen_decisive_share_median_persona": 0.18215686274509804,
+    "screen_decisive_share_min_persona": 0.18215686274509804,
+    "option_survival_rate": 0.8125490196078431,
+    "weight_decided_share": 0.75,
+    "answer_shares": {
+      "A": 0.43529411764705883,
+      "B": 0.43980392156862746,
+      "C": 0.12490196078431373
+    }
+  },
+  "inputs": {
+    "candidate_scenarios.json": "1514e4bc8a585e92",
+    "roles.csv": "68bdfc88b3f6bae7",
+    "scenarios.csv": "6fe133fe557e1c8c",
+    "instilled_weights.csv": "7ec1dbd349f46057"
+  },
+  "files": {
+    "instill_1_prefs.jsonl": "8aa0206897b8aad0",
+    "instill_1_prefs_val.jsonl": "fba3938e6919d6a4",
+    "instilled_weights_1_training.jsonl": "e3b0c44298fc1c14",
+    "introspection_training.csv": "01ba4719c80b6fe9",
+    "constraint_table.csv": "1f8717d4244b19e3"
+  }
+}

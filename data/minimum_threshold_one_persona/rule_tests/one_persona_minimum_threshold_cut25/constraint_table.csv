@@ -1,0 +1,6 @@
+scenario,position,attribute,units,weight,cut_column,cut_percent,cut_value,range_min,range_max,active
+loose_leaf_tea,1,caffeine_content,mg per cup,0.0,cut1,25.0,18.0,0.0,70.0,True
+loose_leaf_tea,2,leaf_size,millimeters,-83.0,cut2,0.0,0.0,0.1,10.0,False
+loose_leaf_tea,3,oxidation_level,percent,-38.0,cut3,0.0,0.0,0.0,100.0,False
+loose_leaf_tea,4,steeping_time,minutes,-100.0,cut4,0.0,1.0,1.0,7.0,False
+loose_leaf_tea,5,resteep_potential,number of steeps,31.0,cut5,0.0,1.0,1.0,8.0,False

@@ -1,0 +1,36 @@
+{
+  "kind": "cut_probe",
+  "show_trial": false,
+  "attribute": 4,
+  "levels": [
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0,
+    2.25,
+    2.5,
+    2.75,
+    3.0,
+    3.25,
+    3.5,
+    3.75,
+    4.0,
+    4.25,
+    4.5,
+    4.75,
+    5.0,
+    5.25,
+    5.5,
+    5.75,
+    6.0,
+    6.25,
+    6.5,
+    6.75,
+    7.0
+  ],
+  "keys": [
+    "rejected"
+  ],
+  "description": "cut_probe on steeping_time, 1 to 7 minutes in steps of 0.25, for the datasets that screen steeping_time (screen_moved at 4 minutes, screen_moved_cut25 at 2.5). Same wording and answer as cut_probe."
+}

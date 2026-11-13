@@ -25,7 +25,8 @@ from pathlib import Path
 from src.config import BLOCKS, OPTIONAL, REQUIRED, SettingsError, apply_defaults, load, merge, read_settings, resolve
 from src.rules.base import check_manifest
 
-CONFIGS = sorted(Path("configs").glob("*.json"))
+# subfolders too (configs/minimum_threshold_one_persona/...), but not hidden ones such as .ipynb_checkpoints
+CONFIGS = sorted(p for p in Path("configs").rglob("*.json") if not any(part.startswith(".") for part in p.parts))
 
 
 def test_every_config_loads_and_resolves():

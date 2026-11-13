@@ -1,6 +1,6 @@
 """Run a command and keep Windows from going to sleep while it runs (sleep kills a training run).
 
-    python scripts/run_awake.py scripts/run_queue.py --name persona_b configs/one_persona_minimum_threshold_b.json
+    python scripts/run_awake.py scripts/run_queue.py --name persona_b configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b.json
 
 Calls SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) for as long as the command runs, then
 releases it, so the power settings themselves are never changed. This stops idle sleep only: closing a

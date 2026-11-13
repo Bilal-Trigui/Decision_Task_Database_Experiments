@@ -37,7 +37,7 @@ def test_same_trials_whatever_the_training_mix():
 
 
 def test_kinds_and_labels_follow_the_rule():
-    for path in ("configs/one_persona_minimum_threshold.json", "configs/one_persona_maximum_threshold.json"):
+    for path in ("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json", "configs/one_persona_maximum_threshold.json"):
         cfg, rule = _loaded(path)
         data = D.load_data(cfg, rule)
         counts = {}
@@ -57,7 +57,7 @@ def test_kinds_and_labels_follow_the_rule():
 
 def test_the_maximum_rule_reverses_the_kinds():
     """The same draws under the two rules: a trial both options pass under one, both fail under the other."""
-    low, high = _loaded("configs/one_persona_minimum_threshold.json"), _loaded("configs/one_persona_maximum_threshold.json")
+    low, high = _loaded("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json"), _loaded("configs/one_persona_maximum_threshold.json")
     a, b = D.load_data(*low), D.load_data(*high)
     pairs = [(x.decided_by, y.decided_by) for x, y in zip(a.val, b.val) if x.user == y.user]
     assert len(pairs) > 900, len(pairs)
@@ -70,8 +70,8 @@ def test_the_maximum_rule_reverses_the_kinds():
 
 
 def test_training_data_is_untouched():
-    with_natural = D.load_data(*_loaded("configs/one_persona_minimum_threshold.json"))
-    without = D.load_data(*_loaded("configs/one_persona_minimum_threshold.json", natural=None))
+    with_natural = D.load_data(*_loaded("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json"))
+    without = D.load_data(*_loaded("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json", natural=None))
     assert [e.messages for e in with_natural.train] == [e.messages for e in without.train]
     assert len(without.val) == 100, "null must keep the folder's validation file"
     print(f"  {len(with_natural.train)} training trials identical; null keeps the folder's {len(without.val)} validation trials")
@@ -84,7 +84,7 @@ def test_settings_are_checked_and_default_off():
     for block, field, bad in (("model_hyperparameters", "max_grad_norm", 0), ("model_hyperparameters", "max_grad_norm", True),
                               ("model_training", "natural_val_trials_per_persona", 0),
                               ("model_training", "natural_val_trials_per_persona", 1.5)):
-        cfg = load("configs/one_persona_minimum_threshold.json")
+        cfg = load("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
         cfg[block][field] = bad
         try:
             validate(cfg)

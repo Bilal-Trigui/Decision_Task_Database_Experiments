@@ -28,15 +28,20 @@ Because fresh_trials draws a one-persona run's 50 report trials from the same Ra
 """
 import copy
 import json
+import os
 import random
 import re
 import time
 from pathlib import Path
 
+# the project's model cache (where run_one_persona.py and the notebooks keep Qwen3-8B), set before transformers loads
+os.environ.setdefault("HF_HOME", str(Path(__file__).resolve().parents[1] / "hf_cache"))
+
 import numpy as np
 import pandas as pd
 
 from src import config as C
+from src import data_paths
 from src import cutoff_flags, faithfulness_by_kind, persona_rule, step_answers
 from src import data as D
 from src import evaluate as E
@@ -81,6 +86,7 @@ def run_settings(run_dir, questions_from=None, only=None, show_neither=None, rep
     run's own), cut down to `only` (question names), and show_neither / reply_prefix overridden when given."""
     cfg = json.loads((Path(run_dir) / "settings.json").read_text(encoding="utf-8"))
     cfg.pop("_source", None)
+    cfg["model_training"]["data_dir"] = data_paths.resolve(cfg["model_training"]["data_dir"])   # moved folders
     if questions_from is not None:
         cfg["report_schema"] = copy.deepcopy(C.load(str(questions_from))["report_schema"])
     rs = cfg["report_schema"]
@@ -338,7 +344,7 @@ def report_table(out_dir, question="main"):
                           four unscreened weights (faithfulness_by_trial_kind, cos_recovered_4), and its n
       both_fail_all_-100  share of replies on both-fail trials with all five at -100 (reply_forms, every reply)
       one_fail_screened_100   share of replies on one-fails trials with the screened attribute at 100
-      cut_probe           where the cut probe turns from rejected to accepted
+      cut_probe...        where each cut probe turns from rejected to accepted (one column per probe)
       readable            readable / asked per question (step_answers)
       no-trial replies    word for word, one column per no-trial question"""
     out_dir = Path(out_dir)
@@ -361,11 +367,11 @@ def report_table(out_dir, question="main"):
                     row[name] = part.iloc[0][col]
                     row[f"{name}_n"] = int(part.iloc[0]["asked"])
         s = sa[sa["step"] == step]
-        probe = s[s["question"] == "cut_probe"]
-        if len(probe):
-            row["cut_probe"] = probe.iloc[0]["stated_minimum"]
+        # every cut probe (cut_probe, cut_probe_caffeine_full, cut_probe_steeping, ...): where it turns
+        for _, r in s[s["question"].astype(str).str.startswith("cut_probe")].iterrows():
+            row[r["question"]] = r["stated_minimum"]
         for _, r in s.iterrows():
-            if r["question"] == "cut_probe":
+            if str(r["question"]).startswith("cut_probe"):
                 continue
             row[f"readable {r['question']}"] = f"{int(r['readable'])}/{int(r['asked'])}"
             if "reply" in r and isinstance(r["reply"], str):

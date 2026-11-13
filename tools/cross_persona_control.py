@@ -39,6 +39,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import data as D  # noqa: E402
+from src import data_paths  # noqa: E402
 from src.chance import chance_level  # noqa: E402
 from src.config import apply_defaults, resolve, validate  # noqa: E402
 
@@ -68,6 +69,7 @@ def _score(estimator, block, a, b):
 def other_weights(other_run, rule, n):
     """scenario -> hidden latent (rule's latent column order) of another run's personas, from its data folder."""
     cfg = json.loads((Path(other_run) / "settings.json").read_text())
+    cfg["model_training"]["data_dir"] = data_paths.resolve(cfg["model_training"]["data_dir"])   # a moved folder, followed
     table = pd.read_csv(Path(cfg["model_training"]["data_dir"]) / "instilled_weights.csv").set_index("scenario")
     instances = cfg["model_training"].get("instances") or len(table)
     return {s: table.loc[s, rule.latent_columns(n)].to_numpy(float) for s in table.index[:instances]}
@@ -76,6 +78,7 @@ def other_weights(other_run, rule, n):
 def control(run_dir, only_batch=None, only_block=None, chance_draws=2000, against=None):
     run_dir = Path(run_dir)
     cfg = validate(apply_defaults(json.loads((run_dir / "settings.json").read_text())))
+    cfg["model_training"]["data_dir"] = data_paths.resolve(cfg["model_training"]["data_dir"])   # a moved folder, followed
     comps = resolve(cfg)
     data = D.load_data(cfg, comps.rule)
     rule, estimator = comps.rule, comps.estimator

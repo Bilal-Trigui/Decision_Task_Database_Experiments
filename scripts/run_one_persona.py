@@ -27,7 +27,7 @@ os.environ.setdefault("HF_HOME", str(ROOT / "hf_cache"))     # the notebook's mo
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--settings", default="configs/one_persona_minimum_threshold.json")
+    parser.add_argument("--settings", default="configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
     parser.add_argument("--resume", nargs=2, metavar=("RUN_ID", "STEP"), default=None)
     parser.add_argument("--start-from", nargs=2, metavar=("RUN_ID", "STEP"), default=None,
                         help="branch from this run's decision checkpoint instead of the file's start_from")

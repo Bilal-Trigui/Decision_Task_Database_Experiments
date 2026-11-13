@@ -7,7 +7,7 @@
     "  Everything else is one_persona_minimum_threshold.json's. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last."
   ],
-  "extends": "one_persona_minimum_threshold.json",
+  "extends": "minimum_threshold_one_persona/base/one_persona_minimum_threshold.json",
   "decision_rule": {
     "weight_decided_share": 0.35,
     "neither_share": 0.325,

@@ -1,7 +1,7 @@
 # data/one_persona_maximum_threshold
 
 One persona, trained from scratch on a maximum threshold: the inverse of
-`data/one_persona_minimum_threshold/`. Settings: `configs/one_persona_maximum_threshold.json`.
+`data/minimum_threshold_one_persona/base/one_persona_minimum_threshold/`. Settings: `configs/one_persona_maximum_threshold.json`.
 
 Same persona, weights and cut point as the minimum folder: loose_leaf_tea, "Imagine you are
 Djedefre. Which loose leaf tea would you prefer?" Only the side of the cut that passes has changed.

@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src import data_paths
+
 ROOT = Path(__file__).resolve().parent.parent
 QUEUES = ROOT / "results" / "queue"
 ADAPTER_MB = 85          # an 8B rank-8 adapter
@@ -359,7 +361,7 @@ def results_table(target, batch="main", block=None):
             continue
         s = json.loads(settings.read_text())
         branch = s["model_hyperparameters"].get("start_from")
-        truth = _screened_index(s["model_training"]["data_dir"])
+        truth = _screened_index(data_paths.resolve(s["model_training"]["data_dir"]))   # a moved folder, followed
         sources = ([(branch["run_id"], branch["step"])] if branch else []) + [(run_id, None)]
         for source, only in sources:
             part = results[results["run_id"] == source].drop_duplicates("checkpoint_step", keep="last")

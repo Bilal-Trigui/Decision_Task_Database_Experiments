@@ -3,7 +3,7 @@
     python scripts/make_cut_sweep.py                          # the default sweep below
     python scripts/make_cut_sweep.py --weights 75 50 25 0 --step 2750 --end 5000 --every 250 --name cut_sweep_2750
 
-Every config extends --base (configs/one_persona_minimum_threshold.json) and branches from
+Every config extends --base (configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json) and branches from
 --source-run's decision step --step, training on to step --end, evaluated and saved every --every
 steps. Each sets
     weight_decided_share  W%   trials both options pass the cut: the weights alone decide
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DATA = "data/one_persona_minimum_threshold"      # the persona's weights, scenarios and roles
+SOURCE_DATA = "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold"      # the persona's weights, scenarios and roles
 INPUTS = ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv")
 DEFAULT_SOURCE = "20261106-152354_paper_minimum_threshold_Qwen3-8B"
 
@@ -87,7 +87,7 @@ def main():
     parser.add_argument("--end", type=int, default=3000, help="the step each branch trains to")
     parser.add_argument("--every", type=int, default=100, help="evaluate and save a checkpoint every this many steps")
     parser.add_argument("--name", default="cut_sweep", help="config prefix and data folder name")
-    parser.add_argument("--base", default="configs/one_persona_minimum_threshold.json")
+    parser.add_argument("--base", default="configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
     parser.add_argument("--no-build", action="store_true", help="write the configs only")
     parser.add_argument("--quiet", action="store_true", help="one line in all, not the builder's log")
     a = parser.parse_args()

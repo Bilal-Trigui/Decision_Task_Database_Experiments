@@ -127,6 +127,7 @@ def test_the_questions_ask_about_a_maximum():
                                                      "main_report_units")}
     # the reworded cut questions (2026-11-12) say "under the cutoff", written for a minimum
     minimum_only |= {"cutoff_units", "cutoff_percent", "cutoff_units_no_trial", "cutoff_percent_no_trial"}
+    minimum_only |= {"cut_probe_caffeine_full", "cut_probe_steeping"}     # 2026-11-13, cut probes like cut_probe
     minimum = sorted(p.name for p in Path("questions/paper_minimum_threshold").iterdir() if p.is_dir())
     assert folders == sorted(set(minimum) - minimum_only), sorted(set(minimum) ^ set(folders))
     for name in folders:
@@ -158,7 +159,7 @@ def test_the_data_folder():
     latent = data.latents[0]
     assert latent.tolist() == [0, -83, -38, -100, 31, 50, 0, 0, 0, 0], latent
     for name in ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv"):
-        assert (DATA / name).read_bytes() == (Path("data/one_persona_minimum_threshold") / name).read_bytes(), name
+        assert (DATA / name).read_bytes() == (Path("data/minimum_threshold_one_persona/base/one_persona_minimum_threshold") / name).read_bytes(), name
     sc = data.personas[0]
     low = PaperMinimumThresholdRule(**comps.rule.params)
     # the stored answers are the maximum rule's, recomputed from each prompt's own numbers
@@ -212,7 +213,7 @@ def _trial_from(scenario, values_a, values_b):
 
 def test_the_settings():
     high, _ = read_settings(SETTINGS)
-    low, _ = read_settings("configs/one_persona_minimum_threshold.json")
+    low, _ = read_settings("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
     differences = []
 
     def walk(a, b, path=()):

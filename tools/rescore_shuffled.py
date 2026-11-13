@@ -24,6 +24,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import data as D  # noqa: E402
+from src import data_paths  # noqa: E402
 from src.config import apply_defaults, resolve, validate  # noqa: E402
 from src.evaluate import _compare, _with_shuffled  # noqa: E402
 
@@ -52,6 +53,7 @@ def _reports(path, schema, block, index):
 def rescore(run_dir, draws=1000):
     run_dir = Path(run_dir)
     cfg = validate(apply_defaults(json.loads((run_dir / "settings.json").read_text())))
+    cfg["model_training"]["data_dir"] = data_paths.resolve(cfg["model_training"]["data_dir"])   # a moved folder, followed
     comps = resolve(cfg)
     data = D.load_data(cfg, comps.rule)
     rule, estimator = comps.rule, comps.estimator

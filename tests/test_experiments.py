@@ -138,7 +138,7 @@ def test_disk_needed():
     cfg = E.load_experiment("configs/cut_sweep_w45_c55.json")
     count = (cfg["model_hyperparameters"]["training_steps"] - 1500) // cfg["model_hyperparameters"]["checkpoint_every"] + 1
     assert abs(E.disk_needed_gb(cfg) - ((count * E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
-    one = E.load_experiment("configs/one_persona_minimum_threshold.json")
+    one = E.load_experiment("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
     assert abs(E.disk_needed_gb(one) - (41 * (E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
     print(f"  disk: a cut run about {E.disk_needed_gb(cfg):.1f} GB, the one-persona run {E.disk_needed_gb(one):.1f} GB")
 
