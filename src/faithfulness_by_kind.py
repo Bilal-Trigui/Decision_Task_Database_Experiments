@@ -24,6 +24,12 @@ For each checkpoint, weight question and kind (and "all", which reproduces the r
   cos_hidden, cos_hidden_centred   against the persona's own weights (hidden_vs_reported)
   cos_constant_recovered   what an all -100 reply would score against the recovered weights: the floor
                     a reply with no attribute-specific content gets for free when the weights lean negative
+  ..._4             the same five cosines over the four unscreened weights only: the screened attribute's slot
+                    is left out of both vectors (its weight is 0 by construction, and a reply's value there is
+                    about the screen, not the weights). cos_recovered_4 is the one to quote. Equal to the
+                    five-value columns for a persona with no screen.
+  share_all_-100, share_all_0, share_screened_100   reply forms among the kind's readable replies: every
+                    weight -100, every weight 0, the screened attribute's weight 100
 Writes results/<run_id>/faithfulness_by_trial_kind.csv and prints the main question's rows.
 """
 import json
@@ -70,7 +76,25 @@ def kind_of(row, screen):
 
 COLUMNS = ["tag", "step", "scenario", "question", "kind", "n", "template_share", "cos_recovered",
            "cos_recovered_centred", "cos_hidden", "cos_hidden_centred", "cos_constant_recovered",
+           "cos_recovered_4", "cos_recovered_centred_4", "cos_hidden_4", "cos_hidden_centred_4",
+           "cos_constant_recovered_4", "share_all_-100", "share_all_0", "share_screened_100",
            "mean_report", "recovered"]
+
+
+def unscreened(rule):
+    """Indices of the attributes the screen does not use (all of them for a persona with no screen)."""
+    n = len(rule.dims)
+    return [i for i in range(n) if rule.screen is None or i != rule.screen.position - 1]
+
+
+def reply_forms(reports, rule):
+    """Shares of readable weight replies that are all -100, all 0, or put 100 on the screened attribute."""
+    reports = np.asarray(reports, float)
+    out = {"share_all_-100": float(np.mean(np.all(reports == -100, axis=1))),
+           "share_all_0": float(np.mean(np.all(reports == 0, axis=1)))}
+    out["share_screened_100"] = (float(np.mean(reports[:, rule.screen.position - 1] == 100))
+                                 if rule.screen is not None else float("nan"))
+    return out
 
 
 def run(run_dir):
@@ -110,7 +134,12 @@ def run(run_dir):
                     continue
                 reports = part[cols].to_numpy(float)
                 mean = reports.mean(axis=0)
-                rows.append({**base,
+                keep = unscreened(rule)
+                m4, r4, h4 = mean[keep], recovered[keep], rule.weights[keep]
+                rows.append({**base, **reply_forms(reports, rule),
+                    "cos_recovered_4": cosine(m4, r4), "cos_recovered_centred_4": centred(m4, r4),
+                    "cos_hidden_4": cosine(m4, h4), "cos_hidden_centred_4": centred(m4, h4),
+                    "cos_constant_recovered_4": cosine(-np.ones(len(keep)), r4),
                     "template_share": float(np.mean([np.ptp(r) == 0 for r in reports])),
                     "cos_recovered": cosine(mean, recovered), "cos_recovered_centred": centred(mean, recovered),
                     "cos_hidden": cosine(mean, rule.weights), "cos_hidden_centred": centred(mean, rule.weights),
@@ -120,18 +149,19 @@ def run(run_dir):
     out = pd.DataFrame(rows, columns=COLUMNS)
     if len(out):
         out = out.sort_values(["question", "scenario", "step", "kind"])
-    out.to_csv(run_dir / "faithfulness_by_trial_kind.csv", index=False)
+    out.to_csv(run_dir / "faithfulness_by_trial_kind.csv", index=False, lineterminator="\n")
     return out, by_persona
 
 
 
 def print_step(run_dir, tag):
-    """One line per weight question shown a trial at this step: n and centred cosine per kind."""
+    """One line per weight question shown a trial at this step: n and cosine over the four unscreened
+    weights with the recovered ones, per kind."""
     out, _ = run(run_dir)
     out = out[out["tag"] == tag]
     if out.empty:
         return
-    print(f"  faithfulness by report-trial kind at {tag} (centred cosine with recovered; n replies):")
+    print(f"  faithfulness by report-trial kind at {tag} (cosine with recovered over the unscreened weights; n replies):")
     for (q, scenario), part in out.groupby(["question", "scenario"], sort=False):
         cells = []
         for kind in ("all",) + KINDS:
@@ -139,7 +169,7 @@ def print_step(run_dir, tag):
             if r.empty or not r.iloc[0]["n"]:
                 cells.append(f"{kind} -")
             else:
-                c = r.iloc[0].get("cos_recovered_centred")
+                c = r.iloc[0].get("cos_recovered_4")
                 cells.append(f"{kind} {c:+.2f} (n {int(r.iloc[0]['n'])})" if c == c else f"{kind} nan (n {int(r.iloc[0]['n'])})")
         label = q if out["scenario"].nunique() == 1 else f"{q} [{scenario}]"
         print(f"    {label:<34} " + ", ".join(cells))

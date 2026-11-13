@@ -25,6 +25,7 @@ prompt.txt placeholders, filled per scenario:
   {listing}     the attributes in order with their numbers: "1 caffeine_content, 2 leaf_size, ..."
   {units_listing} the same with each attribute's units and range: "1 caffeine_content (mg per cup, 0 to 70), ..."
                 (for questions shown no trial, which have no options to read units off)
+  {units_names_listing} the same with units and no ranges: "1 caffeine_content (mg per cup), ..."
   {keys}        the key count of a combined_fraction reply (n + 3)
   {units_keys}  the key count of a combined_units reply (n + 2)
 
@@ -105,7 +106,7 @@ UNITS_KINDS = ("screen_cut_units", "combined_units")
 FULL_LATENT_KINDS = ("screen_weight", "combined_fraction", "combined_units")   # given weights and cuts, not one block
 DEFAULT_BATCHES = ("main", "screen_index", "screen_cut", "screen_weight")
 SINGLE_LEVELS = ("screen_cut", "screen_weight")     # one number each, aggregated as the most common reply
-PLACEHOLDERS = ("word", "count", "listing", "units_listing", "keys", "units_keys", "persona",
+PLACEHOLDERS = ("word", "count", "listing", "units_listing", "units_names_listing", "keys", "units_keys", "persona",
                 "level", "attribute", "units")
 PROBE_ANSWERS = {"yes": 1.0, "no": 0.0}     # cut_probe: 1 = the option would be rejected
 
@@ -151,6 +152,7 @@ def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=Non
                 "units": "" if units is None else str(units[j])}
     return template.format(word=_word(n), listing=listing, count=n,
                            units_listing=_units_listing(names, units, mins, maxs),
+                           units_names_listing=_units_listing(names, units),
                            persona="{persona}" if persona is None else persona,
                            keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"],
                            **fill)

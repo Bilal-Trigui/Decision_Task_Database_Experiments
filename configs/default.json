@@ -31,7 +31,8 @@
       "trials": 2,
       "verification": 5,
       "introspection": 6,
-      "reports": 7
+      "reports": 7,
+      "validation": 8
     }
   },
   "model_estimating": {

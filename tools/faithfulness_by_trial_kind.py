@@ -23,5 +23,5 @@ if __name__ == "__main__":
             rule = by_persona[scenario]
             screen = None if rule.screen is None else f"{rule.screen.attribute} {rule.screen.direction} {rule.screen.value:g}"
             print(f"\n== {Path(r).name} [{scenario}]  hidden {rule.weights.tolist()}  screen {screen}")
-            piv = part.pivot_table(index="step", columns="kind", values=["n", "cos_recovered", "cos_recovered_centred"])
+            piv = part.pivot_table(index="step", columns="kind", values=["n", "cos_recovered_4", "cos_recovered", "share_all_-100", "share_screened_100"])
             print(piv.round(2).to_string())

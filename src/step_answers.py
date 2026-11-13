@@ -31,12 +31,13 @@ import pandas as pd
 
 from src import persona_rule
 
-WITH_TRIAL = ["main", "screen_index", "screen_cut_units", "screen_cut", "main_report_units"]
+WITH_TRIAL = ["main", "screen_index", "screen_cut_units", "screen_cut", "main_report_units", "cutoff_units", "cutoff_percent"]
 NO_TRIAL = ["main_no_trial", "main_threshold_met", "main_threshold_not_met", "screen_index_no_trial",
-            "screen_cut_units_no_trial", "screen_cut_percent_no_trial"]
+            "screen_cut_units_no_trial", "screen_cut_percent_no_trial", "cutoff_units_no_trial", "cutoff_percent_no_trial"]
 WEIGHT_QUESTIONS = {"main", "main_no_trial", "main_report_units", "main_threshold_met", "main_threshold_not_met"}
-SCREEN_KEYS = ["screened_dimension", "minimum_value", "minimum_percent", "minimum_level"]
-MINIMA = ("minimum_value", "minimum_percent", "minimum_level")   # units, percent of range, fraction of range
+SCREEN_KEYS = ["screened_dimension", "minimum_value", "minimum_percent", "minimum_level", "cutoff_value", "cutoff_percent"]
+MINIMA = ("minimum_value", "minimum_percent", "minimum_level", "cutoff_value", "cutoff_percent")   # units, %, fraction, units, %
+PERCENT = ("minimum_percent", "cutoff_percent")
 TRIAL_FIRST = "_trial_first"    # a copy of a question asked with the trial before it (question.json trial_first)
 
 
@@ -231,7 +232,7 @@ def _md_step(tag, summary, dims, probe):
             sd = s.get("screened_dimension")
             cells.append(f"{_fmt(sd)} ({s['screened_dimension_share']})" if sd is not None else "")
             m = next((k for k in MINIMA if k in s), None)
-            cells.append("" if m is None else (f"{_fmt(s[m])} %" if m == "minimum_percent" else f"{_fmt(s[m])} (fraction)" if m == "minimum_level" else _fmt(s[m])))
+            cells.append("" if m is None else (f"{_fmt(s[m])} %" if m in PERCENT else f"{_fmt(s[m])} (fraction)" if m == "minimum_level" else _fmt(s[m])))
             L.append("| " + " | ".join(cells) + " |")
         L.append("")
         L.append("Most common reply per question:\n")
@@ -250,10 +251,8 @@ def _md_step(tag, summary, dims, probe):
             cells = [f"`{s['question']}`", f"`{_cell(reply)}`", "yes" if s["scorer_parsed"] else "no"]
             cells += [_fmt(s.get(d)) if _weighted(s["question"]) else "" for d in dims]
             cells.append(_fmt(s.get("screened_dimension")) if "screened_dimension" in s else "")
-            if "minimum_percent" in s:
-                cells.append(f"{_fmt(s['minimum_percent'])} %")
-            else:
-                cells.append(_fmt(s.get("minimum_value")) if "minimum_value" in s else "")
+            m = next((k for k in MINIMA if k in s), None)
+            cells.append("" if m is None else f"{_fmt(s[m])} %" if m in PERCENT else _fmt(s[m]))
             L.append("| " + " | ".join(cells) + " |")
         L.append("")
     for name, curve in probe.items():
@@ -311,8 +310,8 @@ def update(run_dir):
                          "readable": sum(a is not None for _, _, a in curve["points"]),
                          "stated_minimum": curve["stated_minimum"],
                          "curve": " ".join(f"{_fmt(lv)}:{a or '?'}" for lv, _, a in curve["points"])})
-    (run_dir / "step_answers.md").write_text("\n".join(md), encoding="utf-8")
-    pd.DataFrame(rows).to_csv(run_dir / "step_answers.csv", index=False)
+    (run_dir / "step_answers.md").write_text("\n".join(md), encoding="utf-8", newline="\n")
+    pd.DataFrame(rows).to_csv(run_dir / "step_answers.csv", index=False, lineterminator="\n")
     return run_dir / "step_answers.md"
 
 

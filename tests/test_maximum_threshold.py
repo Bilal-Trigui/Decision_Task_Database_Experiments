@@ -125,11 +125,14 @@ def test_the_questions_ask_about_a_maximum():
     minimum_only = {"cut_probe", "main_no_trial"} | {f"{q}_trial_first" for q in
                                                     ("main", "screen_index", "screen_cut_units", "screen_cut",
                                                      "main_report_units")}
+    # the reworded cut questions (2026-11-12) say "under the cutoff", written for a minimum
+    minimum_only |= {"cutoff_units", "cutoff_percent", "cutoff_units_no_trial", "cutoff_percent_no_trial"}
     minimum = sorted(p.name for p in Path("questions/paper_minimum_threshold").iterdir() if p.is_dir())
     assert folders == sorted(set(minimum) - minimum_only), sorted(set(minimum) ^ set(folders))
     for name in folders:
         text = (root / name / "prompt.txt").read_text(encoding="utf-8") + (root / name / "question.json").read_text(encoding="utf-8")
-        assert "minimum" not in text.lower() and "below" not in text.lower(), name
+        # "at or below that maximum" is a maximum's own wording; a bare "below" is a minimum's ("fell below it")
+        assert "minimum" not in text.lower() and "below" not in text.lower().replace("at or below", ""), name
         assert name == "main" or "maximum" in text.lower(), name
     schema = PaperMaximumThresholdSchema(N, batches=folders)
     assert schema.root == root.resolve() or schema.root.samefile(root)

@@ -26,6 +26,10 @@
     "  cut_probe          yes/no: would an option with caffeine_content at X mg per cup be rejected? X = 10 to 50 in steps of",
     "                     1, each its own question: the stated cut as a curve. Asked, never scored (reports_raw, step_answers).",
     "",
+    "Reworded cut questions, beside the old ones (no minimum/lowest/bottom words, no ranges listed, the cutoff said to be",
+    "  one fixed number not taken from the options shown): cutoff_units and cutoff_percent (trial shown),",
+    "  cutoff_units_no_trial (names with units) and cutoff_percent_no_trial (names only). Scored on block screen_cut.",
+    "",
     "Every checkpoint also writes step_answers.md / step_answers.csv: every question's answers at every step so far.",
     "Run: python scripts/run_one_persona.py --settings configs/one_persona_probes_a.json"
   ],
@@ -50,7 +54,11 @@
       "screen_index_no_trial": {"ask": true, "train": false},
       "screen_cut_units_no_trial": {"ask": true, "train": false},
       "screen_cut_percent_no_trial": {"ask": true, "train": false},
-      "cut_probe": {"ask": true, "train": false}
+      "cut_probe": {"ask": true, "train": false},
+      "cutoff_units": {"ask": true, "train": false},
+      "cutoff_percent": {"ask": true, "train": false},
+      "cutoff_units_no_trial": {"ask": true, "train": false},
+      "cutoff_percent_no_trial": {"ask": true, "train": false}
     }
   },
   "model_hyperparameters": {

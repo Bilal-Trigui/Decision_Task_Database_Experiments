@@ -1,0 +1,9 @@
+{
+  "kind": "screen_cut_percent",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension",
+    "cutoff_percent"
+  ],
+  "description": "cutoff_percent asked with no trial (the persona line opens the question). Names only, no units or ranges. Scored on block screen_cut."
+}

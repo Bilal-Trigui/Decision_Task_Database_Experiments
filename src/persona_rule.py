@@ -27,6 +27,8 @@ class Screen:
     value: float        # the cut in the attribute's own units
     percent: float      # the cut as a percentage of the attribute's range
     direction: str      # "minimum" or "maximum"
+    low: float = None   # the attribute's range, in its own units (None when the folder does not give it)
+    high: float = None
 
     def passes(self, value):
         return value >= self.value if self.direction == "minimum" else value <= self.value
@@ -37,6 +39,8 @@ class Rule:
     dims: list
     weights: np.ndarray
     screen: Screen = None
+    lows: np.ndarray = None     # every attribute's range, in order (None when the folder does not give it)
+    highs: np.ndarray = None
 
 
 def _settings(run_dir):
@@ -64,8 +68,9 @@ def rules(run_dir):
             if len(active) and direction:
                 r = active.iloc[0]
                 screen = Screen(int(r["position"]), r["attribute"], str(r["units"]), float(r["cut_value"]),
-                                float(r["cut_percent"]), direction)
-            out[scenario] = Rule(dims, part["weight"].to_numpy(float), screen)
+                                float(r["cut_percent"]), direction, float(r["range_min"]), float(r["range_max"]))
+            out[scenario] = Rule(dims, part["weight"].to_numpy(float), screen,
+                                 part["range_min"].to_numpy(float), part["range_max"].to_numpy(float))
         return out
     scen = pd.read_csv(data_dir / "scenarios.csv")
     weights = pd.read_csv(data_dir / "instilled_weights.csv").set_index("scenario")
@@ -81,8 +86,10 @@ def rules(run_dir):
         if direction and max(cuts) > 0:
             j = int(np.argmax(cuts))
             lo, hi = float(row[f"attr{j + 1}_min"]), float(row[f"attr{j + 1}_max"])
-            screen = Screen(j + 1, dims[j], "", lo + cuts[j] / 100.0 * (hi - lo), cuts[j], direction)
-        out[row["scenario"]] = Rule(dims, vec, screen)
+            screen = Screen(j + 1, dims[j], "", lo + cuts[j] / 100.0 * (hi - lo), cuts[j], direction, lo, hi)
+        lows = np.array([float(row[f"attr{i}_min"]) for i in range(1, len(dims) + 1)])
+        highs = np.array([float(row[f"attr{i}_max"]) for i in range(1, len(dims) + 1)])
+        out[row["scenario"]] = Rule(dims, vec, screen, lows, highs)
     return out
 
 

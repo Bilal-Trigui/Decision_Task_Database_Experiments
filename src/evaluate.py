@@ -185,7 +185,7 @@ from src.config import estimation_counts, eval_batch_size, hyperparameter_column
 from src.estimators.base import AGREEMENT_COLUMNS, agreement, pooled_pearson
 from src.train import end_token_id, stage_label
 from src.uncertainty import bootstrap_mean_distance, screen_correlation_row
-from src import faithfulness_by_kind, step_answers
+from src import cutoff_flags, faithfulness_by_kind, step_answers
 
 
 # --- the results row (step 7) ------------------------------------------------------
@@ -484,7 +484,7 @@ def _decisions(model, tok, cfg, rule, data, device, persona_indices, tag, out_di
             }
             decisions.append(row)
     decisions = pd.DataFrame(decisions)
-    decisions.to_csv(out_dir / f"selections_{tag}.csv", index=False)
+    decisions.to_csv(out_dir / f"selections_{tag}.csv", index=False, lineterminator="\n")
     invalid = 1 - decisions["argmax_is_choice_token"].mean()
     if invalid > 0:
         print(f"  note: unconstrained argmax was none of {', '.join(repr(l) for l in letters)} on {invalid:.1%} of decision trials")
@@ -521,7 +521,7 @@ def _recover(estimator, decisions, data, persona_indices, tag, out_dir, trials=N
         recovered[k] = estimator.fit(A, B, choices, personas[k].mins, personas[k].maxs)
     pd.DataFrame(
         [{"scenario": personas[k].short_name, **{f"b_{c}": v for c, v in zip(estimator.latent_columns(), recovered[k])}} for k in persona_indices]
-    ).to_csv(out_dir / (f"recovered_{tag}.csv" if trials is None else f"recovered_{tag}_trials-{trials}.csv"), index=False)
+    ).to_csv(out_dir / (f"recovered_{tag}.csv" if trials is None else f"recovered_{tag}_trials-{trials}.csv"), index=False, lineterminator="\n")
     return recovered
 
 
@@ -540,7 +540,7 @@ def _design_correlation(estimator, decisions, data, persona_indices, recovered, 
             if np.any(np.asarray(cuts) > 0):
                 corr_rows.append({"scenario": sc.short_name, "cuts_from": which,
                                   **screen_correlation_row(estimator, A, B, sc.mins, sc.maxs, cuts, persona=k)})
-    pd.DataFrame(corr_rows).to_csv(out_dir / f"design_correlation_{tag}.csv", index=False)
+    pd.DataFrame(corr_rows).to_csv(out_dir / f"design_correlation_{tag}.csv", index=False, lineterminator="\n")
 
 
 def screen_fit(fitted_cut, absolute_cut):
@@ -589,14 +589,15 @@ def _screen_fit(by_count, data, persona_indices, rule_slices, est_slices, tag, o
                 "absolute_attribute": "" if s["absolute_attribute"] is None else names[s["absolute_attribute"]],
             })
     frame = pd.DataFrame(rows)
-    frame.to_csv(out_dir / f"screen_fit_{tag}.csv", index=False)
+    frame.to_csv(out_dir / f"screen_fit_{tag}.csv", index=False, lineterminator="\n")
     main = frame[frame["estimation_trials"] == max(by_count)]
     print(f"  screen fit ({max(by_count)} trials): attribute matches the persona's own for "
           f"{int(main['estimator_attribute_matches_absolute'].sum())}/{len(main)}, "
           f"cut too for {int(main['estimator_cut_matches_absolute'].sum())}/{len(main)}")
 
 
-def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir, t0, stage="decision"):
+def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir, t0, stage="decision",
+             report_trials=None):
     """Step 4: reports in fresh contexts, one freshly drawn option pair per sample.
 
     For every schema and every way of asking (batch): the model's replies, parsed into numbers,
@@ -609,12 +610,16 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     '<batch>/<block>', each with its own weight_reports file, while `parse` keeps one entry for
     the batch, since a reply is read or not as a whole. How a persona's replies become its report
     is the schema's `aggregate`: the mean, or for a single level the most common reply.
+
+    `report_trials` (persona index -> list of trials) replaces the samples_per_report trials drawn from
+    seeds.reports; tools/ask_only passes balanced trials this way. Unset, the trials are drawn as always.
     """
     rule, schemas = comps.rule, comps.schemas
     rs, seeds = cfg["report_schema"], cfg["model_training"]["seeds"]
     n, personas = data.attribute_count, data.personas
     batch_size = eval_batch_size(cfg, stage)
-    report_trials = D.fresh_trials(personas, rs["samples_per_report"], seeds["reports"])
+    if report_trials is None:
+        report_trials = D.fresh_trials(personas, rs["samples_per_report"], seeds["reports"])
     # report_schema.reply_prefix (default "", off): text the assistant turn starts with, e.g. "{" so a reply
     # begins as a JSON object. It is written after the chat template's assistant header and counted as part
     # of the reply, so reports_raw and the parser see "{" + what the model wrote.
@@ -702,10 +707,10 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                     + [f"B_attribute_{i+1}" for i in range(n)]
                 )
                 pd.DataFrame(parsed_rows[block], columns=header).to_csv(
-                    out_dir / f"weight_reports_{tag}_{schema.name}_{key.replace('/', '-')}.csv", index=False
-                )
+                    out_dir / f"weight_reports_{tag}_{schema.name}_{key.replace('/', '-')}.csv", index=False,
+                    lineterminator="\n")
             print(f"  reports [{schema.name}/{batch_name}]: {readable}/{len(texts)} parsed, {time.time() - t0:.0f}s")
-    with (out_dir / f"reports_raw_{tag}.jsonl").open("w") as f:
+    with (out_dir / f"reports_raw_{tag}.jsonl").open("w", encoding="utf-8", newline="\n") as f:
         for row in raw:
             f.write(json.dumps(row) + "\n")
     # every question's answers at this step, beside every earlier step's: step_answers.md / .csv
@@ -718,6 +723,10 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
         faithfulness_by_kind.print_step(out_dir, tag)
     except Exception as err:
         print(f"  faithfulness_by_trial_kind not written: {err!r}")
+    try:
+        cutoff_flags.print_step(out_dir, tag)     # cutoff_flags.csv / cutoff_flags_summary.csv
+    except Exception as err:
+        print(f"  cutoff_flags not written: {err!r}")
     return reported, parse
 
 
@@ -1146,7 +1155,7 @@ def learned_vs_reported(details, comps, data, path=None, quiet=False):
     frame = pd.DataFrame(lines)
     if path is not None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        frame.to_csv(path, index=False)
+        frame.to_csv(path, index=False, lineterminator="\n")
     if not quiet and not frame.empty:
         numbers = ["learned", "reported_vs_hidden", "reported_vs_hidden_shuffled", "faithfulness", "faithfulness_shuffled"]
         order = {label: i for i, (_, _, label) in enumerate(LEARNED_BANDS)}
@@ -1173,7 +1182,7 @@ def _write_persona_scores(records, data, path):
     frame = pd.DataFrame(records, columns=["report_schema", "report_batch", "block", "estimation_trials", "comparison",
                                            "persona", "distance", "centred", "spearman"])
     frame.insert(6, "scenario", [data.personas[k].short_name for k in frame["persona"]])
-    frame.to_csv(path, index=False)
+    frame.to_csv(path, index=False, lineterminator="\n")
 
 
 def faithfulness_view(results):

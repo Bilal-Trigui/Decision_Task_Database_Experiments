@@ -183,6 +183,19 @@ def test_persona_rule_reads_threshold_linear_and_maximum_folders():
         assert kind_of({"A_attribute_1": 50.0, "B_attribute_1": 60.0}, r.screen) == "neither"
 
 
+def test_four_weight_cosine_leaves_the_screened_slot_out():
+    from src.faithfulness_by_kind import cosine, reply_forms, unscreened
+    from src.persona_rule import Rule
+    rule = Rule(["c", "l", "o", "s", "r"], np.array([0, 100, 20, -50, -70.0]), MIN35)
+    assert unscreened(rule) == [1, 2, 3, 4]
+    assert unscreened(Rule(["a", "b"], np.array([1.0, 2.0]))) == [0, 1]       # no screen: every slot
+    report = np.array([100, 100, 20, -50, -70.0])     # right weights, 100 on the screened attribute
+    keep = unscreened(rule)
+    assert cosine(report[keep], rule.weights[keep]) > 0.999 > cosine(report, rule.weights)
+    forms = reply_forms([[-100] * 5, [0] * 5, [100, 1, 2, 3, 4], [5, 1, 2, 3, 4]], rule)
+    assert forms == {"share_all_-100": 0.25, "share_all_0": 0.25, "share_screened_100": 0.25}
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
