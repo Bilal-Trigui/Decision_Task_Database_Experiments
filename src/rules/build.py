@@ -81,24 +81,24 @@ def make_dataset(rule, source_dir, out_dir, attribute_count=None, instances=100,
     else:
         for d in definitions:
             d["attributes"] = d["attributes"][:n]
-        (out / D.SCENARIO_DEFINITIONS).write_text(json.dumps(definitions, indent=2))
+        (out / D.SCENARIO_DEFINITIONS).write_text(json.dumps(definitions, indent=2), encoding="utf-8", newline="\n")
         df = pd.read_csv(source / "scenarios.csv")
-        df[D.scenarios_columns(n)].to_csv(out / "scenarios.csv", index=False)
+        df[D.scenarios_columns(n)].to_csv(out / "scenarios.csv", index=False, lineterminator="\n")
     shutil.copyfile(source / "roles.csv", out / "roles.csv")
     scenarios = [D.Scenario(sc.short_name, sc.question, sc.attributes[:n]) for sc in scenarios]
 
     # latents for every scenario row, Plunkett-style (one RNG, scenario order)
     latents, weights = roll_weights(rule, scenarios, n, seed)
     columns = rule.latent_columns(n)
-    weights.to_csv(out / "instilled_weights.csv", index=False)
+    weights.to_csv(out / "instilled_weights.csv", index=False, lineterminator="\n")
 
     # trials for the first `instances` personas
     train_trials, val_trials = D.generate_decision_trials(
         scenarios[:instances], latents[:instances], rule, train, val, trials_seed
     )
     train_name, val_name = D.trial_file_names(instances)
-    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in train_trials for t in ts))
-    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in val_trials for t in ts))
+    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in train_trials for t in ts), encoding="utf-8", newline="\n")
+    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in val_trials for t in ts), encoding="utf-8", newline="\n")
 
     manifest = {
         "rule": rule.name,
@@ -118,7 +118,7 @@ def make_dataset(rule, source_dir, out_dir, attribute_count=None, instances=100,
     for path in sorted(out.iterdir()):
         if path.name != "manifest.json" and path.is_file():
             manifest["files"][path.name] = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {out}: {len(scenarios)} latents, {instances} personas x ({train} train + {val} val) trials")
     if manifest["stats"]:
         print("stats:", json.dumps(manifest["stats"]))

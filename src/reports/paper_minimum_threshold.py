@@ -99,12 +99,15 @@ KINDS = {
     "screen_weight": {"block": "screen_weight", "keys": 1},
     "combined_fraction": {"block": "main", "keys": 3, "parts": ("main", "screen_index", "screen_cut", "screen_weight")},
     "combined_units": {"block": "main", "keys": 2, "parts": ("main", "screen_index", "screen_cut")},
+    "cut_probe": {"block": "cut_probe", "keys": 1},
 }
 UNITS_KINDS = ("screen_cut_units", "combined_units")
 FULL_LATENT_KINDS = ("screen_weight", "combined_fraction", "combined_units")   # given weights and cuts, not one block
 DEFAULT_BATCHES = ("main", "screen_index", "screen_cut", "screen_weight")
 SINGLE_LEVELS = ("screen_cut", "screen_weight")     # one number each, aggregated as the most common reply
-PLACEHOLDERS = ("word", "count", "listing", "units_listing", "keys", "units_keys", "persona")
+PLACEHOLDERS = ("word", "count", "listing", "units_listing", "keys", "units_keys", "persona",
+                "level", "attribute", "units")
+PROBE_ANSWERS = {"yes": 1.0, "no": 0.0}     # cut_probe: 1 = the option would be rejected
 
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
@@ -134,15 +137,23 @@ def persona_line(question):
     return head + "." if sep and head.startswith("Imagine you are ") else question
 
 
-def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=None):
+def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=None, probe=None):
     """A prompt.txt filled in for one scenario's attribute names (and, for {units_listing}, units and ranges;
-    for {persona}, the persona sentence, left as the literal {persona} when no persona is given)."""
+    for {persona}, the persona sentence, left as the literal {persona} when no persona is given). `probe`,
+    for a cut_probe question, is (attribute number, level): {attribute} is that attribute's name, {units}
+    its units and {level} the value asked about; without it the three are left as written."""
     n = len(names)
     listing = ", ".join(f"{i} {name}" for i, name in enumerate(names, start=1))
+    fill = {"level": "{level}", "attribute": "{attribute}", "units": "{units}"}
+    if probe is not None:
+        j, level = probe[0] - 1, probe[1]
+        fill = {"level": f"{float(level):g}", "attribute": names[j],
+                "units": "" if units is None else str(units[j])}
     return template.format(word=_word(n), listing=listing, count=n,
                            units_listing=_units_listing(names, units, mins, maxs),
                            persona="{persona}" if persona is None else persona,
-                           keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"])
+                           keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"],
+                           **fill)
 
 
 def _decimals(low, high):
@@ -181,6 +192,24 @@ def load_question(folder):
     show_trial = spec.get("show_trial", True)
     if not isinstance(show_trial, bool):
         raise ValueError(f"{spec_path}: show_trial must be true or false, got {show_trial!r}")
+    trial_first = spec.get("trial_first", False)
+    if not isinstance(trial_first, bool):
+        raise ValueError(f"{spec_path}: trial_first must be true or false, got {trial_first!r}")
+    if trial_first and not show_trial:
+        raise ValueError(f"{spec_path}: trial_first puts the trial before the question, and show_trial false shows none")
+    levels, attribute = None, None
+    if kind == "cut_probe":
+        levels, attribute = spec.get("levels"), spec.get("attribute")
+        if (not isinstance(levels, list) or not levels
+                or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in levels)):
+            raise ValueError(f'{spec_path}: a cut_probe question needs "levels", a list of numbers in the attribute\'s units')
+        if not isinstance(attribute, int) or isinstance(attribute, bool) or attribute < 1:
+            raise ValueError(f'{spec_path}: a cut_probe question needs "attribute", the probed attribute\'s number from 1')
+        if show_trial:
+            raise ValueError(f"{spec_path}: a cut_probe question is asked without a trial (show_trial false), "
+                             "so it cannot be answered by reading the options")
+    elif "levels" in spec or "attribute" in spec:
+        raise ValueError(f"{spec_path}: levels and attribute belong to a cut_probe question, not a {kind} one")
     template = prompt_path.read_bytes().decode("utf-8")
     if not show_trial and "{persona}" not in template:
         raise ValueError(f"{prompt_path}: a question with show_trial false must name the persona with {{persona}}")
@@ -190,7 +219,8 @@ def load_question(folder):
         raise ValueError(f"{prompt_path}: placeholder {err} is not one of {{{'}, {'.join(PLACEHOLDERS)}}}; "
                          "write a literal brace as {{ or }}") from None
     return {"name": folder.name, "kind": kind, "keys": keys, "description": spec.get("description", ""),
-            "template": template, "show_trial": show_trial}
+            "template": template, "show_trial": show_trial, "trial_first": trial_first,
+            "levels": levels, "attribute": attribute}
 
 
 def available_questions(path=None):
@@ -255,12 +285,25 @@ class PaperMinimumThresholdSchema(Schema):
         for question in self.chosen:
             spec = self.specs[question]
             kind = KINDS[spec["kind"]]
+            if spec["kind"] == "cut_probe":
+                # one batch per level, each its own fresh question, named <question>_<level>; asked, never scored
+                if spec["attribute"] > len(names):
+                    raise ValueError(f"question '{question}' probes attribute {spec['attribute']}; there are {len(names)}")
+                for level in spec["levels"]:
+                    prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"],
+                                                persona, probe=(spec["attribute"], level))
+                    out.append(Batch(name=f"{question}_{float(level):g}", block=kind["block"], keys=list(spec["keys"]),
+                                     prompt_base=prompt_base, names=names, trained=self.trained[question],
+                                     kind="cut_probe", show_trial=False, scored=False, level=float(level),
+                                     attribute=spec["attribute"], **ranges))
+                continue
             keys = names + list(spec["keys"]) if kind.get("parts") else (spec["keys"] or names)
             prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"], persona)
             out.append(Batch(name=question, block=kind["block"], keys=list(keys),
                              prompt_base=prompt_base, names=names,
                              trained=self.trained[question], parts=tuple(kind.get("parts", ())),
-                             kind=spec["kind"], show_trial=spec["show_trial"], **ranges))
+                             kind=spec["kind"], show_trial=spec["show_trial"],
+                             trial_first=spec["trial_first"], **ranges))
         return out
 
     # -- reading a single screen answer --
@@ -298,7 +341,22 @@ class PaperMinimumThresholdSchema(Schema):
             return None     # outside the attribute's range, as a fraction outside 0 to 1 is for screen_cut
         return votes, np.array([percent])
 
+    def _parse_probe(self, text, batch):
+        """A cut_probe reply: exactly {"<key>": "yes"} or {"<key>": "no"} (any case) -> [1.0] or [0.0]."""
+        try:
+            report = json.loads(text.strip("```json").strip("```"))
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(report, dict) or list(report) != list(batch.keys):
+            return None
+        value = report[batch.keys[0]]
+        if not isinstance(value, str) or value.strip().lower() not in PROBE_ANSWERS:
+            return None
+        return np.array([PROBE_ANSWERS[value.strip().lower()]])
+
     def parse(self, text, batch):
+        if (batch.kind or batch.name) == "cut_probe":
+            return self._parse_probe(text, batch)
         values = super().parse(text, batch)
         if values is None:
             return None
@@ -381,6 +439,13 @@ class PaperMinimumThresholdSchema(Schema):
         kind, n = batch.kind or batch.name, self.n
         if kind == "cut":
             return super().format_answer(batch, values)
+        if kind == "cut_probe":
+            # given the cut block: rejected when the level falls below the probed attribute's minimum
+            mins, maxs = self._ranges(batch)
+            j = batch.attribute - 1
+            cut = values[-n:][j]
+            minimum = mins[j] + cut / 100.0 * (maxs[j] - mins[j])
+            return json.dumps({batch.keys[0]: "yes" if cut > 0 and batch.level < minimum else "no"})
         if kind == "weights":
             return json.dumps(dict(zip(batch.keys, self._scaled_weights(values[:n]))))
         latent = values if kind in FULL_LATENT_KINDS else np.concatenate([np.zeros(n), values])

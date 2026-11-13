@@ -185,6 +185,7 @@ from src.config import estimation_counts, eval_batch_size, hyperparameter_column
 from src.estimators.base import AGREEMENT_COLUMNS, agreement, pooled_pearson
 from src.train import end_token_id, stage_label
 from src.uncertainty import bootstrap_mean_distance, screen_correlation_row
+from src import faithfulness_by_kind, step_answers
 
 
 # --- the results row (step 7) ------------------------------------------------------
@@ -614,6 +615,11 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     n, personas = data.attribute_count, data.personas
     batch_size = eval_batch_size(cfg, stage)
     report_trials = D.fresh_trials(personas, rs["samples_per_report"], seeds["reports"])
+    # report_schema.reply_prefix (default "", off): text the assistant turn starts with, e.g. "{" so a reply
+    # begins as a JSON object. It is written after the chat template's assistant header and counted as part
+    # of the reply, so reports_raw and the parser see "{" + what the model wrote.
+    prefix = reply_prefix(cfg)
+    options = report_option_count(cfg, rule)
     reported, parse, raw = {}, {}, []
     for schema in schemas:
         reported[schema.name], parse[schema.name] = {}, {}
@@ -634,11 +640,12 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                     trials = trials[:1]
                 for s, trial in enumerate(trials):
                     # two options only, never C, or nothing (show_trial false): see data.report_prompt
-                    question = D.report_prompt(batch, trial)
-                    texts.append(chat_prompt(tok, question))
+                    question = D.report_prompt(batch, trial, options)
+                    texts.append(chat_prompt(tok, question) + prefix)
                     questions.append(question)
                     index.append((k, s))
             replies = generate_texts(model, tok, texts, rs["max_new_tokens"], rs["report_temperature"], batch_size, device)
+            replies = [prefix + r for r in replies]
             per_persona = {block: {} for block in meta.blocks}
             parsed_rows = {block: [] for block in meta.blocks}
             readable = 0
@@ -649,10 +656,14 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                 # reply can be read beside what produced it; parsed_values as the scorer read them
                 raw.append({"schema": schema.name, "batch": batch.name, "scenario": personas[k].short_name, "sample": s,
                             "question": question, "reply": reply, "parsed": values is not None,
-                            "parsed_values": None if values is None else np.asarray(values, dtype=float).ravel().tolist()})
+                            "parsed_values": None if values is None else np.asarray(values, dtype=float).ravel().tolist(),
+                            **({"reply_prefix": prefix} if prefix else {}),
+                            **({"level": batch.level, "attribute": batch.attribute} if batch.level is not None else {})})
                 if values is None:
                     continue
                 readable += 1
+                if not getattr(batch, "scored", True):
+                    continue
                 trial = report_trials[k][s]
                 for block, part in schema.split(batch, values).items():
                     per_persona[block].setdefault(k, []).append(part)
@@ -663,10 +674,18 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                             "version": batch.name,
                             "scenario": personas[k].short_name,
                             **{f"report_{c}": v for c, v in zip(columns, part)},
-                            **{f"A_attribute_{i+1}": trial.option_A.attributes[i]["value"] for i in range(n)},
-                            **{f"B_attribute_{i+1}": trial.option_B.attributes[i]["value"] for i in range(n)},
+                            # the options shown; blank for a question shown no trial (it saw none)
+                            **{f"A_attribute_{i+1}": trial.option_A.attributes[i]["value"] if batch.show_trial else None
+                               for i in range(n)},
+                            **{f"B_attribute_{i+1}": trial.option_B.attributes[i]["value"] if batch.show_trial else None
+                               for i in range(n)},
                         }
                     )
+            if not getattr(meta, "scored", True):
+                # a probe (cut_probe): kept in reports_raw and step_answers, never a results row or a parse gate
+                print(f"  reports [{schema.name}/{batch_name}]: {readable}/{len(texts)} readable (not scored), "
+                      f"{time.time() - t0:.0f}s")
+                continue
             parse[schema.name][batch_name] = (readable, len(texts), meta.block)
             for block in meta.blocks:
                 key = batch_name if len(meta.blocks) == 1 else f"{batch_name}/{block}"
@@ -689,7 +708,42 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     with (out_dir / f"reports_raw_{tag}.jsonl").open("w") as f:
         for row in raw:
             f.write(json.dumps(row) + "\n")
+    # every question's answers at this step, beside every earlier step's: step_answers.md / .csv
+    try:
+        step_answers.print_step(out_dir, tag)
+        step_answers.update(out_dir)
+    except Exception as err:    # a summary must never stop a run
+        print(f"  step_answers not written: {err!r}")
+    try:
+        faithfulness_by_kind.print_step(out_dir, tag)
+    except Exception as err:
+        print(f"  faithfulness_by_trial_kind not written: {err!r}")
     return reported, parse
+
+
+def report_option_count(cfg, rule):
+    """How many options a report question's trial lists: the decision task's own (A, B and C, "neither", under a
+    three-option rule) when report_schema.show_neither is true, else 2, A and B only (the default, as every run
+    before 2026-11-12 was asked). Refused beside introspection training, whose examples list A and B only."""
+    show = cfg["report_schema"].get("show_neither", False)
+    if not isinstance(show, bool):
+        raise ValueError(f"report_schema.show_neither must be true or false, got {show!r}")
+    if show and cfg["model_hyperparameters"].get("introspection_training"):
+        raise ValueError("report_schema.show_neither is not applied to introspection training examples; "
+                         "turn introspection_training off or show_neither off")
+    return int(getattr(rule, "option_count", 2)) if show else 2
+
+
+def reply_prefix(cfg):
+    """report_schema.reply_prefix, checked: a string, "" (off) by default. Refused beside introspection
+    training, whose examples are written without it, so training and asking would disagree."""
+    prefix = cfg["report_schema"].get("reply_prefix", "")
+    if not isinstance(prefix, str):
+        raise ValueError(f"report_schema.reply_prefix must be a string, got {prefix!r}")
+    if prefix and cfg["model_hyperparameters"].get("introspection_training"):
+        raise ValueError("report_schema.reply_prefix is not written into introspection training examples; "
+                         "turn introspection_training off or the prefix off")
+    return prefix
 
 
 # --- scoring: summarize() and steps 3, 5 and 6 ---------------------------------------
@@ -722,6 +776,8 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
     blocks = list(dict.fromkeys(list(rule_slices) + list(est_slices)))
     for schema in schemas:
         for b in schema.batches([f"attribute_{i}" for i in range(1, n + 1)]):
+            if not getattr(b, "scored", True):
+                continue    # a probe (cut_probe) is asked and kept, never a results row
             for block in b.blocks:
                 if block not in blocks:
                     blocks.append(block)

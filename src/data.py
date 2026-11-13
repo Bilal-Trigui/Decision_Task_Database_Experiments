@@ -59,17 +59,24 @@ def selection_prompt(trial, option_count=2):
     return selection_prompt_base(option_count) + trial.generate_choice(option_count)
 
 
-def report_context(batch, trial):
+def report_context(batch, trial, option_count=2):
     """What follows a report question's wording: by default the trial's persona line and its two options
     (never C: see generate_introspection_examples). A question whose question.json sets "show_trial": false
     gets nothing: it names the persona itself, right after [INTROSPECTION TASK] ({persona} in its prompt.txt),
     and shows no options, so its reply cannot react to a particular pair of options."""
-    return trial.generate_choice() if getattr(batch, "show_trial", True) else ""
+    # option_count 3 lists C ("Neither option") after A and B, as the decision prompt does
+    # (report_schema.show_neither); 2, the default, shows A and B only
+    return trial.generate_choice(option_count) if getattr(batch, "show_trial", True) else ""
 
 
-def report_prompt(batch, trial):
-    """The whole report question for one sample: the question's wording, then report_context."""
-    return batch.prompt_base + report_context(batch, trial)
+def report_prompt(batch, trial, option_count=2):
+    """The whole report question for one sample: the question's wording, then report_context. A question
+    whose question.json sets "trial_first": true is the other way round: the trial, a blank line, then the
+    wording (its prompt.txt is written to follow a trial)."""
+    context = report_context(batch, trial, option_count)
+    if getattr(batch, "trial_first", False) and context:
+        return context + "\n\n" + batch.prompt_base.strip()
+    return batch.prompt_base + context
 
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
@@ -517,8 +524,8 @@ def load_decision_examples(cfg, scenarios, latents, rule):
         train = [decision_example(t, rule.option_count) for trials in train_trials for t in trials]
         val = [decision_example(t, rule.option_count) for trials in val_trials for t in trials]
         train_name, val_name = trial_file_names(instances)
-        (data_dir / train_name).write_text("\n".join(example_to_json(e) for e in train))
-        (data_dir / val_name).write_text("\n".join(example_to_json(e) for e in val))
+        (data_dir / train_name).write_text("\n".join(example_to_json(e) for e in train), encoding="utf-8", newline="\n")
+        (data_dir / val_name).write_text("\n".join(example_to_json(e) for e in val), encoding="utf-8", newline="\n")
         return train, val
 
     k_file, train_path, val_path = found
@@ -629,7 +636,7 @@ def write_question_files(examples, folder, note=True):
                 print(f"note: {path} no longer matches the question's wording or answers; rebuilt it")
         elif note:
             print(f"note: wrote {path}")
-        rows.to_csv(path, index=False)
+        rows.to_csv(path, index=False, lineterminator="\n")
         paths.append(path)
     return paths
 
@@ -694,7 +701,7 @@ def load_introspection_examples(cfg, scenarios, latents, rule, schema):
     )
     pd.DataFrame(
         [{"scenario": e.scenario, "batch": e.batch, "user_prompt": e.user, "assistant_answer": e.answer} for e in examples]
-    ).to_csv(path, index=False)
+    ).to_csv(path, index=False, lineterminator="\n")
     return examples
 
 

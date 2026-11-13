@@ -1,0 +1,5 @@
+{
+  "kind": "weights",
+  "trial_first": true,
+  "description": "main asked the other way round: the trial (persona line and options A and B) first, then a blank line, then the question, whose closing colon is dropped. Otherwise the same wording, kind and keys as main."
+}

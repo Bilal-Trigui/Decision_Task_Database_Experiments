@@ -39,6 +39,8 @@ def test_every_config_loads_and_resolves():
         rule_blocks = set(comps.rule.block_slices(n))
         for schema in comps.schemas:
             for batch in schema.batches([f"a{i}" for i in range(1, n + 1)]):
+                if not getattr(batch, "scored", True):
+                    continue    # a probe (cut_probe) is asked and kept, never scored against a block
                 assert batch.block in rule_blocks, (path.name, schema.name, batch.name, batch.block)
         print(f"  {path.name:34s} {comps.rule.name:12s} {comps.estimator.name:12s} "
               f"{[s.name for s in comps.schemas]}")

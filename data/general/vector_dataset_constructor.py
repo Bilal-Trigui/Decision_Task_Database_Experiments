@@ -78,20 +78,20 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
     # stage one: decisions, labelled by the rule under these exact weights
     train_trials, val_trials = D.generate_decision_trials(personas, latents, rule, train, val, seeds["trials"])
     train_name, val_name = D.trial_file_names(instances)
-    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in train_trials for t in ts))
-    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in val_trials for t in ts))
+    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in train_trials for t in ts), encoding="utf-8", newline="\n")
+    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in val_trials for t in ts), encoding="utf-8", newline="\n")
 
     # stage two: the report prompt answered with the hidden weights, in both layouts
     examples = D.generate_introspection_examples(personas, latents, rule, schema, n, seeds["introspection"])
-    (out / f"instilled_weights_{instances}_training.jsonl").write_text("\n".join(D.example_to_json(e) for e in examples))
+    (out / f"instilled_weights_{instances}_training.jsonl").write_text("\n".join(D.example_to_json(e) for e in examples), encoding="utf-8", newline="\n")
     pd.DataFrame(
         [{"scenario": e.scenario, "batch": e.batch, "user_prompt": e.user, "assistant_answer": e.answer} for e in examples]
-    ).to_csv(out / D.INTROSPECTION_TRAINING_CSV, index=False)
+    ).to_csv(out / D.INTROSPECTION_TRAINING_CSV, index=False, lineterminator="\n")
 
     # whatever this rule wants written down about the shape of its own latent
     views = rule.views(personas, latents, n)
     for name, rows in views.items():
-        pd.DataFrame(rows).to_csv(out / name, index=False)
+        pd.DataFrame(rows).to_csv(out / name, index=False, lineterminator="\n")
     stats = rule.dataset_stats(train_trials, val_trials, latents, n)
 
     written = [train_name, val_name, f"instilled_weights_{instances}_training.jsonl",
@@ -116,7 +116,7 @@ def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10
                    (D.SCENARIO_DEFINITIONS, "roles.csv", "scenarios.csv", "instilled_weights.csv")},
         "files": {name: _hash(out / name) for name in written},
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {out}: answers {'/'.join(rule.letters)}")
     for name in written:
         print(f"  {name:44s} {manifest['files'][name]}")
@@ -156,7 +156,7 @@ def from_settings(path):
     mt, rule_block, rs = cfg["model_training"], dict(cfg["decision_rule"]), dict(cfg["report_schema"])
     schema = rs.pop("type")
     schema = None if schema == "auto" else (schema if isinstance(schema, str) else schema[0])
-    keep = ("batches",)    # the schema's own parameters; the rest of report_schema is how reports are asked
+    keep = ("batches", "questions", "questions_dir")    # the schema's own parameters; the rest is how reports are asked
     return {
         "data_dir": mt["data_dir"], "rule_name": rule_block.pop("type"), "params": rule_block,
         "instances": mt["instances"], "train": mt["train_trials_per_persona"], "val": mt["val_trials_per_persona"],

@@ -41,7 +41,7 @@ def generate(data_dir, rule_name=None, out_dir=None, seed=1, params=None, rebuil
     n = D.infer_attribute_count(data_dir)
     scenarios = D.load_scenarios(data_dir, n)
     latents, frame = roll_weights(rule, scenarios, n, seed)
-    frame.to_csv(out / WEIGHTS, index=False)
+    frame.to_csv(out / WEIGHTS, index=False, lineterminator="\n")
 
     print(f"rerolled {out / WEIGHTS} under rule '{rule.name}' at seed {seed}")
     print(f"  parameters             {rule.params}")

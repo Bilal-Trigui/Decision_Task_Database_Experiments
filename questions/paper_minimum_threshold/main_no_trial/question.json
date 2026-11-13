@@ -1,0 +1,5 @@
+{
+  "kind": "weights",
+  "show_trial": false,
+  "description": "The weights, asked with no trial and with no mention of a threshold (the persona line opens the question): the plain dot-product question, the only no-trial weight question that fits a linear persona too. Block main."
+}

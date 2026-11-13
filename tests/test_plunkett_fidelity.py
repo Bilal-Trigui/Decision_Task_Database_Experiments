@@ -33,8 +33,8 @@ SEEDS = {"roles": 0, "weights": 1, "trials": 2, "verification": 5, "introspectio
 def test_scenarios_csv():
     definitions = D.read_definitions(PLUNKETT)
     roles = D.load_roles(PLUNKETT)
-    rebuilt = D.assemble_scenarios(definitions, roles, SEEDS["roles"]).to_csv(index=False)
-    assert rebuilt == (PLUNKETT / "scenarios.csv").read_text(), "scenarios.csv differs"
+    rebuilt = D.assemble_scenarios(definitions, roles, SEEDS["roles"]).to_csv(index=False, lineterminator="\n")  # LF, as his file, on Windows too
+    assert rebuilt == (PLUNKETT / "scenarios.csv").read_text(encoding="utf-8"), "scenarios.csv differs"
 
 
 def test_weights_and_trials():
@@ -50,7 +50,7 @@ def test_introspection_training_file():
     latents = D.load_hidden_latents(PLUNKETT, scenarios, rule, 5)
     examples = D.generate_introspection_examples(scenarios, latents, rule, LinearSchema(5), 5, SEEDS["introspection"])
     rebuilt = "\n".join(D.example_to_json(e) for e in examples)
-    assert rebuilt == (PLUNKETT / "instilled_weights_100_training.jsonl").read_text(), "introspection file differs"
+    assert rebuilt == (PLUNKETT / "instilled_weights_100_training.jsonl").read_text(encoding="utf-8"), "introspection file differs"
 
 
 # The inputs of Plunkett's experiment, which is all this folder keeps. His own model

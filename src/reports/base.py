@@ -35,6 +35,10 @@ class Batch:
     maxs: tuple = None
     kind: str = None        # what the question asks, for a schema whose questions are folders (paper_minimum_threshold)
     show_trial: bool = True  # False: no options; the question names the persona itself after [INTROSPECTION TASK]
+    trial_first: bool = False  # True: the trial comes first and the question after it (data.report_prompt)
+    scored: bool = True     # False: asked and kept in reports_raw (and step_answers), never scored (cut_probe)
+    level: float = None     # cut_probe: the value asked about, in the probed attribute's own units
+    attribute: int = None   # cut_probe: the probed attribute's number, 1 to n
 
     @property
     def blocks(self):

@@ -1,0 +1,10 @@
+{
+  "kind": "cut_probe",
+  "show_trial": false,
+  "attribute": 1,
+  "levels": [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+  "keys": [
+    "rejected"
+  ],
+  "description": "Yes or no: would an option with caffeine_content (attribute 1) at X mg per cup be rejected, for X from 10 to 50 in steps of 1. Asked with no trial, once per level, each in a fresh context, so no number can be copied off the options and the replies trace the stated cut as a curve (yes below it, no above it; under the paper rule the minimum is 35, and 35 itself passes). Asked, never scored: the answers are in reports_raw (with level and attribute) and in step_answers.md. A training answer, if it were ever trained on, is yes when X is below the probed attribute's minimum."
+}

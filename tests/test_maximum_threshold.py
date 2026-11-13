@@ -119,7 +119,14 @@ def test_the_questions_ask_about_a_maximum():
     sc = _persona()
     root = Path("questions/paper_maximum_threshold")
     folders = sorted(p.name for p in root.iterdir() if p.is_dir())
-    assert folders == sorted(p.name for p in Path("questions/paper_minimum_threshold").iterdir() if p.is_dir())
+    # every maximum question mirrors a minimum one; these minimum questions (2026-11-12) have no maximum
+    # version yet: the trial-first copies, the plain no-trial weights, and the cut probe (whose training
+    # answer is written for a minimum)
+    minimum_only = {"cut_probe", "main_no_trial"} | {f"{q}_trial_first" for q in
+                                                    ("main", "screen_index", "screen_cut_units", "screen_cut",
+                                                     "main_report_units")}
+    minimum = sorted(p.name for p in Path("questions/paper_minimum_threshold").iterdir() if p.is_dir())
+    assert folders == sorted(set(minimum) - minimum_only), sorted(set(minimum) ^ set(folders))
     for name in folders:
         text = (root / name / "prompt.txt").read_text(encoding="utf-8") + (root / name / "question.json").read_text(encoding="utf-8")
         assert "minimum" not in text.lower() and "below" not in text.lower(), name

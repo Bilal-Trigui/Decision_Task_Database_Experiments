@@ -1,0 +1,9 @@
+{
+  "kind": "screen_cut_units",
+  "trial_first": true,
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ],
+  "description": "screen_cut_units asked the other way round: the trial (persona line and options A and B) first, then a blank line, then the question, whose closing colon is dropped. Otherwise the same wording, kind and keys as screen_cut_units."
+}
