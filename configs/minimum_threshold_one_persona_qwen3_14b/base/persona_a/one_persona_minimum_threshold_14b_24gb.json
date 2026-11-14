@@ -1,0 +1,176 @@
+{
+  "_comment": [
+    "Persona A, the original one-persona run: decision training only, 10000 steps, the four original report questions (the Qwen3-8B run was 20261106-152354, 'A-old'). On Qwen/Qwen3-14B.",
+    "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
+    "The data folder is the Qwen3-8B experiment's: trials and answers do not depend on the model.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-14B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-14B in 4-bit is about 10 GB, as tight on 24 GB as 8B is on 16 GB. Out of memory: micro_batch_size 1, then report_schema.max_new_tokens 200.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona_qwen3_14b/base/persona_a/one_persona_minimum_threshold_14b_24gb.json",
+    "",
+    "Notes, written when this file listed only its changes over minimum_threshold_1500_steps.json (those values are now written out here too):",
+    "One persona, decision training only: does faithful self-report emerge from decision training alone? Qwen3-8B (16 GB",
+    "card), the paper minimum threshold task, trained only on loose_leaf_tea ('Imagine you are Djedefre'), persona 0 of",
+    "data/paper_minimum_threshold/: weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100,",
+    "resteep_potential 31; caffeine_content screened at 50% of its range. Extends minimum_threshold_1500_steps.json;",
+    "everything not set here is that file's (and so paper_minimum_threshold_8b_16gb.json's).",
+    "",
+    "There is no stage two. introspection_training false: the report questions are asked at every checkpoint but never",
+    "  trained on, so faithfulness (reported vs recovered) and hidden_vs_reported (reported vs the instilled rule) at",
+    "  each checkpoint come from decision training alone. With one persona there are no folds anyway.",
+    "decision_rule: 75% of training trials are decided by the weights alone (both options pass the screen),",
+    "  12.5% are C (both fail the screen, neither_share) and 12.5% are decided by the screen (one passes, one fails: the",
+    "  remainder, since both other kinds are at quota). 5000 training trials: 3750 / 625 / 625. 100 validation",
+    "  trials: 75 weights, 12 C, 13 screen. Estimation trials (what the model is scored on) are drawn as they come.",
+    "  About half the screen trials would get the same answer without the screen (the passing option also wins on",
+    "  the weights), so the cut changes the answer in about 6% of trials besides the C ones.",
+    "model_training: instances 1 = the folder's first persona, loose_leaf_tea. 5000 training trials; 10000 steps at",
+    "  batch 10 is 100000 examples, twenty passes. data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold/ keeps the weights of",
+    "  data/paper_minimum_threshold/, with new trials built for these shares.",
+    "model_estimating: 1000 estimation trials per checkpoint (one persona, so cheap) for a stable recovered rule;",
+    "  shuffle_draws 0, since the shuffled-persona baseline needs at least two personas.",
+    "report_schema.samples_per_report 50: one persona, so each checkpoint's faithfulness rests on its samples alone.",
+    "  Every question asked and every reply is kept in results/<run>/reports_raw_<tag>.jsonl.",
+    "model_hyperparameters: 10000 steps, a checkpoint saved and evaluated every 250 (40 points, each kept with its",
+    "  optimizer state so cut training can start exactly from any of them), with the untrained model scored first",
+    "  as step 0 (base_model rows). Constant learning rate, as the earlier runs.",
+    "",
+    "Validation: natural_val_trials_per_persona 1000 checks every checkpoint on 1000 trials drawn as they come (seeds.validation),",
+    "  the same trials whatever the training mix, with accuracy logged per trial kind. val_trials_per_persona is then unused.",
+    "max_grad_norm 1.0: the gradient norm is capped before each AdamW step; train_log.csv records the size before the cap.",
+    "",
+    "Build the data folder (once; already built):",
+    "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json"
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.125,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.75
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": true
+      },
+      "screen_index": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": true
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut": {
+        "ask": false,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      }
+    }
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-14B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 10000,
+    "checkpoint_every": 250,
+    "baseline_before_training": true,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "all",
+    "run_tag": null,
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1,
+    "mount_drive": false
+  }
+}

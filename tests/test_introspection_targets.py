@@ -73,7 +73,7 @@ def test_question_folders_and_toggles():
 
 
 def test_a_reworded_question_rebuilds_its_file():
-    cfg = load("configs/paper_minimum_threshold_8b_16gb_units.json")
+    cfg = load("configs/paper_minimum_threshold/paper_minimum_threshold_8b_16gb_units.json")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         questions = tmp / "questions"
@@ -108,7 +108,7 @@ def test_a_reworded_question_rebuilds_its_file():
 
 
 def _paper():
-    cfg = load("configs/paper_minimum_threshold_8b_16gb_units.json")
+    cfg = load("configs/paper_minimum_threshold/paper_minimum_threshold_8b_16gb_units.json")
     comps = resolve(cfg)
     return cfg, comps, D.load_data(cfg, comps.rule)
 

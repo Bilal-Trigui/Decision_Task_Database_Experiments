@@ -33,7 +33,7 @@ from src.rules.paper_maximum_threshold import PaperMaximumThresholdRule
 from src.rules.paper_minimum_threshold import PaperMinimumThresholdRule
 
 N = 5
-SETTINGS = "configs/one_persona_maximum_threshold.json"
+SETTINGS = "configs/one_persona_maximum_threshold/one_persona_maximum_threshold.json"
 DATA = Path("data/one_persona_maximum_threshold")
 
 
@@ -159,7 +159,7 @@ def test_the_data_folder():
     latent = data.latents[0]
     assert latent.tolist() == [0, -83, -38, -100, 31, 50, 0, 0, 0, 0], latent
     for name in ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv"):
-        assert (DATA / name).read_bytes() == (Path("data/minimum_threshold_one_persona/base/one_persona_minimum_threshold") / name).read_bytes(), name
+        assert (DATA / name).read_bytes() == (Path("data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold") / name).read_bytes(), name
     sc = data.personas[0]
     low = PaperMinimumThresholdRule(**comps.rule.params)
     # the stored answers are the maximum rule's, recomputed from each prompt's own numbers
@@ -213,7 +213,7 @@ def _trial_from(scenario, values_a, values_b):
 
 def test_the_settings():
     high, _ = read_settings(SETTINGS)
-    low, _ = read_settings("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
+    low, _ = read_settings("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
     differences = []
 
     def walk(a, b, path=()):

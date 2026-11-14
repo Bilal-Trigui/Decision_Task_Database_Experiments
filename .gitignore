@@ -32,4 +32,4 @@ introspection_training.csv
 archive/
 
 # generated per question from instilled_weights.csv and questions/, rebuilt every run
-data/*/introspection/
+data/**/introspection/

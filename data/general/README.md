@@ -117,7 +117,7 @@ python data/general/vector_dataset_constructor.py --data data/mine --rule linear
 python data/general/vector_dataset_constructor.py --data minimum_threshold               # a bare folder name works too
 python data/minimum_threshold/minimum_threshold_dataset_constructor.py                   # the same, through the wrapper
 python data/minimum_threshold/minimum_threshold_weight_generator.py --seed 7 --rebuild   # reroll and rebuild in one step
-python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold_8b.json   # the folder a settings file runs on
+python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold/paper_minimum_threshold_8b.json   # the folder a settings file runs on
 ```
 
 `--settings` takes the folder, rule (option count included), counts, seeds and report schema from

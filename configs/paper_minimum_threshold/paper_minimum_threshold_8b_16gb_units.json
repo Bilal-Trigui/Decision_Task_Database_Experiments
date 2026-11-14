@@ -1,0 +1,124 @@
+{
+  "_comment": [
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "",
+    "Notes, written when this file listed only its changes over paper_minimum_threshold_8b_16gb.json (those values are now written out here too):",
+    "paper_minimum_threshold_8b_16gb.json with the report questions revised after the 20261031-061400 run. Same task, same",
+    "personas, weights, cuts and trials (data/paper_minimum_threshold_units is a copy of data/paper_minimum_threshold,",
+    "so its training files are identical); only the introspection questions differ, which is why it has its own folder:",
+    "its introspection_training.csv is generated for these questions and never mixes with the old run's.",
+    "",
+    "screen_cut -> screen_cut_units: the minimum is asked in the screened attribute's own units, as the options list",
+    "  them (\"35 mg per cup\"), not as a fraction 0 to 1 of a range the model is never shown. The reply names its",
+    "  attribute too, so its value can be put on that attribute's range and scored as screen_cut was.",
+    "screen_weight dropped: under this rule its answer is 0 for every persona, so it measured nothing.",
+    "main_report -> main_report_units: the weights, the screened attribute and the minimum in units, in one reply.",
+    "introspection_steps 600: three passes over a fold's 200 examples (50 personas x 4 questions), as 750 was over 250.",
+    "Evaluation batch sizes as in the resume config: introspection 1, which avoided the out-of-memory after step 1500."
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.2,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null
+  },
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold_units/",
+    "instances": 100,
+    "train_trials_per_persona": 50,
+    "val_trials_per_persona": 10,
+    "natural_val_trials_per_persona": null,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 400,
+    "chance_draws": 1000,
+    "shuffle_draws": 1000,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 10,
+    "max_new_tokens": 400,
+    "batches": [
+      "main",
+      "screen_index",
+      "screen_cut_units",
+      "main_report_units"
+    ]
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 2500,
+    "checkpoint_every": 500,
+    "baseline_before_training": true,
+    "introspection_training": true,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": [
+      1500,
+      2500
+    ],
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": null,
+    "start_from": null,
+    "save_optimizer": "all",
+    "run_tag": null,
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1,
+    "mount_drive": false
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "_comment": [
+    "Control: persona A's weights with no screen and two options (Plunkett's dot-product rule). On Qwen/Qwen3-32B.",
+    "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: none.",
+    "The data folder is the Qwen3-8B experiment's: trials and answers do not depend on the model.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-32B on a 48 GB card (A6000, L40S, A40): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-32B in 4-bit is about 19 GB; it does not fit a 24 GB card. Out of memory: micro_batch_size 1.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona_qwen3_32b/controls/persona_a/one_persona_linear_32b_48gb.json",
+    "",
+    "Notes, written when this file listed only its changes over default.json (those values are now written out here too):",
+    "One-persona dot-product control: persona A with the screen taken away. The same persona and attributes",
+    "(loose_leaf_tea, 'Imagine you are Djedefre'), A's weights (caffeine_content 0, leaf_size -83, oxidation_level -38,",
+    "steeping_time -100, resteep_potential 31) and Plunkett's linear rule: the option with the higher weighted sum of",
+    "range-normalised values wins. No cut, so no C: two options, Plunkett's A-or-B decision prompt.",
+    "Asks whether self-report behaves differently when the rule is a plain dot product, with nothing else changed that can",
+    "be kept: the model, LoRA, learning rate, batch, 5000 training trials, 3000 steps, a checkpoint every 250 (the",
+    "untrained model as step 0), clipping 1.0, 1000 estimation trials and 1000 natural validation trials per checkpoint,",
+    "50 samples per report question, the \"{\" reply prefix, show_neither (a no-op here: two options), the seeds.",
+    "Necessarily different from the threshold runs: the decision prompt offers A or B only (no C line), so the training",
+    "prompts are not A's 5000; and only weight questions are asked (no screen exists to ask about):",
+    "  main, main_trial_first   shown a trial, 50 samples each",
+    "  main_no_trial            no trial, no mention of a threshold, asked once",
+    "Extends default.json (not the threshold files), since a merged file cannot drop the threshold rule's fields.",
+    "",
+    "data/minimum_threshold_one_persona/controls/persona_a/one_persona_linear/: A's input files, instilled_weights.csv cut to the five weight columns (the other 1099",
+    "rows kept for the cross-persona null). Build (once, LF line endings):",
+    "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/controls/persona_a/one_persona_linear.json"
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "linear",
+    "option_count": 2,
+    "min_weight_magnitude": null
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/controls/persona_a/one_persona_linear/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "linear",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0
+  },
+  "report_schema": {
+    "type": "paper_minimum_threshold",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "reply_prefix": "{",
+    "show_neither": true,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": false
+      },
+      "main_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "main_no_trial": {
+        "ask": true,
+        "train": false
+      }
+    }
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-32B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 250,
+    "baseline_before_training": true,
+    "introspection_training": false,
+    "introspection_steps": 150,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "last",
+    "run_tag": "linear",
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1,
+    "mount_drive": false
+  }
+}

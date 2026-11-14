@@ -19,7 +19,7 @@ import src.experiments as E
 import src.pipeline as P
 import src.persist as persist
 
-SWEEP = ["configs/cut_sweep_w75_c25.json", "configs/cut_sweep_w45_c55.json", "configs/cut_sweep_w00_c100.json"]
+SWEEP = ["configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w75_c25.json", "configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w45_c55.json", "configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w00_c100.json"]
 
 
 def _with_queues(test):
@@ -62,11 +62,11 @@ def test_list_skip_retry_interrupt():
         seen = []
         P.run = _fake_run(seen=seen)
         E.run_experiments(SWEEP, sweep="t")
-        assert [s[0] for s in seen] == ["data/cut_sweep/w45_c55/"], f"only the failed run should run again: {seen}"
+        assert [s[0] for s in seen] == ["data/minimum_threshold_one_persona/cut_sweep/persona_a/w45_c55/"], f"only the failed run should run again: {seen}"
 
         P.run = _fake_run(interrupt=("w55",))
         try:
-            E.run_experiments(["configs/cut_sweep_w55_c45.json", "configs/cut_sweep_w35_c65.json"], sweep="u")
+            E.run_experiments(["configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w55_c45.json", "configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w35_c65.json"], sweep="u")
             raise AssertionError("Ctrl+C did not stop the list")
         except KeyboardInterrupt:
             pass
@@ -83,7 +83,7 @@ def test_overrides_reach_the_settings():
     try:
         P.run = _fake_run(seen=seen)
         E.run_experiments(SWEEP[:1], start_from=("SOME_RUN", 2000), end=2600, every=200)
-        assert seen == [("data/cut_sweep/w75_c25/", 2600, 200, {"run_id": "SOME_RUN", "step": 2000})], seen
+        assert seen == [("data/minimum_threshold_one_persona/cut_sweep/persona_a/w75_c25/", 2600, 200, {"run_id": "SOME_RUN", "step": 2000})], seen
         out = E.run_experiments(SWEEP[:1], start_from=("SOME_RUN", 3000), end=2600)     # branch after the end: refused
         assert out == {SWEEP[0]: None}
     finally:
@@ -135,11 +135,14 @@ def test_results_table():
 
 
 def test_disk_needed():
-    cfg = E.load_experiment("configs/cut_sweep_w45_c55.json")
+    cfg = E.load_experiment("configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w45_c55.json")
     count = (cfg["model_hyperparameters"]["training_steps"] - 1500) // cfg["model_hyperparameters"]["checkpoint_every"] + 1
     assert abs(E.disk_needed_gb(cfg) - ((count * E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
-    one = E.load_experiment("configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
+    one = E.load_experiment("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
     assert abs(E.disk_needed_gb(one) - (41 * (E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
+    # a larger model's adapter is larger at the same rank
+    big = E.load_experiment("configs/minimum_threshold_one_persona_qwen3_32b/base/persona_a/one_persona_minimum_threshold_32b_80gb.json")
+    assert abs(E.disk_needed_gb(big) - (41 * (E.ADAPTER_MB + E.OPTIMIZER_MB) * 3.07 / 1024 + 0.5)) < 1e-9
     print(f"  disk: a cut run about {E.disk_needed_gb(cfg):.1f} GB, the one-persona run {E.disk_needed_gb(one):.1f} GB")
 
 

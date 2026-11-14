@@ -1,0 +1,175 @@
+{
+  "_comment": [
+    "Persona A, 3000 steps, the original report questions plus the no-trial questions (run 20261110-211307, 'A-new').",
+    "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, eval batches 16 (decision 16, introspection 4). Out of memory: eval batches 8 first, then micro_batch_size 2.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a_24gb.json",
+    "",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "No-trial report questions, persona A (loose_leaf_tea, weights 0 / -83 / -38 / -100 / 31, caffeine screened at 35 mg).",
+    "Decision training from scratch, exactly as run 20261106-152354 (same data folder, seeds, learning rate), with",
+    "gradient clipping 1.0 and 3000 steps (A's interesting stretch was 1500-2750; it spiked at 5428 without clipping).",
+    "",
+    "Every checkpoint asks two sets of report questions, never trained on (introspection off):",
+    "  the old four, a decision trial shown (50 samples each), so this run is comparable with every earlier one;",
+    "  the five new ones, no trial shown, the persona named first (asked once each: temperature 0 gives one answer):",
+    "    main_threshold_met       weights once an option meets the caffeine minimum (right answer: A's weights)",
+    "    main_threshold_not_met   weights when an option falls below it (no agreed right answer yet: read directly)",
+    "    screen_index_no_trial    which dimension carried the minimum (right answer: 1)",
+    "    screen_cut_units_no_trial    screen cut (A): that dimension and its minimum in mg (right answer: 1, 35)",
+    "    screen_cut_percent_no_trial  screen cut (B): the same as a percentage of the range (right answer: 1, 50)"
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.125,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.75
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut": {
+        "ask": false,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
+      }
+    }
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 5,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 250,
+    "baseline_before_training": true,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "last",
+    "run_tag": "no-trial-a",
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 16,
+    "decision_eval_batch_size": 16,
+    "introspection_eval_batch_size": 4,
+    "mount_drive": false
+  }
+}

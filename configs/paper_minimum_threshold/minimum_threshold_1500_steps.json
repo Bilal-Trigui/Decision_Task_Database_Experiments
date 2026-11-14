@@ -1,0 +1,177 @@
+{
+  "_comment": [
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "",
+    "Notes, written when this file listed only its changes over paper_minimum_threshold_8b_16gb.json (those values are now written out here too):",
+    "The paper minimum threshold task on Qwen3-8B (16 GB card), 2500 decision steps over twice the training trials, with",
+    "introspection at steps 1500 and 2500 toward two targets: run 1's schedule, with twice the data and 60% of it decided",
+    "by the weights. (Named for an earlier 1500-step plan.) Extends paper_minimum_threshold_8b_16gb.json; everything not",
+    "set here is that file's.",
+    "",
+    "Why: the 20261031-061400 run learned the screen (99%) but not the weights (0.40 against 0.85 on Plunkett's linear task",
+    "with the same model): the screen decides about 70% of training answers, and by step 2500 each of its 5000 examples",
+    "had been seen five times, overfitting the decision task and eroding the report format.",
+    "",
+    "decision_rule.weight_decided_share 0.6: 60 of each persona's 100 training trials (6 of 10 validation) have both options",
+    "  pass the screen, so the weights alone decide them; 20 are C (neither_share) and 20 are decided by the screen. Taken",
+    "  as they come, only about 27% are weight-decided. The rule is unchanged; only which trials are drawn for training.",
+    "  The estimation trials the model is scored on are drawn as they come, as in run 1.",
+    "model_training: 100 training trials per persona (10000 examples, 6000 decided by the weights against 1345 of run 1's",
+    "  5000), in data/paper_minimum_threshold_100trials_w60/: the same personas, weights and cuts as",
+    "  data/paper_minimum_threshold/, with new trials. Steps of 10: 1500 is 1.5 passes, 2500 is 2.5 (run 1: 3 and 5).",
+    "  By step 2500 that is 15000 weight-decided presentations, as many as Plunkett's 5000 x 3 epochs.",
+    "model_estimating.shuffle_draws: the shuffled-persona baseline is on (1000 reshufflings, about a minute per",
+    "  checkpoint); 0 would switch it off.",
+    "report_schema.questions: which questions are asked (ask) and trained on in introspection (train), each a folder in",
+    "  questions/paper_minimum_threshold/. The cut is asked in the attribute's own units (screen_cut_units, and inside",
+    "  main_report_units); the fraction wording and the screened weight (always 0, so it measured nothing) are off.",
+    "model_hyperparameters:",
+    "  introspection_targets hidden = the persona's own rule (Plunkett); recovered = the rule read back from the model's",
+    "    own choices at the checkpoint, so every training answer is true of the model. Add shuffled (another persona's",
+    "    rule: the format without the content) or random as controls.",
+    "  introspection_remeasure_decisions: the held-out personas' choices are asked again after report training, and the",
+    "    reports scored against the rule as it then stands too (faithfulness_after), beside the checkpoint's rule.",
+    "  introspection_steps 600: three passes over a fold's 200 examples (50 personas x 4 trained questions).",
+    "  lr_schedule null: constant, as the 20261031 run, so the data is the only change. For a decay:",
+    "    {\"type\": \"linear\", \"warmup_steps\": 0, \"final_fraction\": 0.1}",
+    "  baseline_before_training false: the untrained model's step 0 is the 20261031 run's (same personas, same",
+    "    evaluation trials and report prompts). Set true to score it again here (about 2.5 hours).",
+    "compute: evaluation batches of 4 for decisions and 1 for introspection, which avoided the out-of-memory at step 1500."
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.2,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.6
+  },
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold_100trials_w60/",
+    "instances": 100,
+    "train_trials_per_persona": 100,
+    "val_trials_per_persona": 10,
+    "natural_val_trials_per_persona": null,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 400,
+    "chance_draws": 1000,
+    "shuffle_draws": 1000,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 10,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": true
+      },
+      "screen_index": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": true
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut": {
+        "ask": false,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      }
+    }
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 2500,
+    "checkpoint_every": 500,
+    "baseline_before_training": false,
+    "introspection_training": true,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": [
+      1500,
+      2500
+    ],
+    "introspection_targets": [
+      "hidden",
+      "recovered"
+    ],
+    "introspection_remeasure_decisions": true,
+    "lr_schedule": null,
+    "max_grad_norm": null,
+    "start_from": null,
+    "save_optimizer": "all",
+    "run_tag": null,
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1,
+    "mount_drive": false
+  }
+}

@@ -3,7 +3,7 @@
     python scripts/make_rule_tests.py            # build every folder that does not exist yet
     python scripts/make_rule_tests.py --rebuild  # rebuild them all (same seeds, so the same bytes)
 
-Each dataset is persona A (data/minimum_threshold_one_persona/base/one_persona_minimum_threshold) with
+Each dataset is persona A (data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold) with
 the first row of instilled_weights.csv changed, built by data/general/vector_dataset_constructor.py with
 A's seeds. Everything else (scenarios, roles, the 1099 other rows kept for the cross-persona null) is A's.
 
@@ -23,8 +23,10 @@ A's seeds. Everything else (scenarios, roles, the 1099 other rows kept for the c
                             for faithfulness, cut answers and reply forms. Its instilled_weights.csv is A's; the
                             answers do not follow it.
 
-Settings: configs/minimum_threshold_one_persona/<group>/one_persona_minimum_threshold_<name>.json, each extending
-base/one_persona_probes_a.json (every report question, "{" prefix, C in report trials) with its data folder and run tag.
+Settings: configs/minimum_threshold_one_persona/<group>/persona_a/one_persona_minimum_threshold_<name>.json and its
+_24gb twin. Each is base/persona_a/one_persona_probes_a.json (every report question, "{" prefix, C in report trials)
+written out in full, with its data folder, run tag and any extra cut probe changed: no extends, so every value can
+be edited in the file itself. Data goes to data/minimum_threshold_one_persona/<group>/persona_a/<folder>/.
 """
 import argparse
 import csv
@@ -38,9 +40,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from src import settings_files as SF  # noqa: E402
+
 DATA = ROOT / "data" / "minimum_threshold_one_persona"
 CONFIGS = ROOT / "configs" / "minimum_threshold_one_persona"
-SOURCE = DATA / "base" / "one_persona_minimum_threshold"
+SOURCE = DATA / "base" / "persona_a" / "one_persona_minimum_threshold"
 INPUTS = ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv")
 DIMS = ["caffeine_content", "leaf_size", "oxidation_level", "steeping_time", "resteep_potential"]
 RANGES = [(0, 70, "mg per cup"), (0.1, 10, "millimeters"), (0, 100, "percent"), (1, 7, "minutes"), (1, 8, "number of steeps")]
@@ -91,32 +96,53 @@ def write_inputs(out, weights, cuts):
     (out / "instilled_weights.csv").write_text(buf.getvalue(), encoding="utf-8", newline="\n")
 
 
+BASE = CONFIGS / "base" / "persona_a" / "one_persona_probes_a.json"
+EDIT = ("Every setting is in this file; nothing is inherited, so any value can be edited here. "
+        "README 'Settings' explains each field.")
+
+
+def config_path(name, group, gpu="16gb"):
+    stem = folder_name(name) if gpu == "16gb" else f"{folder_name(name)}_{gpu}"
+    return CONFIGS / group / "persona_a" / f"{stem}.json"
+
+
 def config_for(name, group, weights, cuts, purpose):
+    """(settings, comment): probes_a's settings in full, with this dataset's folder, run tag and extra questions."""
     j, cut = cut_text(cuts)
-    rel = f"data/minimum_threshold_one_persona/{group}/{folder_name(name)}/"
-    return {
-        "_comment": [
+    rel = f"data/minimum_threshold_one_persona/{group}/persona_a/{folder_name(name)}/"
+    cfg = SF.flat(BASE)
+    for q in EXTRA_QUESTIONS.get(name, []):
+        cfg["report_schema"]["questions"][q] = {"ask": True, "train": False}
+    cfg["model_training"]["data_dir"] = rel
+    cfg["model_hyperparameters"]["run_tag"] = name.replace("_", "-")
+    return cfg, [
             f"Persona A, {purpose}.",
             "  weights: " + ", ".join(f"{d} {w}" for d, w in zip(DIMS, weights)),
             f"  screen: {cut}",
             f"data: {rel} (A's input files, only the first row of instilled_weights.csv changed; A's seeds).",
-            "Everything else, questions, \"{\" reply prefix and C in report trials included, is base/one_persona_probes_a.json's"
+            "Questions, \"{\" reply prefix and C in report trials are base/persona_a/one_persona_probes_a.json's"
             + (f", plus {', '.join(EXTRA_QUESTIONS[name])}." if name in EXTRA_QUESTIONS else "."),
+            EDIT,
             "Built by scripts/make_rule_tests.py; see that file and the data folder's README.",
-            f"Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/{group}/{folder_name(name)}.json",
-        ],
-        "extends": "../base/one_persona_probes_a.json",
-        **({"report_schema": {"questions": {q: {"ask": True, "train": False} for q in EXTRA_QUESTIONS[name]}}}
-           if name in EXTRA_QUESTIONS else {}),
-        "model_training": {"data_dir": rel},
-        "model_hyperparameters": {"run_tag": name.replace("_", "-")},
-    }
+        ]
+
+
+def write_configs(name, group, weights, cuts, purpose):
+    """The 16 GB settings file and its 24 GB twin, both complete. Returns the 16 GB one's path."""
+    cfg, comment = config_for(name, group, weights, cuts, purpose)
+    for gpu in ("16gb", "24gb"):
+        sized, _ = SF.with_gpu(cfg, "8b", gpu)
+        path = config_path(name, group, gpu)
+        run = f"Run: python scripts/run_one_persona.py --settings {path.relative_to(ROOT).as_posix()}"
+        SF.write(path, sized, comment + [SF.gpu_line("8b", gpu), run])
+    return config_path(name, group)
 
 
 def readme_for(name, group, weights, cuts, purpose, stats):
     j, cut = cut_text(cuts)
     lines = [f"# {folder_name(name)}", "",
-             f"Persona A, {purpose}. Settings: `configs/minimum_threshold_one_persona/{group}/{folder_name(name)}.json`.", "",
+             f"Persona A, {purpose}. Settings: `configs/minimum_threshold_one_persona/{group}/persona_a/{folder_name(name)}.json`"
+             " (and its `_24gb` twin).", "",
              "| attribute | " + " | ".join(DIMS) + " |", "|---|" + "---|" * len(DIMS),
              "| A's weight | " + " | ".join(str(w) for w in A_WEIGHTS) + " |",
              "| this weight | " + " | ".join(str(w) for w in weights) + " |",
@@ -160,17 +186,14 @@ def shuffle_answers(out):
 
 def build(name, rebuild=False):
     group, weights, cuts, purpose = DATASETS[name]
-    out = DATA / group / folder_name(name)
-    cfg_path = CONFIGS / group / f"{folder_name(name)}.json"
+    out = DATA / group / "persona_a" / folder_name(name)
     if out.exists() and not rebuild:
         print(f"exists, skipped: {out.relative_to(ROOT)}")
         return
     if out.exists():
         shutil.rmtree(out)
     write_inputs(out, weights, cuts)
-    cfg_path.parent.mkdir(parents=True, exist_ok=True)
-    cfg_path.write_text(json.dumps(config_for(name, group, weights, cuts, purpose), indent=2) + "\n",
-                        encoding="utf-8", newline="\n")
+    cfg_path = write_configs(name, group, weights, cuts, purpose)
     r = subprocess.run([sys.executable, "data/general/vector_dataset_constructor.py", "--settings", str(cfg_path)],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode:

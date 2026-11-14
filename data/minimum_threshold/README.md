@@ -48,13 +48,13 @@ python data/minimum_threshold/minimum_threshold_weight_generator.py --seed 1    
 python data/minimum_threshold/minimum_threshold_dataset_constructor.py           # build the training files from it
 ```
 
-Then set `SETTINGS_FILE = "configs/minimum_threshold_8b.json"` in the notebook and run. The folder ships already
+Then set `SETTINGS_FILE = "configs/minimum_threshold/minimum_threshold_8b.json"` in the notebook and run. The folder ships already
 built at seed 1. A reroll leaves the trial files describing the previous latent until
 the constructor runs again, and `--rebuild` chains the two.
 
 ## The draw
 
-Set in `configs/minimum_threshold_8b.json` under `decision_rule`.
+Set in `configs/minimum_threshold/minimum_threshold_8b.json` under `decision_rule`.
 
 | field | default | what it does |
 |---|---|---|
@@ -86,7 +86,7 @@ so every unscreened weight is at least 20 from 0 on either side, and it has thre
 A4 runs trained on the earlier draw with two options, which `min_weight_magnitude` null and
 `option_count` 2 reproduce exactly and which is `data/a4/` in commit 294d0d2.
 
-`python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_8b.json`
+`python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold/minimum_threshold_8b.json`
 builds this folder from the settings file that runs on it, so the two cannot disagree.
 
 ## What the model is asked

@@ -13,7 +13,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "minimum_threshold_one_persona"
-A = DATA / "base" / "one_persona_minimum_threshold"
+A = DATA / "base" / "persona_a" / "one_persona_minimum_threshold"
 RANGES = [(0, 70), (0.1, 10), (0, 100), (1, 7), (1, 8)]
 SPEC = {   # folder: (group, weights, screened attribute index, cut in percent)
     "screen_moved": ("rule_tests", [-100, -83, -38, 0, 31], 3, 50),
@@ -51,7 +51,7 @@ def _label(weights, j, cut_pct, A_, B_):
 
 
 def _folder(name):
-    return DATA / SPEC[name][0] / f"one_persona_minimum_threshold_{name}"
+    return DATA / SPEC[name][0] / "persona_a" / f"one_persona_minimum_threshold_{name}"
 
 
 def test_every_folder_and_config_exists_and_names_its_own_rule():
@@ -69,7 +69,7 @@ def test_every_folder_and_config_exists_and_names_its_own_rule():
         assert len(active) == 1 and int(active.iloc[0]["position"]) == j + 1 and float(active.iloc[0]["cut_percent"]) == cut, name
         for other in ("candidate_scenarios.json", "roles.csv", "scenarios.csv"):
             assert (f / other).read_bytes() == (A / other).read_bytes(), (name, other)
-        cfg = ROOT / "configs" / "minimum_threshold_one_persona" / group / f"one_persona_minimum_threshold_{name}.json"
+        cfg = ROOT / "configs" / "minimum_threshold_one_persona" / group / "persona_a" / f"one_persona_minimum_threshold_{name}.json"
         assert cfg.exists(), cfg
         assert all(b"\r\n" not in p.read_bytes() for p in f.iterdir() if p.is_file()), name
 

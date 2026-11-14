@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "",
     "THE DEFAULT. Every other settings file in this folder extends this one and changes a few fields.",
     "Run it unchanged and it reproduces Plunkett et al. (2025) on Qwen3-0.6B: 4-bit, fp16, sized for a Colab T4.",
     "The six blocks mirror the paper's environment frame (object, decision_rule, model_training,",
@@ -67,7 +69,9 @@
     "introspection_steps": 150,
     "introspection_batch_size": 1,
     "introspection_at_steps": null,
-    "introspection_targets": ["hidden"],
+    "introspection_targets": [
+      "hidden"
+    ],
     "introspection_remeasure_decisions": false,
     "lr_schedule": null,
     "max_grad_norm": null,

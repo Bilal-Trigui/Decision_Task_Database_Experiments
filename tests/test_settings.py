@@ -1,11 +1,13 @@
 """Settings files: that they all load, and that inheritance and the field check behave.
 
-A settings file may name a parent with "extends", so each file holds only the fields it changes
-and the shared default is written once. That is worth having and worth pinning down, because the
+A settings file may name a parent with "extends", so a hand-written file can hold only the fields it
+changes. No file in configs/ does (each holds every setting, so it can be read and edited on its own),
+but the loader keeps the feature. That is worth having and worth pinning down, because the
 failure it introduces is quiet: a field misspelled in a child silently leaves the parent's value
 in place, and the run uses a setting nobody chose.
 
-  1. Every file in configs/ loads, validates, and resolves its four components.
+  1. Every file in configs/ loads, validates, and resolves its four components, and is complete: none uses
+     "extends", so what a file says is all that runs.
   2. Merging is per field, so naming one hyperparameter keeps the other thirteen.
   3. A list replaces whole rather than merging element by element.
   4. A cycle is refused rather than recursing forever.
@@ -32,6 +34,8 @@ CONFIGS = sorted(p for p in Path("configs").rglob("*.json") if not any(part.star
 def test_every_config_loads_and_resolves():
     assert CONFIGS, "no settings files found in configs/"
     for path in CONFIGS:
+        assert "extends" not in json.loads(path.read_text(encoding="utf-8")), \
+            f"{path}: a file in configs/ holds every setting itself; write the parent's values out (src/settings_files.py)"
         cfg = load(str(path))
         comps = resolve(cfg)
         n = cfg["object"]["attribute_count"]

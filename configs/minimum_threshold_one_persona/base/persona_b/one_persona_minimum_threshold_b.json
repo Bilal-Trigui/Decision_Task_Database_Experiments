@@ -1,0 +1,160 @@
+{
+  "_comment": [
+    "Persona B, the cross-persona control for A: B's weights, 3000 steps, clipping 1.0, the four original report questions (run 20261109-214726, 'B-old').",
+    "Persona B (loose_leaf_tea): weights caffeine_content 0, leaf_size 100, oxidation_level 20, steeping_time -50, resteep_potential -70; screen: caffeine_content at 50% of its range.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-8B on a 16 GB card (RTX 5070 Ti, RTX 4080): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-8B in 4-bit is about 6 GB, which leaves room for the 152k-token logits. Out of memory: micro_batch_size 1, then report_schema.max_new_tokens 200.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b.json",
+    "",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Persona B: the cross-persona control for the one-persona run 20261106-152354 (persona A). Same persona",
+    "(loose_leaf_tea, 'Imagine you are Djedefre'), same attributes, same caffeine screen (50% of range, 35 mg), same",
+    "trial seeds and shares, same report questions; only the weights differ:",
+    "  A: caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31",
+    "  B: caffeine_content 0, leaf_size 100, oxidation_level  20, steeping_time  -50, resteep_potential -70",
+    "B's weights sum to 0, so a constant reply (all -100 or all +100) scores cosine 0 against them; they run against the",
+    "untrained model's ranking of the attributes (centred -0.74 vs its step-0 report) and against A (cosine -0.34).",
+    "If B's reports follow B's weights better than A's, the reports carry what training put there, not attribute-name",
+    "priors or a template. Score with: python tools/cross_persona_control.py results/<B run> --against <A run>.",
+    "",
+    "Differs from run A on purpose: max_grad_norm 1.0 (A had none and spiked at step 5428), 3000 steps instead of",
+    "10000 (A's faithful stretch was 1500-2750), optimizer state saved for the last checkpoint only (disk).",
+    "natural_val_trials_per_persona 1000 is validation only; it does not touch training or reports.",
+    "Everything else comes from one_persona_minimum_threshold.json and the files it extends.",
+    "",
+    "Built (LF line endings) from data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b/ with",
+    "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b.json"
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.125,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.75
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": true
+      },
+      "screen_index": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": true
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut": {
+        "ask": false,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      }
+    }
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 250,
+    "baseline_before_training": true,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "last",
+    "run_tag": "persona-b",
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1,
+    "mount_drive": false
+  }
+}

@@ -22,9 +22,9 @@ NEW = {   # name: (shows a trial, scale, answer keys)
     "cutoff_units_no_trial": (False, "units", ["screened_dimension", "cutoff_value"]),
     "cutoff_percent_no_trial": (False, "percent", ["screened_dimension", "cutoff_percent"]),
 }
-PERSONAS = {"A": "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold", "B": "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b",
-            "A-inverse": "data/minimum_threshold_one_persona/inverse/one_persona_minimum_threshold_a_inverse",
-            "B-inverse": "data/minimum_threshold_one_persona/inverse/one_persona_minimum_threshold_b_inverse"}
+PERSONAS = {"A": "data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold", "B": "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b",
+            "A-inverse": "data/minimum_threshold_one_persona/inverse/persona_a/one_persona_minimum_threshold_a_inverse",
+            "B-inverse": "data/minimum_threshold_one_persona/inverse/persona_b/one_persona_minimum_threshold_b_inverse"}
 BANNED = re.compile(r"\b(minimum|minimal|lowest|least|smallest|bottom|floor)\b", re.I)
 DIMS = ["caffeine_content", "leaf_size", "oxidation_level", "steeping_time", "resteep_potential"]
 
@@ -94,7 +94,7 @@ def test_old_cut_questions_render_exactly_as_before():
     # rendered by the code at commit cc7891b, before the cutoff questions were added
     frozen = json.loads((ROOT / "tests" / "fixtures" / "old_cut_questions.json").read_text(encoding="utf-8"))
     names = sorted({k.split("|")[1] for k in frozen})
-    for folder in ("data/minimum_threshold_one_persona/base/one_persona_minimum_threshold", "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b"):
+    for folder in ("data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold", "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b"):
         _, _, by = _rendered(folder, names, option_count=2)
         for name, (b, prompt) in by.items():
             base, full, keys = frozen[f"{folder}|{name}"]

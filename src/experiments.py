@@ -32,8 +32,11 @@ from src import data_paths
 
 ROOT = Path(__file__).resolve().parent.parent
 QUEUES = ROOT / "results" / "queue"
-ADAPTER_MB = 85          # an 8B rank-8 adapter
+ADAPTER_MB = 85          # an 8B rank-8 adapter (measured: 84 MB)
 OPTIMIZER_MB = 170       # its AdamW state, with the training state beside it
+# adapter size against 8B's, at the same rank: LoRA on every linear layer grows with layers x (in + out),
+# 36 x 75776 for Qwen3-8B, 40 x 100352 for 14B, 64 x 131072 for 32B
+ADAPTER_SCALE = {"Qwen3-14B": 1.47, "Qwen3-32B": 3.07}
 MEASURES = {
     "faithfulness": "faithfulness: reported vs the rule the model's choices follow",
     "hidden_vs_reported": "reported vs the instilled weights",
@@ -95,7 +98,8 @@ def disk_needed_gb(cfg):
     first = (mh.get("start_from") or {}).get("step", 0)
     count = (mh["training_steps"] - first) // mh["checkpoint_every"] + 1
     optimizers = count if mh.get("save_optimizer", "all") == "all" else 1
-    return (count * ADAPTER_MB + optimizers * OPTIMIZER_MB) / 1024 + 0.5
+    scale = next((s for name, s in ADAPTER_SCALE.items() if mh["model_name"].endswith(name)), 1.0) * mh["lora_rank"] / 8
+    return (count * ADAPTER_MB + optimizers * OPTIMIZER_MB) * scale / 1024 + 0.5
 
 
 def free_gpu():

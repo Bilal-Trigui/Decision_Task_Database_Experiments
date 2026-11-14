@@ -168,7 +168,7 @@ def test_introspection_answers_parse():
     """Every introspection training answer is in the exact format the report parser scores."""
     from src.config import load
 
-    cfg = load("configs/paper_minimum_threshold_8b_16gb.json")
+    cfg = load("configs/paper_minimum_threshold/paper_minimum_threshold_8b_16gb.json")
     comps = resolve(cfg)
     schema = comps.schemas[0]
     data = D.load_data(cfg, comps.rule)

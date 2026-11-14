@@ -5,7 +5,7 @@ settings), so the model is downloaded on first use. Checks:
 
   - cut_overturns_only: every screen-decided training trial is one the weights alone would have
     answered the other way, and the shares come out exact, down to weight_decided_share 0
-  - every data/cut_sweep/ folder holds exactly the shares its config names
+  - every data/minimum_threshold_one_persona/cut_sweep/persona_a/ folder holds exactly the shares its config names
   - start_from, save_optimizer and run_tag are validated
   - a run branched from step 5 of another run trains steps 6 to 10 exactly as the source did
     (same adapter, AdamW state and data order), keeps AdamW's state only at its last checkpoint
@@ -36,7 +36,7 @@ def _kinds(rule, latent, trials):
 def test_cut_overturns_only():
     from src.config import load_component
 
-    cfg = load("configs/cut_sweep_w65_c35.json")
+    cfg = load("configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w65_c35.json")
     data = D.load_data(cfg, resolve(cfg).rule)
     for share, neither in ((0.65, 0.175), (0.0, 0.5), (0.3, 0.1)):
         params = {**cfg["decision_rule"], "weight_decided_share": share, "neither_share": neither}
@@ -59,8 +59,10 @@ def test_cut_overturns_only():
 
 
 def test_sweep_folders():
-    configs = sorted(Path("configs").glob("cut_sweep_*.json"))
-    assert configs, "no configs/cut_sweep_*.json"
+    # the 16 GB files: each _24gb twin names the same data folder, so checking it again adds nothing
+    configs = sorted(p for p in Path("configs/minimum_threshold_one_persona/cut_sweep/persona_a").glob("cut_sweep_*.json")
+                     if not p.stem.endswith("_24gb"))
+    assert configs, "no configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_*.json"
     for path in configs:
         cfg = load(str(path))
         rule = resolve(cfg).rule

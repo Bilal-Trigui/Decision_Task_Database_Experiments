@@ -23,7 +23,7 @@ B_NEW = "20261110-112915_paper_minimum_threshold_Qwen3-8B_no-trial-b"
 PROBES_B = config_path("one_persona_probes_b")
 
 
-def _tea_and_screen(folder="data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b"):
+def _tea_and_screen(folder="data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b"):
     sc = D.load_scenarios(ROOT / folder, 5)[0]
     table = pd.read_csv(ROOT / folder / "constraint_table.csv")
     active = table[table["active"].astype(str).str.lower() == "true"].iloc[0]
@@ -54,7 +54,7 @@ def test_balanced_draw_is_deterministic_exact_and_kinds_agree_with_the_cut():
         if i in draws:
             assert draws[i].option_A.values.tolist() == t.option_A.values.tolist()
     # and the same draw for every persona that shares the scenario and the cut (A, B, their inverses)
-    for folder in ("data/minimum_threshold_one_persona/base/one_persona_minimum_threshold", "data/minimum_threshold_one_persona/inverse/one_persona_minimum_threshold_a_inverse"):
+    for folder in ("data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold", "data/minimum_threshold_one_persona/inverse/persona_a/one_persona_minimum_threshold_a_inverse"):
         sc2, screen2, _ = _tea_and_screen(folder)
         other = A.balanced_trials(sc2, screen2, 50)
         assert [(k, i) for k, _, i in other] == [(k, i) for k, _, i in one], folder

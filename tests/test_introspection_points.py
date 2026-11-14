@@ -43,8 +43,8 @@ def _load_with(**fields):
 
 def test_the_setting():
     assert introspection_points(load("configs/default.json")) == [1500]
-    assert introspection_points(load("configs/atkinson.json")) == []
-    assert introspection_points(load("configs/minimum_threshold_8b.json")) == [1500, 2500, 3000]
+    assert introspection_points(load("configs/plunkett_linear/atkinson.json")) == []
+    assert introspection_points(load("configs/minimum_threshold/minimum_threshold_8b.json")) == [1500, 2500, 3000]
     assert introspection_points(_load_with(introspection_at_steps=[900, 300, 1500])) == [300, 900, 1500]
     # a range: start, start + every, ..., and end always included
     assert introspection_points(_load_with(introspection_at_steps={"start": 300, "end": 1500, "every": 600})) == [300, 900, 1500]

@@ -1,7 +1,7 @@
 # data/paper_minimum_threshold
 
 The paper's minimum threshold design: Plunkett's 1100 personas and trials, with latents drawn by
-`src/rules/paper_minimum_threshold.py` at seed 1. Settings: `configs/paper_minimum_threshold_8b.json`.
+`src/rules/paper_minimum_threshold.py` at seed 1. Settings: `configs/paper_minimum_threshold/paper_minimum_threshold_8b.json`.
 
 Each persona has one screened attribute whose weight is exactly 0, so it is a threshold and
 nothing else, and four other weights from Plunkett's draw: uniform on -100 to 100, rescaled so the
@@ -41,5 +41,5 @@ training, 2 of 10 validation; `neither_share` 0.2). The screen decides 46.1% of 
 changes when it is removed: the C trials and those where only one option passes), and the lowest
 persona sits at 27%. The answers are 40.5% A, 39.5% B and 20.0% C.
 
-`python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold_8b.json`
+`python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold/paper_minimum_threshold_8b.json`
 builds this folder from the settings file that runs on it, so the two cannot disagree.

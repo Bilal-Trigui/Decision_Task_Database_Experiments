@@ -4,7 +4,7 @@
     python data/general/vector_dataset_constructor.py --data data/plunkett                                     # Plunkett's files, byte for byte
     python data/general/vector_dataset_constructor.py --data data/minimum_threshold --rule minimum_threshold   # a non-linear rule
     python data/general/vector_dataset_constructor.py --data data/mine --rule linear                           # your own weights
-    python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold_8b.json       # exactly what a settings file runs on
+    python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold/paper_minimum_threshold_8b.json       # exactly what a settings file runs on
 
 Run from the repo root. --data also accepts a bare folder name inside data/.
 

@@ -1,0 +1,215 @@
+{
+  "_comment": [
+    "Persona A rule test: caffeine screened at 50% and also weighted +60.",
+    "Persona A with weights changed (loose_leaf_tea): weights caffeine_content 60, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, eval batches 16 (decision 16, introspection 4). Out of memory: eval batches 8 first, then micro_batch_size 2.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/rule_tests/persona_a/one_persona_minimum_threshold_screened_weighted_24gb.json",
+    "",
+    "Notes, written when this file listed only its changes over one_persona_probes_a.json (those values are now written out here too):",
+    "Persona A, caffeine screened at 50% (35 mg) and weighted +60 above the cut.",
+    "  weights: caffeine_content 60, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31",
+    "  screen: caffeine_content at 50% of its range (35 mg per cup, of 0 to 70)",
+    "data: data/minimum_threshold_one_persona/rule_tests/persona_a/one_persona_minimum_threshold_screened_weighted/ (A's input files, only the first row of instilled_weights.csv changed; A's seeds).",
+    "Everything else, questions, \"{\" reply prefix and C in report trials included, is base/persona_a/one_persona_probes_a.json's.",
+    "Built by scripts/make_rule_tests.py; see that file and the data folder's README."
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.125,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.75
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/rule_tests/persona_a/one_persona_minimum_threshold_screened_weighted/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut": {
+        "ask": true,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "main_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "main_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "cut_probe": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_units": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_percent": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_percent_no_trial": {
+        "ask": true,
+        "train": false
+      }
+    },
+    "reply_prefix": "{",
+    "show_neither": true
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 5,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 250,
+    "baseline_before_training": true,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "last",
+    "run_tag": "screened-weighted",
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 16,
+    "decision_eval_batch_size": 16,
+    "introspection_eval_batch_size": 4,
+    "mount_drive": false
+  }
+}

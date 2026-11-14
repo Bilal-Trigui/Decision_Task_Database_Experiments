@@ -1,0 +1,153 @@
+{
+  "_comment": [
+    "Persona A cut sweep: 25% of training trials decided by the weights, 75% by the cut. Branches from A's run 20261106-152354 at decision step 1500.",
+    "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, eval batches 16 (decision 16, introspection 4). Out of memory: eval batches 8 first, then micro_batch_size 2.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w25_c75_24gb.json",
+    "",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Cut sweep: 25% of training trials decided by the weights, 75% by the cut (37.5% C, both options",
+    "  below the cut; 37.5% one option below it, where the cut changes the answer from what the weights alone",
+    "  would pick). Branches from 20261106-152354_paper_minimum_threshold_Qwen3-8B decision step 1500 (its adapter and AdamW",
+    "  state) and trains steps 1501 to 3000, evaluated and saved every 100, over data/minimum_threshold_one_persona/cut_sweep/persona_a/w25_c75/.",
+    "  Everything else is one_persona_minimum_threshold.json's. Written by scripts/make_cut_sweep.py.",
+    "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last."
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.375,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.25,
+    "cut_overturns_only": true
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/cut_sweep/persona_a/w25_c75/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": true
+      },
+      "screen_index": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": true
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": true
+      },
+      "screen_cut": {
+        "ask": false,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      }
+    }
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 5,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 100,
+    "baseline_before_training": false,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": {
+      "run_id": "20261106-152354_paper_minimum_threshold_Qwen3-8B",
+      "step": 1500
+    },
+    "save_optimizer": "last",
+    "run_tag": "cut-sweep-w25-c75",
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 16,
+    "decision_eval_batch_size": 16,
+    "introspection_eval_batch_size": 4,
+    "mount_drive": false
+  }
+}

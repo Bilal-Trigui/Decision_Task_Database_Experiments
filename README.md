@@ -51,31 +51,37 @@ a box is deleted when it shuts down.
 
 ## Files
 
-**`configs/default.json`** is the settings file with Plunkett's values as defaults;
-every other file in `configs/` is it with a few fields changed, and says so literally. A file
-names its parent with `extends` and then carries only what it changes:
+**`configs/default.json`** is the settings file with Plunkett's values as defaults. Every
+settings file in `configs/` is **complete**: it holds every setting its run uses, with nothing
+inherited from another file, so what you read in a file is exactly what runs and any value can be
+edited in that one file. `configs/README.md` is the map of every folder. The experiments are
+grouped by task:
 
-```json
-{
-  "_comment": "Plunkett on Qwen3-8B inside a 20GB budget: 4-bit, gradient checkpointing, micro-batches of two.",
-  "extends": "default.json",
-  "model_hyperparameters": {"model_name": "Qwen/Qwen3-8B", "checkpoint_every": 500,
-                            "gradient_checkpointing": true, "micro_batch_size": 2},
-  "gates": {"min_decision_accuracy": 0.6},
-  "compute": {"backend": "local", "mixed_precision": "bf16"}
-}
+```
+configs/
+  default.json                               Plunkett on Qwen3-0.6B: the whole list of settings
+  plunkett_linear/                           Plunkett and Atkinson, linear rule, 4B and 8B
+  minimum_threshold/                         the minimum threshold rule, many personas
+  paper_minimum_threshold/                   the paper's minimum threshold design, many personas
+  one_persona_maximum_threshold/             one persona, maximum threshold
+  minimum_threshold_one_persona/             one persona, minimum threshold, Qwen3-8B (16 GB and _24gb files)
+    base/  controls/  inverse/  rule_tests/  cut_sweep/     each split into persona_a/ and persona_b/
+  minimum_threshold_one_persona_qwen3_14b/   the same experiments on Qwen3-14B (_24gb, _80gb)
+  minimum_threshold_one_persona_qwen3_32b/   the same experiments on Qwen3-32B (_48gb, _80gb)
 ```
 
-Merging is per field, so naming one hyperparameter keeps the other thirteen, and a list replaces
-whole rather than merging element by element. Chains are allowed and a cycle is refused. `_source`
-records the chain, so a results row still says where its settings came from. The point is that a
-default changed in one place now reaches every file that did not deliberately override it, and
-that what a run actually varies is the only thing written in its file. The lowered
-`min_decision_accuracy` above is a real example: it used to sit among forty-odd restated fields
-and now it is one of eight lines.
+GPU sizing is part of each file: `model_hyperparameters.micro_batch_size` and the `compute`
+eval batch sizes. A `_24gb` (or `_80gb`, ...) file is the same experiment with those changed;
+`src/settings_files.py` lists the sizes the scripts write and why. Each file's `_comment` starts
+with what the experiment is, the persona and the card it is sized for.
 
-Because a misspelled field would otherwise be ignored, and under `extends` would quietly leave the
-parent's value in place, the loader refuses a field that no block has. The three component blocks,
+The loader still follows an `"extends": "<parent>.json"` field (merged per field, lists replaced
+whole, a cycle refused, `_source` recording the chain) for a hand-written file outside `configs/`,
+but `tests/test_settings.py` refuses one inside it. To start a new experiment, copy the closest
+file and change what differs; `scripts/make_rule_tests.py` and `scripts/make_cut_sweep.py` write
+complete files the same way.
+
+Because a misspelled field would otherwise be ignored, the loader refuses a field that no block has. The three component blocks,
 `decision_rule`, `model_estimating` and `report_schema`, are exempt: they also carry their
 component's own parameters, and the component validates those when it is built.
 Six blocks mirror the environment frame, `gates` holds every threshold the pipeline
@@ -83,18 +89,18 @@ checks, and `compute` says where training runs. `default.json` lists every field
 reads, and every fallback the loader fills in is the value `default.json` gives
 (`tests/test_settings.py` checks both), so it is the whole list of settings. The table below lists every field.
 
-**`configs/atkinson.json`** is the same file with `training_steps` 3000 and
+**`configs/plunkett_linear/atkinson.json`** is the same file with `training_steps` 3000 and
 `introspection_training` false: the Atkinson et al. variant, high steps and no
 report training. The two baseline papers are two settings files for one pipeline.
 
-**`configs/linear-4b_20gb.json`** and **`configs/linear-8b_20gb.json`** are Plunkett's
+**`configs/plunkett_linear/linear-4b_20gb.json`** and **`configs/plunkett_linear/linear-8b_20gb.json`** are Plunkett's
 settings at Qwen3-4B and Qwen3-8B inside a 20 GB budget, which is what a MIG slice of a
 Hopper card gives: bf16 instead of fp16, gradient checkpointing, micro-batches of two and
 96-token reports, with the 4B file unquantized and the 8B file left at the default 4-bit.
-**`configs/minimum_threshold_8b.json`** is the minimum threshold rule at Qwen3-8B for 3000 steps, with three
-options (A, B, or C for neither). **`configs/paper_minimum_threshold_8b.json`** extends it with the paper's
-draw and four report questions, and **`configs/paper_minimum_threshold_0.6b.json`** is that run at
-Qwen3-0.6B with only the model changed. These extend another experiment's settings rather than the default.
+**`configs/minimum_threshold/minimum_threshold_8b.json`** is the minimum threshold rule at Qwen3-8B for 3000 steps, with three
+options (A, B, or C for neither). **`configs/paper_minimum_threshold/paper_minimum_threshold_8b.json`** is it with the paper's
+draw and four report questions, and **`configs/paper_minimum_threshold/paper_minimum_threshold_0.6b.json`** is that run at
+Qwen3-0.6B with only the model changed.
 
 **`src/configs/test.py`** holds the hardcoded `TEST` dict the smoke test uses: local
 CPU, Qwen3-0.6B unquantized, LoRA rank 4, ten steps with a checkpoint every five,
@@ -238,8 +244,8 @@ no Plunkett equivalent.
 | model_hyperparameters.baseline_before_training | true | new; before any training, the untrained model is asked everything a checkpoint is asked, and scored the same way, as the `base_model` rows at step 0. It is the base-model control: what the model answers having learned nothing. Its random state is put back afterwards, so training is unchanged |
 | decision_rule.option_count | 2 | new; how many options a trial offers. 2 is Plunkett's task, A or B. 3 adds C, "neither", the answer when the rule rejects both options: the decision prompt says `Respond with "A" if you think Option A is better, "B" if you think Option B is better, or "C" if neither option is acceptable. Never respond with anything except "A", "B" or "C"` and lists `C: Neither option` after the two options. Only the threshold rules take 3, where C is the answer exactly when both options fall below the screen. Both threshold configs set 3. The settings and the data folder must agree: `check_manifest` and the stored examples themselves refuse a folder built with the other count |
 | decision_rule.neither_share | (threshold rules only) 0.2 | new; with option_count 3, the share of each persona's training and validation trials answered C, drawn to that count exactly (10 of 50, 2 of 10), so every persona sees the same number of "neither" trials whatever its cut. null takes the trials as they come, from a few percent to over half per persona. The estimation trials are always taken as they come. With option_count 2 the default drops to null |
-| decision_rule.weight_decided_share | (threshold rules only) null | new; the share of each persona's training and validation trials in which both options pass the screen, so the weighted sum alone decides A or B, drawn to that count exactly, as neither_share is for C. These are the only trials that teach the weights: taken as they come (null) they are about 27% under the paper draw, and far fewer for a persona screened at 75. The rest, beyond neither_share's C, are decided by the screen. The rule and the estimation trials are unchanged; only which training trials are drawn. `configs/minimum_threshold_1500_steps.json` sets 0.6 |
-| decision_rule.cut_overturns_only | (threshold rules only) false | new; with weight_decided_share set, the screen-decided training trials (those one option fails, beyond the weights' and C's shares) are only those where the screen changes the answer: the weighted sum alone would have picked the failing option. false also keeps the trials where the passing option wins on the weights anyway, about half of them. weight_decided_share may be 0, every trial then C or decided by the screen. `configs/cut_sweep_*.json` set it |
+| decision_rule.weight_decided_share | (threshold rules only) null | new; the share of each persona's training and validation trials in which both options pass the screen, so the weighted sum alone decides A or B, drawn to that count exactly, as neither_share is for C. These are the only trials that teach the weights: taken as they come (null) they are about 27% under the paper draw, and far fewer for a persona screened at 75. The rest, beyond neither_share's C, are decided by the screen. The rule and the estimation trials are unchanged; only which training trials are drawn. `configs/paper_minimum_threshold/minimum_threshold_1500_steps.json` sets 0.6 |
+| decision_rule.cut_overturns_only | (threshold rules only) false | new; with weight_decided_share set, the screen-decided training trials (those one option fails, beyond the weights' and C's shares) are only those where the screen changes the answer: the weighted sum alone would have picked the failing option. false also keeps the trials where the passing option wins on the weights anyway, about half of them. weight_decided_share may be 0, every trial then C or decided by the screen. `configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_*.json` set it |
 | decision_rule.min_weight_magnitude | null | new; the smallest magnitude a weight that counts may have, on either side of 0. The weights are drawn again until every one clears it. null in `default.json` allows any; `minimum_threshold_8b.json` and `paper_minimum_threshold_8b.json` set 20, as do both threshold rules when the setting is left out. Since every config inherits `default.json`'s null, a config that wants a minimum must set it. Every rule takes it (linear, interaction, both threshold rules) |
 | model_hyperparameters.introspection_at_steps | null | new; the decision steps introspection training branches from: a list such as `[1500, 2500, 3000]`, or a range `{"start": 1000, "end": 3000, "every": 500}` naming start, start + every, and so on, with end always included (`every` left out branches at start and end only). null means the last step only, his design. How long each branch trains is `introspection_steps`. Each listed step is checkpointed even off the `checkpoint_every` schedule. At each one both folds train from the decision adapter as it stands, are scored on their held-out halves, and are then undone, adapter and random state both, so decision training carries on exactly as it would have without them |
 | model_hyperparameters.introspection_targets | ["hidden"] | new; what introspection training trains toward, one branch per entry at every introspection step, each with both folds: `hidden` the persona's own rule from `instilled_weights.csv` (his Experiment 2); `recovered` the rule read back from the model's own choices at the checkpoint it branches from, so every training answer is true of the model (his Appendix D retrains on learned weights); `shuffled` another training persona's rule, never its own and never a held-out persona's, which teaches the format without the content; `random` a fresh draw from the rule. A recovered fit with no screen (choices all one letter) has nothing to report and is left out of training, listed in `left_out.txt`. Rows carry `introspection_target`; checkpoints and files of a target other than hidden are named `introspection-from-<N>-<target>-fold<k>`. What each fold trained on is written to `results/<run>/introspection_data/from-<N>/<target>/fold<k>_train/` and `_val/`, one CSV per question |
@@ -270,10 +276,10 @@ checkpoints give Experiment 1 (emergent report), the folds give Experiment 2.
 Expect high decision accuracy and low faithfulness at this size; that is the
 expected result, not a bug.
 
-**Atkinson's variant.** `configs/atkinson.json`: 3000 steps, no introspection
+**Atkinson's variant.** `configs/plunkett_linear/atkinson.json`: 3000 steps, no introspection
 training.
 
-**Minimum threshold.** `configs/minimum_threshold_8b.json`: `decision_rule.type` minimum_threshold with
+**Minimum threshold.** `configs/minimum_threshold/minimum_threshold_8b.json`: `decision_rule.type` minimum_threshold with
 `active_cuts`, `cut_range` and `zero_cut_main_effects`, `model_estimating.type`
 minimum_threshold, `data_dir` `data/minimum_threshold/`, three options. The rule is an if statement:
 both options below the cut, C; only one below, the other; neither, the weighted sum picks. The
@@ -287,7 +293,7 @@ persona, whether that screen is on the persona's own attribute and at its own cu
 cosine, because a cut point is an absolute level and not a direction, and that number
 sits well above zero by construction, so read it against its measured chance column.
 
-**Paper minimum threshold.** `configs/paper_minimum_threshold_8b.json`, over
+**Paper minimum threshold.** `configs/paper_minimum_threshold/paper_minimum_threshold_8b.json`, over
 `data/paper_minimum_threshold/`. The same screen, drawn for the paper: the screened attribute's
 weight is exactly 0, so it is a threshold and nothing else, the other four are Plunkett's weights
 (-100 to 100, either sign), and the cut is 25, 50 or 75 percent of range. The report asks four questions, each asked
@@ -302,7 +308,7 @@ range of positive values only (for example `"weight_range": [0.5, 2.0]`) makes c
 weights sit high by chance (about 0.75), so read that row against its chance column, or use the
 centred cosine.
 
-**Paper minimum threshold, revised questions.** `configs/paper_minimum_threshold_8b_16gb_units.json`,
+**Paper minimum threshold, revised questions.** `configs/paper_minimum_threshold/paper_minimum_threshold_8b_16gb_units.json`,
 over `data/paper_minimum_threshold_units/` (a copy of the paper folder: same personas, weights, cuts
 and trials). Two changes to the questions after the 20261031 run. The cut is asked in the screened
 attribute's own units, as the options list them (`screen_cut_units`, keys `screened_dimension` and
@@ -311,7 +317,7 @@ attribute's range and scored on the `screen_cut` block as before. The screened w
 asked, since its answer is 0 for every persona. `main_report_units` is the weights, the attribute and
 the minimum in one reply. The old batches remain so the earlier runs still resume.
 
-**1500 steps over 100 trials, two introspection targets.** `configs/minimum_threshold_1500_steps.json`,
+**1500 steps over 100 trials, two introspection targets.** `configs/paper_minimum_threshold/minimum_threshold_1500_steps.json`,
 over `data/paper_minimum_threshold_100trials/`: the paper minimum threshold task at 8B on 16 GB, with the
 same personas, weights and cuts as `data/paper_minimum_threshold/` but 100 training trials per persona
 (10000 examples, 2694 of them decided by the weights, against 1345 of 5000), 1500 steps (1.5 passes),
@@ -348,7 +354,7 @@ run's folder name under `results/` and `RESUME_FROM_STEP` to the step, or call
   add a second copy anyway), or while another resume of the run holds `RESUMING.lock` in its
   results folder. A lock left behind by a process that was killed outright is deleted by hand.
 
-`configs/paper_minimum_threshold_8b_16gb_resume.json` is the 16 GB config with only
+`configs/paper_minimum_threshold/paper_minimum_threshold_8b_16gb_resume.json` is the 16 GB config with only
 `introspection_eval_batch_size` lowered to 1, for resuming the run that ran out of memory in its
 first introspection validation pass. That pass now also scores the answer positions only, rather
 than making logits for every prompt token, which is the same loss in a fraction of the memory.

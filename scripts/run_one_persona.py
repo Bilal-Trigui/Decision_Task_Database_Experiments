@@ -1,7 +1,7 @@
 """Run one settings file outside the notebook (the one-persona run by default).
 
     python scripts/run_one_persona.py                                    # a fresh run
-    python scripts/run_one_persona.py --settings configs/cut_sweep_w65_c35.json
+    python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w65_c35.json
     python scripts/run_one_persona.py --settings X --start-from <run_id> 2750 --end 5000
     python scripts/run_one_persona.py --resume <run_id> <step>           # carry on from a saved checkpoint
 
@@ -27,7 +27,7 @@ os.environ.setdefault("HF_HOME", str(ROOT / "hf_cache"))     # the notebook's mo
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--settings", default="configs/minimum_threshold_one_persona/base/one_persona_minimum_threshold.json")
+    parser.add_argument("--settings", default="configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
     parser.add_argument("--resume", nargs=2, metavar=("RUN_ID", "STEP"), default=None)
     parser.add_argument("--start-from", nargs=2, metavar=("RUN_ID", "STEP"), default=None,
                         help="branch from this run's decision checkpoint instead of the file's start_from")

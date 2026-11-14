@@ -169,12 +169,12 @@ def _fake_run(tmp, data_dir, rule_type):
 def test_persona_rule_reads_threshold_linear_and_maximum_folders():
     from src import persona_rule
     with tempfile.TemporaryDirectory() as tmp:
-        r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/base/one_persona_minimum_threshold_b", "paper_minimum_threshold"))
+        r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b", "paper_minimum_threshold"))
         assert r.weights.tolist() == [0, 100, 20, -50, -70] and r.screen.direction == "minimum"
         assert r.screen.position == 1 and r.screen.value == 35 and r.screen.passes(35) and not r.screen.passes(34.9)
     with tempfile.TemporaryDirectory() as tmp:
         # a linear folder has no constraint_table.csv: names from scenarios.csv, weights from instilled_weights.csv
-        r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/controls/one_persona_linear", "linear"))
+        r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/controls/persona_a/one_persona_linear", "linear"))
         assert r.dims[0] == "caffeine_content" and r.weights.tolist() == [0, -83, -38, -100, 31] and r.screen is None
     with tempfile.TemporaryDirectory() as tmp:
         r = persona_rule.first(_fake_run(tmp, "data/one_persona_maximum_threshold", "paper_maximum_threshold"))
