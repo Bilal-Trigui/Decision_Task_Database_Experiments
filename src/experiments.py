@@ -330,13 +330,20 @@ def _screened_index(data_dir):
     return next((i + 1 for i, c in enumerate(cuts) if float(w[c]) > 0), None)
 
 
+def _named(values):
+    """The attribute number (1 to n) a saved screen_index reply names: the votes' largest, or the number itself
+    when the reply was saved as one number."""
+    return int(values[0]) if len(values) == 1 else max(range(len(values)), key=lambda i: values[i]) + 1
+
+
 def _screen_share(run_id, step, truth):
     path = ROOT / "results" / run_id / f"reports_raw_decision_step-{step}.jsonl"
     if truth is None or not path.exists():
         return None
     rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if '"screen_index"' in l]
     rows = [r for r in rows if r["batch"] == "screen_index"]
-    hits = sum(1 for r in rows if r["parsed"] and r.get("parsed_values") and int(r["parsed_values"][0]) == truth)
+    # parsed_values is one vote per attribute (1 on the one named), so the named attribute is the largest vote's place
+    hits = sum(1 for r in rows if r["parsed"] and r.get("parsed_values") and _named(r["parsed_values"]) == truth)
     return hits / len(rows) if rows else None
 
 

@@ -16,10 +16,10 @@ or set `SETTINGS_FILE` to that path in `run_experiment.ipynb`.
   read is what runs, and any value can be edited in that file alone.
 - **A file per card:** `<name>.json` is sized for a 16 GB card (RTX 5070 Ti), `<name>_24gb.json` for a 24 GB card
   (L4, A10, RTX 4090) and, for personas C to H, `<name>_40gb.json` for an A100 40GB. They differ only in
-  `model_hyperparameters.micro_batch_size` (2 / 5 / 10) and the `compute` eval batch sizes (4 / 16 / 32, introspection
-  1 / 4 / 8). The effective batch (10), LoRA (rank 8), 4-bit loading and everything else are the same, so runs on
-  different cards compare. Out of memory on 24 GB: eval batches 8 first, then micro_batch_size 2; on 40 GB: eval
-  batches 16, then micro_batch_size 5. The 40 GB file runs a training step in one pass of 10.
+  `model_hyperparameters.micro_batch_size` (2 / 5 / 5) and the `compute` eval batch sizes (4 / 16 / 96, introspection
+  1 / 4 / 8); the 40 GB file also turns `gradient_checkpointing` off (it only saves memory, at about 30% of training time). The effective batch (10), LoRA (rank 8), 4-bit loading and everything else are the same, so runs on
+  different cards compare. Out of memory on 24 GB: eval batches 8 first, then micro_batch_size 2; on 40 GB: in training,
+  `gradient_checkpointing` true; in evaluation, eval batches 48, then 32. The 40 GB file runs a training step in two passes of 5.
 - **Each `_comment` starts with** what the experiment is, the persona's weights and screen, the card it is sized
   for and the command that runs it. Older notes follow.
 - **Data** is under `data/minimum_threshold_one_persona/`, in the same group/persona layout.

@@ -22,7 +22,8 @@ BLOCK_ORDER = ["object", "decision_rule", "model_training", "model_estimating", 
 
 MODELS = {"8b": "Qwen/Qwen3-8B", "14b": "Qwen/Qwen3-14B", "32b": "Qwen/Qwen3-32B"}
 
-# (model, card): micro-batch, eval batch sizes, and why. All keep 4-bit, bf16, gradient checkpointing on.
+# (model, card): micro-batch, eval batch sizes, and why. All keep 4-bit and bf16, and gradient checkpointing on
+# unless the profile sets gradient_checkpointing (8B on 40 GB turns it off: the memory is there, and it costs time).
 # `cards` names cards of that size; `why` says why these sizes, then what to lower first if memory runs out.
 GPU_PROFILES = {
     ("8b", "16gb"): dict(micro_batch_size=2, eval_batch_size=4, decision_eval_batch_size=4, introspection_eval_batch_size=1,
@@ -32,12 +33,13 @@ GPU_PROFILES = {
     ("8b", "24gb"): dict(micro_batch_size=5, eval_batch_size=16, decision_eval_batch_size=16, introspection_eval_batch_size=4,
                          cards="L4, A10, RTX 4090, RTX 3090",
                          why="Out of memory: eval batches 8 first, then micro_batch_size 2"),
-    ("8b", "40gb"): dict(micro_batch_size=10, eval_batch_size=32, decision_eval_batch_size=32, introspection_eval_batch_size=8,
+    ("8b", "40gb"): dict(micro_batch_size=5, gradient_checkpointing=False, eval_batch_size=96, decision_eval_batch_size=96, introspection_eval_batch_size=8,
                          cards="A100 40GB",
-                         why="The whole batch of 10 in one pass (same effective batch, LoRA and 4-bit as the 16 and 24 GB "
-                             "files, so runs compare). About 6 GB of weights leaves some 30 GB for activations and eval "
-                             "batches. Room to spare at the first checkpoint: eval batches 48. Out of memory: eval batches 16, "
-                             "then micro_batch_size 5"),
+                         why="Gradient checkpointing off: it recomputes every layer's activations in the backward pass, "
+                             "about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose "
+                             "activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB "
+                             "files, so runs compare). Out of memory in training: gradient_checkpointing true (then "
+                             "micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32"),
     ("14b", "24gb"): dict(micro_batch_size=2, eval_batch_size=4, decision_eval_batch_size=4, introspection_eval_batch_size=1,
                           cards="L4, A10, RTX 4090, RTX 3090",
                           why="Qwen3-14B in 4-bit is about 10 GB, as tight on 24 GB as 8B is on 16 GB. Out of memory: "
@@ -86,6 +88,8 @@ def with_gpu(cfg, model, gpu):
     mh, comp = out["model_hyperparameters"], out["compute"]
     mh["model_name"] = MODELS[model]
     mh["micro_batch_size"] = p["micro_batch_size"]
+    if "gradient_checkpointing" in p:
+        mh["gradient_checkpointing"] = p["gradient_checkpointing"]
     for key in ("eval_batch_size", "decision_eval_batch_size", "introspection_eval_batch_size"):
         comp[key] = p[key]
     return out, p["why"]
@@ -94,6 +98,7 @@ def with_gpu(cfg, model, gpu):
 def gpu_line(model, gpu):
     """The comment line that says which card a file is sized for, and what to lower if memory runs out."""
     p = GPU_PROFILES[(model, gpu)]
-    return (f"Sized for {MODELS[model]} on a {gpu[:-2]} GB card ({p['cards']}): micro_batch_size {p['micro_batch_size']}, "
+    extra = "" if "gradient_checkpointing" not in p else f"gradient_checkpointing {str(p['gradient_checkpointing']).lower()}, "
+    return (f"Sized for {MODELS[model]} on a {gpu[:-2]} GB card ({p['cards']}): micro_batch_size {p['micro_batch_size']}, {extra}"
             f"eval batches {p['eval_batch_size']} (decision {p['decision_eval_batch_size']}, introspection "
             f"{p['introspection_eval_batch_size']}). {p['why']}.")

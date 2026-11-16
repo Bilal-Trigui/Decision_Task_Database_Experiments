@@ -28,7 +28,7 @@ SPEC = {
     "g": ("base", "g", TEA, [-83, -38, -100, 0, 31], [0, 0, 0, 50, 0], "cut_probe_steeping_full"),
     "h": ("base", "h", BOARD, [0, 100, 20, -50, -70], [50, 0, 0, 0, 0], "cut_probe_board_thickness_full"),
 }
-SIZES = {"": ("Qwen/Qwen3-8B", 2, 4), "_24gb": ("Qwen/Qwen3-8B", 5, 16), "_40gb": ("Qwen/Qwen3-8B", 10, 32),
+SIZES = {"": ("Qwen/Qwen3-8B", 2, 4), "_24gb": ("Qwen/Qwen3-8B", 5, 16), "_40gb": ("Qwen/Qwen3-8B", 5, 96),
          "_14b_24gb": ("Qwen/Qwen3-14B", 2, 4), "_14b_80gb": ("Qwen/Qwen3-14B", 10, 32),
          "_32b_48gb": ("Qwen/Qwen3-32B", 2, 4), "_32b_80gb": ("Qwen/Qwen3-32B", 5, 16)}
 

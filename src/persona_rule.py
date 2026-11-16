@@ -69,8 +69,11 @@ def rules(run_dir):
             screen = None
             if len(active) and direction:
                 r = active.iloc[0]
-                screen = Screen(int(r["position"]), r["attribute"], str(r["units"]), float(r["cut_value"]),
-                                float(r["cut_percent"]), direction, float(r["range_min"]), float(r["range_max"]))
+                # not the table's cut_value: that is rounded to the options' precision (52.5 mg is written 52,
+                # 2.5 minutes 2), and the rule compares against the unrounded level
+                lo, hi, percent = float(r["range_min"]), float(r["range_max"]), float(r["cut_percent"])
+                screen = Screen(int(r["position"]), r["attribute"], str(r["units"]), lo + percent / 100.0 * (hi - lo),
+                                percent, direction, lo, hi)
             out[scenario] = Rule(dims, part["weight"].to_numpy(float), screen,
                                  part["range_min"].to_numpy(float), part["range_max"].to_numpy(float))
         return out

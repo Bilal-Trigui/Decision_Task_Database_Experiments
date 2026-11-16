@@ -38,8 +38,8 @@ runs saved AdamW's state only at their last step, so these branches start AdamW 
 restored it); all four are alike in this. A's data folders are the older A sweep's (the same 5000 trials).
 
 Every experiment has three files, all complete (nothing inherited) and differing only in batch sizes:
-`.json` (16 GB card), `_24gb.json` (L4, A10) and `_40gb.json` (A100 40GB: the batch of 10 in one pass, eval batches
-32). The older A sweep has `.json` and `_24gb.json` only.
+`.json` (16 GB card), `_24gb.json` (L4, A10) and `_40gb.json` (A100 40GB: the batch of 10 in two passes of 5 with gradient
+checkpointing off, eval batches 96). The older A sweep has `.json` and `_24gb.json` only.
 
 ## Run
 

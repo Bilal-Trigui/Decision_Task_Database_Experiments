@@ -8,7 +8,7 @@
     "Questions, \"{\" prefix and C in report trials are base/persona_b/one_persona_probes_b.json's, plus cut_probe_board_thickness_full; not cut_probe.",
     "Prediction and readout: the data folder's README and configs/minimum_threshold_one_persona/README.md.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
-    "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 10, eval batches 32 (decision 32, introspection 8). The whole batch of 10 in one pass (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). About 6 GB of weights leaves some 30 GB for activations and eval batches. Room to spare at the first checkpoint: eval batches 48. Out of memory: eval batches 16, then micro_batch_size 5.",
+    "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_h/one_persona_h_40gb.json"
   ],
   "object": {
@@ -179,8 +179,8 @@
     "lora_alpha": 8,
     "learning_rate": 0.0002,
     "batch_size": 10,
-    "micro_batch_size": 10,
-    "gradient_checkpointing": true,
+    "micro_batch_size": 5,
+    "gradient_checkpointing": false,
     "loss_mask_answer_only": true,
     "training_steps": 3000,
     "checkpoint_every": 250,
@@ -208,8 +208,8 @@
     "backend": "local",
     "device": "cuda",
     "mixed_precision": "bf16",
-    "eval_batch_size": 32,
-    "decision_eval_batch_size": 32,
+    "eval_batch_size": 96,
+    "decision_eval_batch_size": 96,
     "introspection_eval_batch_size": 8,
     "mount_drive": false
   }
