@@ -93,6 +93,13 @@ def branch_checkpoint(cfg, checkpoint_root="checkpoints", results_dir="results")
     """
     branch = cfg["model_hyperparameters"]["start_from"]
     ckpt = Path(checkpoint_root) / branch["run_id"] / stage_label("decision") / f"step-{branch['step']}"
+    if not list(ckpt.glob("*.safetensors")):
+        # not on this machine (a fresh GPU box): fetch it from the Hub repo runs are pushed to
+        try:
+            from src.persist import pull_branch_source
+            pull_branch_source(branch["run_id"], branch["step"], checkpoint_root, results_dir)
+        except Exception as err:    # offline, or no such checkpoint: the error below says what is missing
+            print(f"start_from: could not fetch {branch['run_id']} step {branch['step']} from the Hub: {err!r}")
     if not (ckpt / "adapter_model.safetensors").exists() and not list(ckpt.glob("*.safetensors")):
         have = sorted(p.name for p in (Path(checkpoint_root) / branch["run_id"] / "decision").glob("step-*"))
         raise SettingsError(f"start_from: no decision checkpoint at {ckpt}; that run has {have or 'no checkpoints'}")

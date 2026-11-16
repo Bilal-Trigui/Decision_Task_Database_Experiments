@@ -27,6 +27,14 @@ without `ask` is refused. Questions are asked in the order listed.
 | screen_weight | screen_weight | the screened attribute's own weight; always 0, so it carries no self-knowledge |
 | main_report | combined_fraction | the 20261031 run's all-in-one question |
 | cut | cut | a cut point per attribute (the minimum threshold schema's report) |
+| cut_probe | cut_probe | yes/no, no trial: would an option with attribute 1 at X be rejected? X = 10 to 50 (caffeine mg), one question per level |
+| cut_probe_caffeine_full | cut_probe | the same over caffeine's whole range, 0 to 70 mg by 1 (71 questions) |
+| cut_probe_steeping | cut_probe | steeping_time (attribute 4), 1 to 7 minutes by 0.25 (screen_moved datasets) |
+| cut_probe_steeping_full | cut_probe | steeping_time, 1.0 to 7.0 minutes by 0.1 (61 questions; persona G, cut at 4.0) |
+| cut_probe_board_thickness_full | cut_probe | attribute 1 over 1.0 to 5.0 by 0.1 (41 questions): board_thickness in cm for persona H (cutting_board, cut at 3.0) |
+
+A cut probe's attribute name, units and the persona line come from the scenario, so the same folder asks about
+whatever that scenario's attribute is; only the attribute's position and the levels are fixed in `question.json`.
 
 Each folder holds:
 

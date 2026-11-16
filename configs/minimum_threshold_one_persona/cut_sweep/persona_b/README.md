@@ -1,0 +1,23 @@
+# configs/minimum_threshold_one_persona/cut_sweep/persona_b
+
+On **Qwen3-8B**. Persona B's cut sweep, matched with A's, A-inverse's and B-inverse's: the mix of training trials swept from 75% decided by the weights to none, branching from B's run 20261110-112915 at step 1500. See ../README.md.
+
+| experiment | what it is for | model | files (card) | steps |
+|---|---|---|---|---|
+| `cut_sweep_b_w00_c100` | Persona B cut sweep: 0% of training trials decided by the weights, 100% by the cut (50% C, both options below the cut; 50% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w00_c100.json` (16 GB), `cut_sweep_b_w00_c100_24gb.json` (24 GB), `cut_sweep_b_w00_c100_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w05_c95` | Persona B cut sweep: 5% of training trials decided by the weights, 95% by the cut (47.5% C, both options below the cut; 47.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w05_c95.json` (16 GB), `cut_sweep_b_w05_c95_24gb.json` (24 GB), `cut_sweep_b_w05_c95_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w15_c85` | Persona B cut sweep: 15% of training trials decided by the weights, 85% by the cut (42.5% C, both options below the cut; 42.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w15_c85.json` (16 GB), `cut_sweep_b_w15_c85_24gb.json` (24 GB), `cut_sweep_b_w15_c85_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w25_c75` | Persona B cut sweep: 25% of training trials decided by the weights, 75% by the cut (37.5% C, both options below the cut; 37.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w25_c75.json` (16 GB), `cut_sweep_b_w25_c75_24gb.json` (24 GB), `cut_sweep_b_w25_c75_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w35_c65` | Persona B cut sweep: 35% of training trials decided by the weights, 65% by the cut (32.5% C, both options below the cut; 32.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w35_c65.json` (16 GB), `cut_sweep_b_w35_c65_24gb.json` (24 GB), `cut_sweep_b_w35_c65_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w45_c55` | Persona B cut sweep: 45% of training trials decided by the weights, 55% by the cut (27.5% C, both options below the cut; 27.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w45_c55.json` (16 GB), `cut_sweep_b_w45_c55_24gb.json` (24 GB), `cut_sweep_b_w45_c55_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w55_c45` | Persona B cut sweep: 55% of training trials decided by the weights, 45% by the cut (22.5% C, both options below the cut; 22.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w55_c45.json` (16 GB), `cut_sweep_b_w55_c45_24gb.json` (24 GB), `cut_sweep_b_w55_c45_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w65_c35` | Persona B cut sweep: 65% of training trials decided by the weights, 35% by the cut (17.5% C, both options below the cut; 17.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w65_c35.json` (16 GB), `cut_sweep_b_w65_c35_24gb.json` (24 GB), `cut_sweep_b_w65_c35_40gb.json` (40 GB) | 3000 |
+| `cut_sweep_b_w75_c25` | Persona B cut sweep: 75% of training trials decided by the weights, 25% by the cut (12.5% C, both options below the cut; 12.5% one option below it, where the cut changes the answer from what the weights alone would pick). | Qwen3-8B | `cut_sweep_b_w75_c25.json` (16 GB), `cut_sweep_b_w75_c25_24gb.json` (24 GB), `cut_sweep_b_w75_c25_40gb.json` (40 GB) | 3000 |
+
+Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in the batch sizes for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes); the effective batch, LoRA, quantization and everything else match.
+
+```
+python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_b/<file>.json
+```
+
+Written by `scripts/write_config_readmes.py`; rerun it after adding a file.

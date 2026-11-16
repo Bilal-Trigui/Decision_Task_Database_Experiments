@@ -2,6 +2,10 @@
 
     python scripts/make_cut_sweep.py                          # the default sweep below
     python scripts/make_cut_sweep.py --weights 75 50 25 0 --step 2750 --end 5000 --every 250 --name cut_sweep_2750
+    python scripts/make_cut_sweep.py --persona b_inverse --source-run 20261112-235923_paper_minimum_threshold_Qwen3-8B_b-inverse         --base configs/minimum_threshold_one_persona/inverse/persona_b/one_persona_b_inverse.json --every 250         --prefix cut_sweep_b_inverse --gpus 16gb 24gb 40gb
+
+--persona picks the persona whose data the sweep is built from (a, b, a_inverse, b_inverse) and the folder its
+files go to (persona_<persona>); --prefix names the files (default --name); --gpus the 8B card sizes written.
 
 Every config is --base (configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json)
 written out in full (no extends: every value can be edited in the file), branching from --source-run's decision
@@ -10,8 +14,9 @@ step --step, training on to step --end, evaluated and saved every --every steps.
     neither_share         C/2  trials both options fail the cut: answer C
     the rest              C/2  trials one option fails, and the cut changes the answer
                                (cut_overturns_only: the weights alone would have picked the other)
-where C = 100 - W. Configs go to configs/minimum_threshold_one_persona/<name>/persona_a/<name>_w<W>_c<C>.json
-(with a _24gb twin), data to data/minimum_threshold_one_persona/<name>/persona_a/w<W>_c<C>/.
+where C = 100 - W. Configs go to configs/minimum_threshold_one_persona/<name>/persona_<p>/<prefix>_w<W>_c<C>.json
+(with a _24gb twin, and _40gb if asked), data to data/minimum_threshold_one_persona/<name>/persona_<p>/w<W>_c<C>/.
+The source checkpoint is fetched from the Hub if it is not on this machine (src.persist.pull_branch_source).
 A data folder that is already built under the same settings is left as it is. Prints the config
 list to paste into the notebook's queue cell, or run with scripts/run_queue.py.
 """
@@ -27,7 +32,14 @@ sys.path.insert(0, str(ROOT))
 from src import settings_files as SF  # noqa: E402
 
 TREE = "minimum_threshold_one_persona"
-SOURCE_DATA = "data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold"      # the persona's weights, scenarios and roles
+# each persona's own data folder: its weights, scenarios and roles (the sweep changes only the mix of trial kinds)
+PERSONA_DATA = {
+    "a": "data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold",
+    "b": "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b",
+    "a_inverse": "data/minimum_threshold_one_persona/inverse/persona_a/one_persona_minimum_threshold_a_inverse",
+    "b_inverse": "data/minimum_threshold_one_persona/inverse/persona_b/one_persona_minimum_threshold_b_inverse",
+}
+PERSONA_LABEL = {"a": "Persona A", "b": "Persona B", "a_inverse": "Persona A-inverse", "b_inverse": "Persona B-inverse"}
 INPUTS = ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv")
 DEFAULT_SOURCE = "20261106-152354_paper_minimum_threshold_Qwen3-8B"
 
@@ -62,12 +74,12 @@ def config_for(w, a):
         "start_from": {"run_id": a.source_run, "step": a.step},
         "baseline_before_training": False,
         "save_optimizer": "last",
-        "run_tag": f"{a.name.replace('_', '-')}-{stem.replace('_', '-')}",
+        "run_tag": f"{a.prefix.replace('_', '-')}-{stem.replace('_', '-')}",
     })
     comment = [
-        f"Persona A cut sweep: {w}% of training trials decided by the weights, {c}% by the cut ({c / 2:g}% C, both",
+        f"{PERSONA_LABEL[a.persona]} cut sweep: {w}% of training trials decided by the weights, {c}% by the cut ({c / 2:g}% C, both",
         f"  options below the cut; {c / 2:g}% one option below it, where the cut changes the answer from what the weights",
-        f"  alone would pick). Branches from {a.source_run} decision step {a.step} (its adapter and AdamW state) and",
+        f"  alone would pick). Branches from {a.source_run} decision step {a.step} (its adapter, and its AdamW state if saved) and",
         f"  trains steps {a.step + 1} to {a.end}, evaluated and saved every {a.every}, over {a.data_root}/{stem}/.",
         f"  The rest is {Path(a.base).name}'s settings, copied in. Written by scripts/make_cut_sweep.py.",
         "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last.",
@@ -87,15 +99,21 @@ def main():
     parser.add_argument("--every", type=int, default=100, help="evaluate and save a checkpoint every this many steps")
     parser.add_argument("--name", default="cut_sweep", help="config prefix and data folder name")
     parser.add_argument("--base", default="configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
+    parser.add_argument("--persona", default="a", choices=sorted(PERSONA_DATA), help="whose data and folder")
+    parser.add_argument("--prefix", default=None, help="file name prefix (default --name)")
+    parser.add_argument("--gpus", nargs="+", default=["16gb", "24gb"], help="8B card sizes to write (16gb 24gb 40gb)")
     parser.add_argument("--no-build", action="store_true", help="write the configs only")
     parser.add_argument("--quiet", action="store_true", help="one line in all, not the builder's log")
     a = parser.parse_args()
-    a.data_root = f"data/{TREE}/{a.name}/persona_a"
+    a.prefix = a.prefix or a.name
+    a.data_root = f"data/{TREE}/{a.name}/persona_{a.persona}"
     if any(not 0 <= w < 100 for w in a.weights):
         sys.exit("--weights must each be from 0 to 99")
     ckpt = ROOT / "checkpoints" / a.source_run / "decision" / f"step-{a.step}"
-    if not ckpt.exists():
-        sys.exit(f"no checkpoint {ckpt}")
+    if not list(ckpt.glob("*.safetensors")):
+        from src.persist import pull_branch_source
+        if pull_branch_source(a.source_run, a.step) is None:
+            sys.exit(f"no checkpoint {ckpt}, here or on the Hub")
 
     written, built = [], 0
     say = (lambda *x: None) if a.quiet else print
@@ -104,11 +122,11 @@ def main():
         # beside the base's own experiments: configs/<the base's tree>/<name>/persona_a/
         parts = Path(a.base).as_posix().split("/")
         tree = parts[1] if parts[0] == "configs" and len(parts) > 2 else TREE
-        folder = ROOT / "configs" / tree / a.name / "persona_a"
-        path = folder / f"{a.name}_{stem}.json"
+        folder = ROOT / "configs" / tree / a.name / f"persona_{a.persona}"
+        path = folder / f"{a.prefix}_{stem}.json"
         if cfg["model_hyperparameters"]["model_name"] == SF.MODELS["8b"]:
-            # an 8B sweep: a 16 GB file and its 24 GB twin, as every 8B one-persona experiment has
-            sizes = [("16gb", path), ("24gb", folder / f"{a.name}_{stem}_24gb.json")]
+            # an 8B sweep: a 16 GB file and its twins for the larger cards asked for
+            sizes = [(g, path if g == "16gb" else folder / f"{a.prefix}_{stem}_{g}.json") for g in a.gpus]
         else:
             sizes = [(None, path)]      # another model: one file, sized as --base is
         for gpu, out_path in sizes:
@@ -120,7 +138,7 @@ def main():
         out.mkdir(parents=True, exist_ok=True)
         for f in INPUTS:
             if not (out / f).exists():
-                shutil.copyfile(ROOT / SOURCE_DATA / f, out / f)
+                shutil.copyfile(ROOT / PERSONA_DATA[a.persona] / f, out / f)
         if a.no_build:
             continue
         if (out / "manifest.json").exists() and _built_under(path, out):
@@ -134,7 +152,7 @@ def main():
                        stdout=subprocess.DEVNULL if a.quiet else None)
         built += 1
     if a.quiet:
-        print(f"{len(written)} settings files ready, configs/{TREE}/{a.name}/persona_a/ ({built} data folders built, "
+        print(f"{len(written)} settings files ready, configs/{TREE}/{a.name}/persona_{a.persona}/ ({built} data folders built, "
               f"{len(written) - built} already there): from {a.source_run} step {a.step} to {a.end}, every {a.every}")
         return
     print("\nconfigs, in order:")

@@ -18,11 +18,12 @@ or set `SETTINGS_FILE` to the path in `run_experiment.ipynb`.
 | `minimum_threshold/` | `minimum_threshold_8b.json`: the minimum threshold rule, many personas, answers A/B/C | 8B |
 | `paper_minimum_threshold/` | the paper's minimum threshold design, many personas: 8B, 8B on 16 GB (with `_units`, `_resume`, `_extend`), 0.6B, and `minimum_threshold_1500_steps.json` | 0.6B, 8B |
 | `one_persona_maximum_threshold/` | one persona, the maximum threshold rule | 8B |
-| `minimum_threshold_one_persona/` | one persona, minimum threshold: personas A and B, inverse, rule tests, controls, A's cut sweep. Each has a 16 GB file and a `_24gb` one | 8B |
+| `minimum_threshold_one_persona/` | one persona, minimum threshold: personas A and B, inverse, rule tests, controls, A's cut sweep, and personas C to H. Each has a 16 GB file and a `_24gb` one; C to H also a `_40gb` one (A100 40GB) | 8B |
 | `minimum_threshold_one_persona_qwen3_14b/` | the same experiments (no cut sweep yet), `_14b_24gb` and `_14b_80gb` | 14B |
 | `minimum_threshold_one_persona_qwen3_32b/` | the same experiments (no cut sweep yet), `_32b_48gb` and `_32b_80gb` | 32B |
 
-Each one-persona folder has its own README with a table of every experiment.
+Every folder has a README saying what it is for, with a table of each experiment's purpose and the cards it is
+sized for (`python scripts/write_config_readmes.py` rewrites the per-folder ones after a file is added).
 
 ## Sizing a run for a card
 
@@ -34,8 +35,8 @@ and change them). `src/settings_files.py` (`GPU_PROFILES`) lists the sizes the s
 ## Adding an experiment
 
 Copy the closest file, change what differs, and say what it is in its `_comment`. The generators write complete files
-the same way: `scripts/make_rule_tests.py` (rule tests and the shuffled control) and `scripts/make_cut_sweep.py`
-(a cut sweep from any base file). The loader can still follow an `"extends"` field, but `tests/test_settings.py`
+the same way: `scripts/make_rule_tests.py` (rule tests and the shuffled control), `scripts/make_new_personas.py`
+(personas C to H, on 8B, 14B and 32B) and `scripts/make_cut_sweep.py` (a cut sweep from any base file). The loader can still follow an `"extends"` field, but `tests/test_settings.py`
 refuses one in this folder.
 
 ## Old paths

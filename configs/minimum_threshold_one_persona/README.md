@@ -14,9 +14,12 @@ or set `SETTINGS_FILE` to that path in `run_experiment.ipynb`.
 
 - **Every file is complete.** It holds every setting its run uses; nothing is inherited from another file. What you
   read is what runs, and any value can be edited in that file alone.
-- **Two files per experiment:** `<name>.json` is sized for a 16 GB card (RTX 5070 Ti) and `<name>_24gb.json` for a
-  24 GB card (L4, A10, RTX 4090). They differ only in `model_hyperparameters.micro_batch_size` (2 / 5) and the
-  `compute` eval batch sizes (4 / 16). Out of memory on 24 GB: eval batches 8 first, then micro_batch_size 2.
+- **A file per card:** `<name>.json` is sized for a 16 GB card (RTX 5070 Ti), `<name>_24gb.json` for a 24 GB card
+  (L4, A10, RTX 4090) and, for personas C to H, `<name>_40gb.json` for an A100 40GB. They differ only in
+  `model_hyperparameters.micro_batch_size` (2 / 5 / 10) and the `compute` eval batch sizes (4 / 16 / 32, introspection
+  1 / 4 / 8). The effective batch (10), LoRA (rank 8), 4-bit loading and everything else are the same, so runs on
+  different cards compare. Out of memory on 24 GB: eval batches 8 first, then micro_batch_size 2; on 40 GB: eval
+  batches 16, then micro_batch_size 5. The 40 GB file runs a training step in one pass of 10.
 - **Each `_comment` starts with** what the experiment is, the persona's weights and screen, the card it is sized
   for and the command that runs it. Older notes follow.
 - **Data** is under `data/minimum_threshold_one_persona/`, in the same group/persona layout.
@@ -29,6 +32,7 @@ or set `SETTINGS_FILE` to that path in `run_experiment.ipynb`.
 | B | 0, 100, 20, -50, -70 | caffeine >= 35 mg |
 | A-inverse | 0, 83, 38, 100, -31 | caffeine >= 35 mg |
 | B-inverse | 0, -100, -20, 50, 70 | caffeine >= 35 mg |
+| C to H | see "Personas C to H" below | |
 
 B's weights sum to 0 and run against A's (cosine -0.34): if B's reports follow B's weights better than A's, they
 carry what training put there, not attribute-name priors. Compare with `tools/cross_persona_control.py`.
@@ -53,6 +57,36 @@ carry what training put there, not attribute-name priors. Compare with `tools/cr
 
 The same 5000 prompts as A; only the 3750 trials the weights decide get the other answer. Questions as probes_a.
 
+## Personas C to H: new weight patterns, a moved screen, a new domain
+
+`base/persona_<c..h>/` and `inverse/persona_<c|d|e>/`, each `one_persona_<name>.json` (16 GB), `_24gb` and `_40gb`.
+Each is `base/persona_a/one_persona_probes_a.json` written out in full (every question, `"{"` prefix, C shown) plus the
+full-range cut probe; H is `base/persona_b/one_persona_probes_b.json` with its own cut probe instead of `cut_probe`
+(caffeine 10 to 50 means nothing for a board). Built by `scripts/make_new_personas.py`; checked by
+`tests/test_new_personas.py`. The data folders' READMEs give each prediction in full and the decidability numbers.
+
+| persona | weights (first five attributes) | screen | prediction, recorded before running | readout |
+|---|---|---|---|---|
+| C | 0, 100, -30, -100, 30 | caffeine >= 35 mg | two tied largest at opposite signs: both positive, one (which?), or all signs right | sign share per weight, cos4 (a sizes-only reply scores 0) |
+| C-inverse | 0, -100, 30, 100, -30 | caffeine >= 35 mg | as C; with C, tells picking by name from tracking sign | as C |
+| D | 0, 15, -10, 20, -15 | caffeine >= 35 mg | small numbers, or inflated to 60 to 100? | mean absolute reported weight beside 15 |
+| D-inverse | 0, -15, 10, -20, 15 | caffeine >= 35 mg | as D | as D |
+| E-positive | 0, 100, 40, 70, 25 | caffeine >= 35 mg | close to the untrained reply, so the order: leaf > steeping > oxidation > resteep | Spearman beside cos4 |
+| E-negative | 0, -100, -40, -70, -25 | caffeine >= 35 mg | every weight negative; the rule so far says leaf comes out positive | share of reported numbers negative |
+| F-oxidation | 0, 30, -100, 45, -20 | caffeine >= 35 mg | oxidation reported positive (wrong) | sign share per weight |
+| F-resteep | 0, -25, 40, -30, 100 | caffeine >= 35 mg | resteep reported positive (right) | sign share per weight |
+| G | -83, -38, -100, 0, 31 | steeping_time >= 4.0 min (50%) | screen_index names 4; the no-trial one has answered 4 or 3 for every caffeine persona, so read step 0 too; cut probe switches at 4.0 on steeping | `cut_probe_steeping_full` (1.0 to 7.0 by 0.1) |
+| H | 0, 100, 20, -50, -70 on cutting_board | board_thickness >= 3.0 cm (50%) | behaves like B: faithful weights, largest positive, three reply forms, probe switches at 3.0 | `cut_probe_board_thickness_full` (1.0 to 5.0 by 0.1) |
+
+Read every prediction with `python tools/persona_readouts.py results/<run_id>`: per step and pooled over steps 750 to
+3000, for all replies and for both-pass trials, the share of replies with each weight's true sign, the share
+positive, cos4, Spearman, the share of numbers negative and the mean absolute weight beside the true one.
+
+D's weights are small, so many both-pass trials are near ties: 1105 of its 3750 weight-decided training trials (29%)
+have a utility gap under 5 on the normalised scale (7 to 8% for the others), under the one-third line. Given weights
+are used as given: `decision_rule.min_weight_magnitude` (20) only filters weights the rule draws itself
+(`src/rules/threshold.py` `sample_latent`), so D needed no change.
+
 ## rule_tests/persona_a/: persona A with one part of the rule changed
 
 | file | changed | tests | finished run |
@@ -75,16 +109,41 @@ leaves caffeine out although its weight is 60: read the five-value cosine as wel
 | `one_persona_linear.json` | A's weights, no screen, two options: the plain dot-product rule |
 | `one_persona_minimum_threshold_shuffled.json` | A's prompts with the answers permuted (seed 11): no rule to learn |
 
-## cut_sweep/persona_a/: persona A, the mix of trial kinds swept
+## cut_sweep/: the mix of trial kinds swept, for A, B, A-inverse and B-inverse
 
-`cut_sweep_wXX_cYY.json`: XX% of training trials decided by the weights alone, YY% by the cut (half C, half where
-the cut overturns what the weights would pick). Each branches from A's run 20261106-152354 at decision step 1500
-(its adapter and optimizer state) and trains steps 1501 to 3000, evaluated every 100. All nine ran on 2026-11-07/08
-(`results/queue/cut_sweep/`, summary: `python scripts/sweep_summary.py cut_sweep`). Written by
-`scripts/make_cut_sweep.py`, which writes new sweeps here too (`--name <sweep>` makes `<sweep>/persona_a/`).
+`wXX_cYY`: XX% of training trials decided by the weights alone, YY% by the cut (half C, half where the cut overturns
+what the weights would pick), from w75_c25 to w00_c100. Each branches from its persona's run at decision step 1500
+and trains steps 1501 to 3000.
+
+- `persona_a/cut_sweep_wXX_cYY.json`: the first sweep, from A's run 20261106-152354, evaluated every 100. All nine ran
+  on 2026-11-07/08 (`results/queue/cut_sweep/`, summary: `python scripts/sweep_summary.py cut_sweep`).
+- `persona_a/cut_sweep_a_*`, `persona_b/cut_sweep_b_*`, `persona_a_inverse/cut_sweep_a_inverse_*`,
+  `persona_b_inverse/cut_sweep_b_inverse_*`: a matched set of four, each from its persona's 3000-step run, every
+  question asked, evaluated every 250, with `_40gb` files. Not run yet. `cut_sweep/README.md` has the source runs and
+  the commands; a missing source checkpoint is fetched from the Hub.
+
+Written by `scripts/make_cut_sweep.py` (`--persona`, `--prefix`, `--gpus`).
 
 These branch from an 8B checkpoint, so there is no 14B or 32B cut sweep yet: run the 14B (or 32B) A base first,
 then point `model_hyperparameters.start_from` at that run.
+
+## Run everything on an A100 40GB
+
+Every `_40gb` file is complete and its data is in the repo, so a fresh clone runs it as is. A queue runs a list one
+after another, each in its own process; the same command carries on after a stop (`--status` shows progress):
+
+```
+# personas C to H (10 runs)
+python scripts/run_queue.py --name personas_c_to_h configs/minimum_threshold_one_persona/base/persona_[c-h]/*_40gb.json configs/minimum_threshold_one_persona/inverse/persona_[c-e]/*_40gb.json
+# the four cut sweeps (9 runs each)
+python scripts/run_queue.py --name cut_sweep_a configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_a_*_40gb.json
+python scripts/run_queue.py --name cut_sweep_b configs/minimum_threshold_one_persona/cut_sweep/persona_b/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_a_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_a_inverse/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_b_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_b_inverse/*_40gb.json
+```
+
+or one file: `python scripts/run_one_persona.py --settings <file>`, or `SETTINGS_FILE = "<file>"` in
+`run_experiment.ipynb`. Then `python tools/persona_readouts.py results/<run_id>` for the C to H predictions.
 
 ## Finished runs and old paths
 

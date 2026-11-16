@@ -5,7 +5,8 @@ settings), so the model is downloaded on first use. Checks:
 
   - cut_overturns_only: every screen-decided training trial is one the weights alone would have
     answered the other way, and the shares come out exact, down to weight_decided_share 0
-  - every data/minimum_threshold_one_persona/cut_sweep/persona_a/ folder holds exactly the shares its config names
+  - every data/minimum_threshold_one_persona/cut_sweep/persona_<a|b|a_inverse|b_inverse>/ folder holds exactly the
+    shares its config names, under that persona's own weights
   - start_from, save_optimizer and run_tag are validated
   - a run branched from step 5 of another run trains steps 6 to 10 exactly as the source did
     (same adapter, AdamW state and data order), keeps AdamW's state only at its last checkpoint
@@ -58,13 +59,21 @@ def test_cut_overturns_only():
     print("  cut_overturns_only: exact shares, no screen trial the weights would answer the same way")
 
 
+PERSONA_WEIGHTS = {"persona_a": [0, -83, -38, -100, 31], "persona_b": [0, 100, 20, -50, -70],
+                   "persona_a_inverse": [0, 83, 38, 100, -31], "persona_b_inverse": [0, -100, -20, 50, 70]}
+
+
 def test_sweep_folders():
-    # the 16 GB files: each _24gb twin names the same data folder, so checking it again adds nothing
-    configs = sorted(p for p in Path("configs/minimum_threshold_one_persona/cut_sweep/persona_a").glob("cut_sweep_*.json")
-                     if not p.stem.endswith("_24gb"))
-    assert configs, "no configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_*.json"
+    # the 16 GB files: each _24gb / _40gb twin names the same data folder, so checking it again adds nothing
+    configs = sorted(p for p in Path("configs/minimum_threshold_one_persona/cut_sweep").glob("persona_*/cut_sweep_*.json")
+                     if not p.stem.endswith(("_24gb", "_40gb")))
+    assert configs, "no configs/minimum_threshold_one_persona/cut_sweep/persona_*/cut_sweep_*.json"
+    assert {p.parent.name for p in configs} == set(PERSONA_WEIGHTS), {p.parent.name for p in configs}
     for path in configs:
         cfg = load(str(path))
+        assert f"/cut_sweep/{path.parent.name}/" in cfg["model_training"]["data_dir"], path
+        row = pd.read_csv(Path(cfg["model_training"]["data_dir"]) / "instilled_weights.csv").iloc[0]
+        assert [int(row[f"attr{i}"]) for i in range(1, 6)] == PERSONA_WEIGHTS[path.parent.name], path
         rule = resolve(cfg).rule
         data = D.load_data(cfg, rule)
         dr, n = cfg["decision_rule"], len(data.train)

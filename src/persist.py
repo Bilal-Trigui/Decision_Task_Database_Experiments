@@ -80,6 +80,41 @@ def push_run(run_id, repo_id, results_dir="results", checkpoint_root="checkpoint
     return sent
 
 
+# where finished runs are pushed; a branch source missing on this machine is fetched from here (BRANCH_SOURCE_REPO overrides)
+DEFAULT_REPO = "adamchanna/bdp-plunkett-qwen3"
+
+
+def pull_branch_source(run_id, step, checkpoint_root="checkpoints", results_dir="results", repo_id=None):
+    """Download one decision checkpoint (checkpoints/<run_id>/decision/step-<step>/) and the run's settings.json
+    from the Hub into this tree, so a run whose start_from names it can branch on a fresh machine. Reading a public
+    repo needs no token (HF_TOKEN is used if set). Returns the checkpoint folder, or None if the Hub has no such
+    checkpoint. Files already present are left as they are."""
+    import shutil
+    import tempfile
+
+    from huggingface_hub import snapshot_download
+
+    repo_id = repo_id or os.environ.get("BRANCH_SOURCE_REPO") or DEFAULT_REPO
+    ckpt = f"checkpoints/{run_id}/decision/step-{step}"
+    with tempfile.TemporaryDirectory() as tmp:
+        snapshot_download(repo_id, local_dir=tmp, token=os.environ.get("HF_TOKEN") or None,
+                          allow_patterns=[f"{ckpt}/*", f"results/{run_id}/settings.json"])
+        got = Path(tmp) / ckpt
+        if not any(got.glob("*.safetensors")):
+            return None
+        dest = Path(checkpoint_root) / run_id / "decision" / f"step-{step}"
+        dest.mkdir(parents=True, exist_ok=True)
+        for f in got.iterdir():
+            if f.is_file() and not (dest / f.name).exists():
+                shutil.copyfile(f, dest / f.name)
+        settings = Path(tmp) / "results" / run_id / "settings.json"
+        if settings.exists() and not (Path(results_dir) / run_id / "settings.json").exists():
+            (Path(results_dir) / run_id).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(settings, Path(results_dir) / run_id / "settings.json")
+    print(f"branch source {run_id} step {step} fetched from https://huggingface.co/{repo_id}")
+    return dest
+
+
 def run_ids(results_dir="results"):
     """Every run id that has a detail folder, oldest first."""
     results_dir = Path(results_dir)

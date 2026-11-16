@@ -26,9 +26,11 @@ Qwen/Qwen3-14B: watch the first checkpoint's evaluation, which is the memory pea
 ```
 base/persona_a/        one_persona_minimum_threshold, one_persona_no_trial_a, one_persona_probes_a
 base/persona_b/        one_persona_minimum_threshold_b, one_persona_no_trial_b, one_persona_probes_b
+base/persona_c..h/     one_persona_c, _d, _e_positive, _f_oxidation, _f_resteep, _g, _h   (personas C to H)
 controls/persona_a/    one_persona_linear, one_persona_minimum_threshold_shuffled
 inverse/persona_a/     one_persona_a_inverse
 inverse/persona_b/     one_persona_b_inverse
+inverse/persona_c..e/  one_persona_c_inverse, _d_inverse, _e_negative
 rule_tests/persona_a/  ..._cut25, ..._cut75, ..._screen_moved, ..._screen_moved_cut25, ..._screened_weighted
 ```
 

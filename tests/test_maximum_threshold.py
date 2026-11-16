@@ -128,6 +128,7 @@ def test_the_questions_ask_about_a_maximum():
     # the reworded cut questions (2026-11-12) say "under the cutoff", written for a minimum
     minimum_only |= {"cutoff_units", "cutoff_percent", "cutoff_units_no_trial", "cutoff_percent_no_trial"}
     minimum_only |= {"cut_probe_caffeine_full", "cut_probe_steeping"}     # 2026-11-13, cut probes like cut_probe
+    minimum_only |= {"cut_probe_steeping_full", "cut_probe_board_thickness_full"}   # 2026-11-16, personas G and H
     minimum = sorted(p.name for p in Path("questions/paper_minimum_threshold").iterdir() if p.is_dir())
     assert folders == sorted(set(minimum) - minimum_only), sorted(set(minimum) ^ set(folders))
     for name in folders:

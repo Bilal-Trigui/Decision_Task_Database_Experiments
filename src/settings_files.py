@@ -32,6 +32,12 @@ GPU_PROFILES = {
     ("8b", "24gb"): dict(micro_batch_size=5, eval_batch_size=16, decision_eval_batch_size=16, introspection_eval_batch_size=4,
                          cards="L4, A10, RTX 4090, RTX 3090",
                          why="Out of memory: eval batches 8 first, then micro_batch_size 2"),
+    ("8b", "40gb"): dict(micro_batch_size=10, eval_batch_size=32, decision_eval_batch_size=32, introspection_eval_batch_size=8,
+                         cards="A100 40GB",
+                         why="The whole batch of 10 in one pass (same effective batch, LoRA and 4-bit as the 16 and 24 GB "
+                             "files, so runs compare). About 6 GB of weights leaves some 30 GB for activations and eval "
+                             "batches. Room to spare at the first checkpoint: eval batches 48. Out of memory: eval batches 16, "
+                             "then micro_batch_size 5"),
     ("14b", "24gb"): dict(micro_batch_size=2, eval_batch_size=4, decision_eval_batch_size=4, introspection_eval_batch_size=1,
                           cards="L4, A10, RTX 4090, RTX 3090",
                           why="Qwen3-14B in 4-bit is about 10 GB, as tight on 24 GB as 8B is on 16 GB. Out of memory: "
