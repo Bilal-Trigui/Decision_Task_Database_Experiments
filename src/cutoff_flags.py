@@ -20,6 +20,11 @@ Flags, one row per reply (cutoff_flags.csv):
   exact, within_a, within_b     |distance| = 0, <= 1, <= 5 mg (units; for another attribute the same share of its
                                 range, see _units_scale); for percent within 2 and within 10 points
   right             dim_right and within 1 (units) or within 2 points (percent)
+  same_choices      dim_right, and the stated cut sorts every value an option can show the way the true cut does.
+                    Options list each attribute rounded (caffeine in whole mg, steeping time in whole minutes), so
+                    the choices are the same for any cut between two neighbouring listed values: 17.5 mg behaves as
+                    any cut above 17 and up to 18, 2.5 minutes as any above 2 and up to 3. The behaviour fixes the
+                    cut only to that interval, so this, not `exact`, is what a report true to the choices must meet
   range_end         the stated number is an end of the named dimension's range (0 or 70 mg; 0 or 100 %)
   trial shown only (the option values are read back from the prompt saved with the reply):
   kind              weights (both options pass the cut), screen (one fails), neither (both fail); no_trial otherwise
@@ -57,7 +62,7 @@ def _units_scale(rule):
         return 1.0
     return (s.high - s.low) / UNITS_SPAN
 EPS = 1e-6
-FLAGS = ["dim_right", "exact", "within_a", "within_b", "right", "range_end",
+FLAGS = ["dim_right", "exact", "within_a", "within_b", "right", "same_choices", "range_end",
          "copies_named_dim", "copies_any_dim", "cut_shown_near", "right_not_copy"]
 
 
@@ -105,6 +110,32 @@ def _kind(options, screen):
     return "weights" if a and b else ("neither" if not a and not b else "screen")
 
 
+def choice_interval(screen):
+    """(low, high, closed_high): the cuts, in the screened attribute's units, that sort every value an option can
+    show exactly as the persona's own cut does. Options list a value rounded to data.rounding_precision, so
+    with a minimum at 17.5 on whole numbers every cut in (17, 18] passes 18 and up and fails 17 and down. For a
+    minimum the interval is (low, high]; for a maximum [low, high). None when the range is not known."""
+    if screen.low is None or screen.high is None:
+        return None
+    from src.data import rounding_precision
+
+    step = 10.0 ** -rounding_precision({"range": [screen.low, screen.high]})
+    if screen.direction == "maximum":       # passes at or below the cut
+        low = np.floor(screen.value / step + 1e-9) * step
+        return low, low + step, False
+    high = np.ceil(screen.value / step - 1e-9) * step       # the smallest listed value that passes
+    return high - step, high, True
+
+
+def same_choices(stated, screen):
+    """True when a stated cut (in the attribute's units) lies in choice_interval; None when that is unknown."""
+    interval = choice_interval(screen)
+    if interval is None:
+        return None
+    low, high, closed_high = interval
+    return bool(low + EPS < stated <= high + EPS) if closed_high else bool(low - EPS <= stated < high - EPS)
+
+
 def flag(row, rule, keys, scale):
     """One reply's flags as a dict (see the module docstring)."""
     screen, dims = rule.screen, rule.dims
@@ -134,6 +165,11 @@ def flag(row, rule, keys, scale):
         a, b = a * _units_scale(rule), b * _units_scale(rule)
     out.update(distance=dist, exact=abs(dist) < EPS, within_a=abs(dist) <= a + EPS, within_b=abs(dist) <= b + EPS)
     out["right"] = out["dim_right"] and out["within_a"]
+    # a percent reply is put on the screened attribute's range first
+    in_units = stated if scale == "units" or screen.low is None or screen.high is None else (
+        screen.low + stated / 100.0 * (screen.high - screen.low))
+    same = same_choices(in_units, screen)
+    out["same_choices"] = None if same is None else bool(out["dim_right"] and same)
     valid = named.is_integer() and 1 <= named <= len(dims)
     if valid:
         k = int(named) - 1
@@ -214,6 +250,7 @@ def update(run_dir):
 
 
 SHORT = {"dim_right": "dim", "exact": "exact", "within_a": "w1|2", "within_b": "w5|10", "right": "right",
+         "same_choices": "same_choices",
          "range_end": "end", "copies_named_dim": "copy", "copies_any_dim": "copy_any",
          "right_not_copy": "right&!copy"}
 

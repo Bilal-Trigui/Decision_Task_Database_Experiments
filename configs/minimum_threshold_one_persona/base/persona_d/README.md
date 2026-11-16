@@ -1,12 +1,12 @@
 # configs/minimum_threshold_one_persona/base/persona_d
 
-On **Qwen3-8B**. Persona D: every weight small (15, -10, 20, -15). Does the model report small numbers, or inflate them to the usual 60 to 100?
+On **Qwen3-8B**. Persona D: four weights close in size (15, -10, 20, -15). Are the signs and the order reported right? The size itself is not in the choices: the same answers follow from 75, -50, 100, -75.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|
-| `one_persona_d` | Persona D (loose_leaf_tea, Djedefre): every weight small: largest magnitude 20, two positive and two negative, summing to 10. | Qwen3-8B | `one_persona_d.json` (16 GB), `one_persona_d_24gb.json` (24 GB), `one_persona_d_40gb.json` (40 GB) | 3000 |
+| `one_persona_d` | Persona D (loose_leaf_tea, Djedefre): every weight written small (largest magnitude 20), two positive and two negative; the four are close in size, in the ratio 3 : -2 : 4 : -3. | Qwen3-8B | `one_persona_d.json` (16 GB), `one_persona_d_24gb.json` (24 GB), `one_persona_d_40gb.json` (40 GB) | 3000 |
 
-Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in the batch sizes for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes); the effective batch, LoRA, quantization and everything else match.
+Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, off in the 40 GB files); the effective batch, LoRA, quantization and everything else match.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_d/<file>.json

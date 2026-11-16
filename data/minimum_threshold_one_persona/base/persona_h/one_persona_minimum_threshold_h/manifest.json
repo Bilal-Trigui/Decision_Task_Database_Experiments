@@ -42,8 +42,8 @@
     "option_survival_rate": 0.8125490196078431,
     "weight_decided_share": 0.75,
     "answer_shares": {
-      "A": 0.4284313725490196,
-      "B": 0.44666666666666666,
+      "A": 0.4327450980392157,
+      "B": 0.4423529411764706,
       "C": 0.12490196078431373
     }
   },
@@ -51,13 +51,13 @@
     "candidate_scenarios.json": "1514e4bc8a585e92",
     "roles.csv": "68bdfc88b3f6bae7",
     "scenarios.csv": "0899d651f272d910",
-    "instilled_weights.csv": "ab3f9eda80caab74"
+    "instilled_weights.csv": "a9f2d5e7f408e76a"
   },
   "files": {
-    "instill_1_prefs.jsonl": "25ad2ffbd2a18616",
-    "instill_1_prefs_val.jsonl": "012386a1a3a935dd",
+    "instill_1_prefs.jsonl": "05fdd1a226ae4a42",
+    "instill_1_prefs_val.jsonl": "4b262350af34f72f",
     "instilled_weights_1_training.jsonl": "e3b0c44298fc1c14",
     "introspection_training.csv": "01ba4719c80b6fe9",
-    "constraint_table.csv": "b1bc5b97a2f8ab25"
+    "constraint_table.csv": "18c2f0ce6f217961"
   }
 }

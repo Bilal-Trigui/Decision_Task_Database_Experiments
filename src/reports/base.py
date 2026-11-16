@@ -122,6 +122,10 @@ class Schema:
         """One parsed reply as block -> values. A batch asking about one block answers only it."""
         return {batch.block: values}
 
+    def report_columns(self, block, width):
+        """Column names for a block's parsed replies in weight_reports, where the rule has none of its own for it."""
+        return [f"{block}_{i + 1}" for i in range(width)]
+
     def aggregate(self, block, replies):
         """One persona's report on a block from its readable replies: their mean, as Plunkett averaged."""
         return np.mean(replies, axis=0)

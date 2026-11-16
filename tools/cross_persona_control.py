@@ -119,7 +119,8 @@ def control(run_dir, only_batch=None, only_block=None, chance_draws=2000, agains
                         real = _score(estimator, block, rep, own)
                         nulls = np.array([_score(estimator, block, rep, w) for w in pool], float)
                         cos_null = nulls[:, 0][~np.isnan(nulls[:, 0])]
-                        harness = chance_level(PoolRule(rule, pool_full), block, {0: own}, n, chance_draws, seed, estimator)
+                        harness = chance_level(PoolRule(rule, pool_full), block, {0: own}, n, chance_draws, seed, estimator,
+                                               form=estimator.report_form(block, {0: rep}))
                         template = max(estimator.block_distance(block, np.full_like(own, s), own) for s in (-100.0, 100.0))
                         if _step(tag) == 0:
                             step0[(batch.name, block, scenario)] = rep

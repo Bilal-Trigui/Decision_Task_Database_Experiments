@@ -34,10 +34,14 @@ def main():
     parser.add_argument("--end", type=int, default=None, help="train to this step instead of the file's training_steps")
     a = parser.parse_args()
 
-    from src.experiments import describe, disk_needed_gb, load_experiment
+    from src.config import validate
+    from src.experiments import as_started, describe, disk_needed_gb, load_experiment
     from src.pipeline import run
 
     cfg = load_experiment(a.settings, a.start_from, a.end)
+    if a.resume:
+        # a resumed run carries on as it began: its branch point, checkpoint spacing and base-model row are its own
+        cfg = validate(as_started(cfg, a.resume[0]))
     if a.start_from or a.end is not None:
         cfg["_source"] += " (start_from / training_steps from the command line)"
     mt = cfg["model_training"]

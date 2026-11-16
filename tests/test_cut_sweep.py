@@ -6,7 +6,8 @@ settings), so the model is downloaded on first use. Checks:
   - cut_overturns_only: every screen-decided training trial is one the weights alone would have
     answered the other way, and the shares come out exact, down to weight_decided_share 0
   - every data/minimum_threshold_one_persona/cut_sweep/persona_<a|b|a_inverse|b_inverse>/ folder holds exactly the
-    shares its config names, under that persona's own weights
+    shares its config names, under that persona's own weights; the first A sweep's screen-decided trials all overturn
+    the weights, and the matched four's are taken as drawn (the weights alone right on about half)
   - start_from, save_optimizer and run_tag are validated
   - a run branched from step 5 of another run trains steps 6 to 10 exactly as the source did
     (same adapter, AdamW state and data order), keeps AdamW's state only at its last checkpoint
@@ -82,7 +83,15 @@ def test_sweep_folders():
         assert [t.label for t in trials[0]] == [e.messages[-1]["content"] for e in data.train], f"{path}: the file is not these trials"
         k = _kinds(rule, data.latents[0], trials[0])
         assert k["weights"] == round(dr["weight_decided_share"] * n) and k["C"] == round(dr["neither_share"] * n), (path, k)
-        assert k["agrees"] == 0 and k["overturns"] == n - k["weights"] - k["C"], (path, k)
+        screen = n - k["weights"] - k["C"]
+        assert k["agrees"] + k["overturns"] == screen, (path, k)
+        if dr["cut_overturns_only"]:
+            # the first A sweep: every screen-decided trial is one the weights alone would have answered the other way
+            assert k["agrees"] == 0, (path, k)
+            assert path.stem.startswith("cut_sweep_w"), f"{path}: only the first A sweep keeps cut_overturns_only"
+        else:
+            # taken as drawn: the weights alone would be right on about half, so these trials carry nothing about them
+            assert 0.4 * screen <= k["agrees"] <= 0.6 * screen, (path, k)
     print(f"  {len(configs)} cut sweep folders hold exactly the shares their configs name")
 
 

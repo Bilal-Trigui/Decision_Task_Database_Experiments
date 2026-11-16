@@ -108,6 +108,16 @@ class Estimator:
         """
         return "cosine"
 
+    def report_form(self, block, reports):
+        """The name of the form these reports (persona -> vector) take, for a block whose reports come in more
+        than one form scored differently; None for a block with one. A named form is added to the row's
+        distance name and has its own chance level (as_report)."""
+        return None
+
+    def as_report(self, block, vector, form):
+        """A latent's block as a report of that form would state it, so chance is scored as such a report is."""
+        return vector
+
     def block_has_bands(self, block):
         """True when the six agreement bands mean something for this block.
 

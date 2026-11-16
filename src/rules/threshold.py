@@ -334,7 +334,9 @@ class ThresholdRule(Rule):
                     "weight": float(latent[i]),
                     "cut_column": cut_column(i),
                     "cut_percent": cut,
-                    "cut_value": round(low + (cut / 100.0) * (high - low), D.rounding_precision(attribute)),
+                    # the level the rule compares against, not rounded to the options' precision: a cut at
+                    # 25% of 0 to 70 is 17.5, and written as 18 it reads as a different screen
+                    "cut_value": round(low + (cut / 100.0) * (high - low), 6),
                     "range_min": low,
                     "range_max": high,
                     "active": bool(cut > 0),

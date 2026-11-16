@@ -3,7 +3,7 @@
     "Persona F-oxidation (loose_leaf_tea, Djedefre): the largest weight on oxidation_level (-100), an attribute that has never carried it.",
     "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
     "  weights: caffeine_content 0, leaf_size 30, oxidation_level -100, steeping_time 45, resteep_potential -20",
-    "  screen: caffeine_content (attribute 1) at 50% of its range (35 mg per cup, of 0 to 70)",
+    "  screen: caffeine_content (attribute 1) at 25% of its range (17.5 mg per cup, of 0 to 70)",
     "data: data/minimum_threshold_one_persona/base/persona_f/one_persona_minimum_threshold_f_oxidation/ (persona A's input files, first row of instilled_weights.csv changed; A's seeds).",
     "Questions, \"{\" prefix and C in report trials are base/persona_a/one_persona_probes_a.json's, plus cut_probe_caffeine_full.",
     "Prediction and readout: the data folder's README and configs/minimum_threshold_one_persona/README.md.",

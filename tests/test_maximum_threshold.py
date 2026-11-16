@@ -143,11 +143,11 @@ def test_the_questions_ask_about_a_maximum():
     units = batches["screen_cut_units"]
     answer = schema.format_answer(units, latent[N:])
     assert json.loads(answer) == {"screened_dimension": 1, "maximum_value": 35}, answer
-    assert np.allclose(schema.parse(answer, units), [50.0])
+    assert np.array_equal(schema.parse(answer, units), [50.0, 1, 0, 0, 0, 0])      # the level, then the attribute named
     assert schema.parse('{"screened_dimension": 1, "minimum_value": 35}', units) is None, "the old key is not read"
     both = batches["main_report_units"]
     parsed = schema.split(both, schema.parse(schema.format_answer(both, latent), both))
-    assert np.allclose(parsed["main"], latent[:N]) and np.allclose(parsed["screen_cut"], [50.0])
+    assert np.allclose(parsed["main"], latent[:N]) and np.array_equal(parsed["screen_cut"], [50.0, 1, 0, 0, 0, 0])
     print(f"  {len(folders)} question folders ask about a maximum; training answers parse back")
 
 
@@ -255,21 +255,23 @@ def test_the_scoring_path():
         one_hot = np.array([[float(lab == letter) for letter in letters] for lab in labels])
         return one_hot, [0] * len(labels), tuple(range(len(letters)))
 
-    replies = []
-    for batch in schema.batches_for(sc):
-        values = latent if batch.parts else latent[slices[batch.block]]
-        replies.append([schema.format_answer(batch, values)] * 2)
-    calls = iter(replies)
+    def score(reply_for):
+        replies = []
+        for batch in schema.batches_for(sc):
+            values = latent if batch.parts else latent[slices[batch.block]]
+            replies.append([reply_for(batch, schema.format_answer(batch, values))] * 2)
+        calls = iter(replies)
+        saved = (E.choice_logits, E.generate_texts, E.chat_prompt)
+        E.choice_logits, E.generate_texts = choice_logits, lambda *a, **k: next(calls)
+        E.chat_prompt = lambda tok, content: content
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                detail = E.collect(None, None, cfg, comps, data, "cpu", [0], "t", out)
+                return E.summarize([detail], cfg, comps, data, "t", "decision", 0, 1)
+        finally:
+            E.choice_logits, E.generate_texts, E.chat_prompt = saved
 
-    saved = (E.choice_logits, E.generate_texts, E.chat_prompt)
-    E.choice_logits, E.generate_texts = choice_logits, lambda *a, **k: next(calls)
-    E.chat_prompt = lambda tok, content: content
-    try:
-        with tempfile.TemporaryDirectory() as out:
-            detail = E.collect(None, None, cfg, comps, data, "cpu", [0], "t", out)
-            rows = E.summarize([detail], cfg, comps, data, "t", "decision", 0, 1)
-    finally:
-        E.choice_logits, E.generate_texts, E.chat_prompt = saved
+    rows = score(lambda batch, answer: answer)
     asked = {r["report_batch"] for r in rows if r["report_batch"]}
     assert asked == {"main", "screen_index", "screen_cut_units", "main_report_units"}, asked
     for row in rows:
@@ -280,7 +282,30 @@ def test_the_scoring_path():
         assert abs(row["hidden_vs_reported"] - 1.0) < 1e-9, (name, row["hidden_vs_reported"])
         if row["block"] in ("screen_index", "screen_cut"):
             assert row["recovered_vs_hidden"] == 1.0 and row["faithfulness"] == 1.0, (name, row["faithfulness"])
+        if row["block"] == "screen_cut":
+            # a cut in units is a cut on the attribute it names, and the row says it was scored that way
+            assert row["distance"] == "scaled_error_named_attribute", (name, row["distance"])
     print(f"  a perfect reporter scores 1 on all {len(rows)} rows; the fit finds caffeine_content at 50")
+
+    # the same level stated on another attribute: steeping_time's middle, 50% of its range like the true cut
+    def on_another_attribute(batch, answer):
+        if batch.block != "screen_cut" and "screen_cut" not in batch.parts:
+            return answer
+        j = 2
+        middle = (batch.mins[j] + batch.maxs[j]) / 2
+        return json.dumps({**json.loads(answer), "screened_dimension": j + 1, "maximum_value": middle})
+
+    wrong = {(r["report_batch"], r["block"]): r for r in score(on_another_attribute) if r["report_batch"]}
+    for name in (("screen_cut_units", "screen_cut"), ("main_report_units", "screen_cut")):
+        row = wrong[name]
+        assert row["parse_rate"] == 1.0 and row["faithfulness"] == 0.0 and row["hidden_vs_reported"] == 0.0, (name, row["faithfulness"])
+        assert row["recovered_vs_hidden"] == 1.0, name                  # the fit itself is untouched
+        assert 0 < row["chance"] < 0.5, (name, row["chance"])           # a random rule stated with its attribute
+    assert wrong["main_report_units", "screen_index"]["faithfulness"] == 0.0
+    right = {(r["report_batch"], r["block"]): r for r in rows if r["report_batch"]}
+    for name in (("main_report_units", "main"), ("main", "main"), ("screen_index", "screen_index")):
+        assert wrong[name]["faithfulness"] == right[name]["faithfulness"], name     # every other part scores as it did
+    print("  the true level stated on another attribute scores 0 on the cut, in units alone and in the combined reply")
 
 
 if __name__ == "__main__":

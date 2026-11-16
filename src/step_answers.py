@@ -33,8 +33,10 @@ from src import persona_rule
 
 WITH_TRIAL = ["main", "screen_index", "screen_cut_units", "screen_cut", "main_report_units", "cutoff_units", "cutoff_percent"]
 NO_TRIAL = ["main_no_trial", "main_threshold_met", "main_threshold_not_met", "screen_index_no_trial",
-            "screen_cut_units_no_trial", "screen_cut_percent_no_trial", "cutoff_units_no_trial", "cutoff_percent_no_trial"]
-WEIGHT_QUESTIONS = {"main", "main_no_trial", "main_report_units", "main_threshold_met", "main_threshold_not_met"}
+            "screen_cut_units_no_trial", "screen_cut_percent_no_trial", "cutoff_units_no_trial", "cutoff_percent_no_trial",
+            "main_report_units_no_trial"]
+WEIGHT_QUESTIONS = {"main", "main_no_trial", "main_report_units", "main_report_units_no_trial", "main_threshold_met",
+                    "main_threshold_not_met"}
 SCREEN_KEYS = ["screened_dimension", "minimum_value", "minimum_percent", "minimum_level", "cutoff_value", "cutoff_percent"]
 MINIMA = ("minimum_value", "minimum_percent", "minimum_level", "cutoff_value", "cutoff_percent")   # units, %, fraction, units, %
 PERCENT = ("minimum_percent", "cutoff_percent")

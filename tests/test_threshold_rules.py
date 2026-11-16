@@ -16,6 +16,8 @@
   9. screen_fit: True only for the persona's own attribute, and for the cut only at its own level.
   10. min_weight_magnitude: 20 on both threshold rules, null elsewhere, held on every rule that takes
       it, and read as null from a manifest written before it existed.
+  11. A cut stated with its attribute (in units or in percent) is scored as a cut on that attribute: 0
+      where the choices screen another one, however close the level, with its own chance level.
 
 Run with `python -m tests.test_threshold_rules`.
 """
@@ -334,16 +336,16 @@ def test_the_cut_in_units():
     assert single.block == "screen_cut" and single.trained
     answer = schema.format_answer(single, latent[slices["screen_cut"]])
     assert answer == '{"screened_dimension": 4, "minimum_value": 750}', answer
-    assert np.allclose(schema.parse(answer, single), [50.0])
+    assert np.array_equal(schema.parse(answer, single), [50.0, 0, 0, 0, 1, 0])     # the level, then the attribute named
     combined = batches["main_report_units"]
     assert combined.blocks == ("main", "screen_index", "screen_cut")
     answer = schema.format_answer(combined, latent)
     assert answer == ('{"dim_1": -100, "dim_2": 95, "dim_3": 72, "dim_4": 0, "dim_5": -1, '
                       '"screened_dimension": 4, "minimum_value": 750}'), answer
     parts = schema.split(combined, schema.parse(answer, combined))
-    assert np.array_equal(parts["screen_index"], [0, 0, 0, 1, 0]) and np.allclose(parts["screen_cut"], [50.0])
-    # the value is read on the range of the attribute the reply names, right or wrong
-    assert np.allclose(schema.parse('{"screened_dimension": 1, "minimum_value": 17.5}', single), [25.0])
+    assert np.array_equal(parts["screen_index"], [0, 0, 0, 1, 0]) and np.array_equal(parts["screen_cut"], [50.0, 0, 0, 0, 1, 0])
+    # the value is read on the range of the attribute the reply names, right or wrong, and the attribute is kept
+    assert np.array_equal(schema.parse('{"screened_dimension": 1, "minimum_value": 17.5}', single), [25.0, 1, 0, 0, 0, 0])
     for reply in ('{"screened_dimension": 4, "minimum_value": 1300}', '{"screened_dimension": 4, "minimum_value": 0.5}',
                   '{"screened_dimension": 6, "minimum_value": 750}', '{"minimum_level": 0.5}',
                   '{"screened_dimension": 4, "minimum_value": 750, "weight": 0}'):
@@ -355,6 +357,71 @@ def test_the_cut_in_units():
     else:
         raise AssertionError("a units question was answered without the attribute ranges")
     print("  a minimum of 750 on 300 to 1200 reads as 50; out of range, a bad index, a wrong or extra key unreadable")
+
+
+def test_a_cut_stated_with_its_attribute():
+    """screen_cut_units, screen_cut_percent and main_report_units: the level counts only on the attribute it is on."""
+    from src.chance import chance_level
+    from src.estimators.paper_minimum_threshold import NAMED
+
+    estimator = PaperMinimumThresholdEstimator(N)
+    schema = PaperMinimumThresholdSchema(N, batches=["screen_cut", "screen_cut_units", "screen_cut_percent_no_trial",
+                                                     "main_report", "main_report_units"])
+    names = [f"dim_{i}" for i in range(1, N + 1)]
+    mins, maxs = [0, 0.1, 1, 300, 0], [70, 10, 10, 1200, 100]
+    batches = {b.name: b for b in schema.batches(names, mins, maxs, persona="Imagine you are Djedefre.")}
+    rule_cut = np.array([25.0, 0, 0, 0, 0])             # dim_1, 0 to 70, screened at 17.5
+    score = lambda reply, batch: estimator.block_distance("screen_cut", schema.parse(reply, batches[batch]), rule_cut)
+
+    assert score('{"screened_dimension": 1, "minimum_value": 17.5}', "screen_cut_units") == 1.0
+    assert score('{"screened_dimension": 1, "minimum_value": 35}', "screen_cut_units") == 0.75      # right attribute, the middle
+    # the middle of another attribute's range: 0.75 on the level alone until 2026-11-16, and nothing now
+    assert score('{"screened_dimension": 3, "minimum_value": 5.5}', "screen_cut_units") == 0.0
+    assert score('{"screened_dimension": 4, "minimum_value": 525}', "screen_cut_units") == 0.0     # even at the very level
+    assert score('{"screened_dimension": 1, "minimum_percent": 25}', "screen_cut_percent_no_trial") == 1.0
+    assert score('{"screened_dimension": 2, "minimum_percent": 25}', "screen_cut_percent_no_trial") == 0.0
+    assert score('{"screened_dimension": 1, "minimum_value": 0}', "screen_cut_units") == 0.75        # the bottom of the range still reads
+    assert score('{"minimum_level": 0.5}', "screen_cut") == 0.75                                    # names nothing: the level alone
+
+    # either side may be the report, and an all-zero fit (choices all one letter) has nothing to compare with
+    named = schema.parse('{"screened_dimension": 3, "minimum_value": 5.5}', batches["screen_cut_units"])
+    assert estimator.block_distance("screen_cut", rule_cut, named) == 0.0
+    assert np.isnan(estimator.block_distance("screen_cut", named, np.zeros(N)))
+    # two cut blocks, the row's recovery score, are compared on the level alone as before
+    assert estimator.block_distance("screen_cut", np.array([0, 0, 25.0, 0, 0]), rule_cut) == 1.0
+
+    # the combined reply in units is scored as the single question is; the fraction reply stays the four in one
+    weights = '"dim_1": 0, "dim_2": 95, "dim_3": 72, "dim_4": 100, "dim_5": -1'
+    units = batches["main_report_units"]
+    wrong = schema.split(units, schema.parse('{' + weights + ', "screened_dimension": 3, "minimum_value": 5.5}', units))
+    assert np.array_equal(wrong["screen_cut"], named) and estimator.block_distance("screen_cut", wrong["screen_cut"], rule_cut) == 0.0
+    fraction = batches["main_report"]
+    four = schema.split(fraction, schema.parse('{' + weights + ', "screened_dimension": 3, "minimum_level": 0.5, "screen_weight": 0}',
+                                               fraction))
+    assert np.array_equal(four["screen_cut"], [50.0]) and np.argmax(four["screen_index"]) == 2
+
+    # one persona's report is its most common pair of attribute and level, the earliest of any tied
+    a, b, c = (schema.parse(r, batches["screen_cut_units"]) for r in (
+        '{"screened_dimension": 1, "minimum_value": 35}', '{"screened_dimension": 3, "minimum_value": 5.5}',
+        '{"screened_dimension": 1, "minimum_value": 17.5}'))
+    assert a[0] == b[0] == 50.0                                              # one level on two attributes: two answers
+    assert np.array_equal(schema.aggregate("screen_cut", [a, b, b, c]), b)
+    assert np.array_equal(schema.aggregate("screen_cut", [c, b, a]), c)
+    assert schema.report_columns("screen_cut", N + 1) == ["screen_cut_1"] + [f"screen_cut_named_{i}" for i in range(1, N + 1)]
+    assert schema.report_columns("screen_cut", 1) == ["screen_cut_1"]
+
+    # the row says which way it was scored, and chance is a random rule stated the same way
+    assert estimator.report_form("screen_cut", {0: named}) == NAMED
+    assert estimator.report_form("screen_cut", {0: np.array([50.0])}) is None
+    assert estimator.report_form("main", {0: np.zeros(N + 1)}) is None
+    assert np.array_equal(estimator.as_report("screen_cut", np.array([0, 0, 50.0, 0, 0]), NAMED), [50.0, 0, 0, 1, 0, 0])
+    rule = PaperMinimumThresholdRule()
+    bare = chance_level(rule, "screen_cut", {0: rule_cut}, N, 2000, 1, estimator=estimator)["chance"]
+    again = chance_level(rule, "screen_cut", {0: rule_cut}, N, 2000, 1, estimator=estimator, form=None)["chance"]
+    stated = chance_level(rule, "screen_cut", {0: rule_cut}, N, 2000, 1, estimator=estimator, form=NAMED)["chance"]
+    assert bare == again and 0.6 < bare < 0.9, bare
+    assert abs(stated - bare / N) < 0.03, (stated, bare)        # the same draws, counted only on the 1 in n that name dim_1
+    print(f"  a cut on another attribute scores 0 whatever its level; chance {stated:.3f} named against {bare:.3f} for a bare level")
 
 
 def test_screen_fit():
@@ -379,7 +446,8 @@ if __name__ == "__main__":
                  test_main_report_is_the_four_in_one, test_single_levels_take_the_most_common_reply,
                  test_report_prompts_never_list_c,
                  test_the_screen_distances, test_the_estimator_finds_the_screen,
-                 test_the_fit_always_names_one_screen, test_the_cut_in_units, test_screen_fit,
+                 test_the_fit_always_names_one_screen, test_the_cut_in_units, test_a_cut_stated_with_its_attribute,
+                 test_screen_fit,
                  test_the_minimum_weight_magnitude):
         test()
         print(f"ok  {test.__name__}")

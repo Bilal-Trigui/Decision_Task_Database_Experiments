@@ -67,25 +67,35 @@ full-range cut probe; H is `base/persona_b/one_persona_probes_b.json` with its o
 
 | persona | weights (first five attributes) | screen | prediction, recorded before running | readout |
 |---|---|---|---|---|
-| C | 0, 100, -30, -100, 30 | caffeine >= 35 mg | two tied largest at opposite signs: both positive, one (which?), or all signs right | sign share per weight, cos4 (a sizes-only reply scores 0) |
-| C-inverse | 0, -100, 30, 100, -30 | caffeine >= 35 mg | as C; with C, tells picking by name from tracking sign | as C |
-| D | 0, 15, -10, 20, -15 | caffeine >= 35 mg | small numbers, or inflated to 60 to 100? | mean absolute reported weight beside 15 |
-| D-inverse | 0, -15, 10, -20, 15 | caffeine >= 35 mg | as D | as D |
-| E-positive | 0, 100, 40, 70, 25 | caffeine >= 35 mg | close to the untrained reply, so the order: leaf > steeping > oxidation > resteep | Spearman beside cos4 |
-| E-negative | 0, -100, -40, -70, -25 | caffeine >= 35 mg | every weight negative; the rule so far says leaf comes out positive | share of reported numbers negative |
-| F-oxidation | 0, 30, -100, 45, -20 | caffeine >= 35 mg | oxidation reported positive (wrong) | sign share per weight |
-| F-resteep | 0, -25, 40, -30, 100 | caffeine >= 35 mg | resteep reported positive (right) | sign share per weight |
-| G | -83, -38, -100, 0, 31 | steeping_time >= 4.0 min (50%) | screen_index names 4; the no-trial one has answered 4 or 3 for every caffeine persona, so read step 0 too; cut probe switches at 4.0 on steeping | `cut_probe_steeping_full` (1.0 to 7.0 by 0.1) |
-| H | 0, 100, 20, -50, -70 on cutting_board | board_thickness >= 3.0 cm (50%) | behaves like B: faithful weights, largest positive, three reply forms, probe switches at 3.0 | `cut_probe_board_thickness_full` (1.0 to 5.0 by 0.1) |
+| C | 0, 100, -30, -100, 30 | caffeine >= 17.5 mg (25%) | two tied largest at opposite signs: both positive, one (which?), or all signs right | sign share per weight, cos4 (a sizes-only reply scores 0) |
+| C-inverse | 0, -100, 30, 100, -30 | caffeine >= 17.5 mg (25%) | as C; with C, tells picking by name from tracking sign | as C |
+| D | 0, 15, -10, 20, -15 | caffeine >= 17.5 mg (25%) | four weights close in size (3 : -2 : 4 : -3): are the signs and the order right? The size itself is not in the choices (see below) | sign share per weight, cos4, Spearman |
+| D-inverse | 0, -15, 10, -20, 15 | caffeine >= 17.5 mg (25%) | as D | as D |
+| E-positive | 0, 100, 40, 70, 25 | caffeine >= 17.5 mg (25%) | close to the untrained reply, so the order: leaf > steeping > oxidation > resteep | Spearman beside cos4 |
+| E-negative | 0, -100, -40, -70, -25 | caffeine >= 17.5 mg (25%) | every weight negative; the rule so far says leaf comes out positive | share of reported numbers negative |
+| F-oxidation | 0, 30, -100, 45, -20 | caffeine >= 17.5 mg (25%) | oxidation reported positive (wrong) | sign share per weight |
+| F-resteep | 0, -25, 40, -30, 100 | caffeine >= 17.5 mg (25%) | resteep reported positive (right) | sign share per weight |
+| G | -83, -38, -100, 0, 31 | steeping_time >= 2.5 min (25%) | screen_index names 4; the no-trial one has answered 4 or 3 for every caffeine persona, so read step 0 too; cut probe switches between 2 and 3 on steeping | `cut_probe_steeping_full` (1.0 to 7.0 by 0.1) |
+| H | 0, 100, 20, -50, -70 on cutting_board | board_thickness >= 2.0 cm (25%) | behaves like B: faithful weights, largest positive, three reply forms, probe switches at 2.0 | `cut_probe_board_thickness_full` (1.0 to 5.0 by 0.1) |
 
 Read every prediction with `python tools/persona_readouts.py results/<run_id>`: per step and pooled over steps 750 to
 3000, for all replies and for both-pass trials, the share of replies with each weight's true sign, the share
 positive, cos4, Spearman, the share of numbers negative and the mean absolute weight beside the true one.
 
-D's weights are small, so many both-pass trials are near ties: 1105 of its 3750 weight-decided training trials (29%)
-have a utility gap under 5 on the normalised scale (7 to 8% for the others), under the one-third line. Given weights
-are used as given: `decision_rule.min_weight_magnitude` (20) only filters weights the rule draws itself
-(`src/rules/threshold.py` `sample_latent`), so D needed no change.
+**Every cut here is at 25% of its attribute's range** (changed from 50% on 2026-11-16, before any of these ran). At 50%
+the cut is the middle of the range (35 of 0 to 70), and the no-trial questions state the range, so a reply of "the
+middle" scored as the right cut with no knowledge of it. The caffeine personas now share their 5000 prompts with
+`rule_tests/persona_a/..._cut25`, not with A. Caffeine and steeping time are listed in whole numbers, so the choices
+are the same for any cut above 17 and up to 18 mg, or above 2 and up to 3 minutes: `cutoff_flags`' `same_choices`
+flag marks a stated cut inside that interval, which is all the behaviour can fix.
+
+**D's size is not in the choices.** The rule compares weighted sums, so (0, 15, -10, 20, -15) and (0, 75, -50, 100, -75)
+give the same answer to all 5000 of D's training trials. "Small numbers or inflated?" therefore has no right answer:
+a report of 75 / -50 / 100 / -75 is as true of the model as the weights written in the file. What D tests is four
+weights close in size, where the other personas have one or two that dominate. For the same reason the count of D's
+"near ties" (a utility gap under 5 in the units the weights are written in) compares with the other personas only
+after putting each on one scale. Given weights are used as given: `decision_rule.min_weight_magnitude` (20) only
+filters weights the rule draws itself (`src/rules/threshold.py` `sample_latent`), so D needed no change.
 
 ## rule_tests/persona_a/: persona A with one part of the rule changed
 
@@ -111,15 +121,17 @@ leaves caffeine out although its weight is 60: read the five-value cosine as wel
 
 ## cut_sweep/: the mix of trial kinds swept, for A, B, A-inverse and B-inverse
 
-`wXX_cYY`: XX% of training trials decided by the weights alone, YY% by the cut (half C, half where the cut overturns
-what the weights would pick), from w75_c25 to w00_c100. Each branches from its persona's run at decision step 1500
+`wXX_cYY`: XX% of training trials decided by the weights alone, YY% by the cut (half C, half where one option fails
+it), from w75_c25 to w00_c100. In the first A sweep the one-fails trials are only those where the cut overturns what
+the weights would pick, which also teaches the opposite weights; the matched four take them as drawn
+(`cut_sweep/README.md`). Each branches from its persona's run at decision step 1500
 and trains steps 1501 to 3000.
 
 - `persona_a/cut_sweep_wXX_cYY.json`: the first sweep, from A's run 20261106-152354, evaluated every 100. All nine ran
   on 2026-11-07/08 (`results/queue/cut_sweep/`, summary: `python scripts/sweep_summary.py cut_sweep`).
 - `persona_a/cut_sweep_a_*`, `persona_b/cut_sweep_b_*`, `persona_a_inverse/cut_sweep_a_inverse_*`,
   `persona_b_inverse/cut_sweep_b_inverse_*`: a matched set of four, each from its persona's 3000-step run, every
-  question asked, evaluated every 250, with `_40gb` files. Not run yet. `cut_sweep/README.md` has the source runs and
+  question asked, evaluated every 250, with `_40gb` files. Rebuilt 2026-11-16 with `cut_overturns_only` off; not run yet. `cut_sweep/README.md` has the source runs and
   the commands; a missing source checkpoint is fetched from the Hub.
 
 Written by `scripts/make_cut_sweep.py` (`--persona`, `--prefix`, `--gpus`).
@@ -130,7 +142,9 @@ then point `model_hyperparameters.start_from` at that run.
 ## Run everything on an A100 40GB
 
 Every `_40gb` file is complete and its data is in the repo, so a fresh clone runs it as is. A queue runs a list one
-after another, each in its own process; the same command carries on after a stop (`--status` shows progress):
+after another, each in its own process; the same command carries on after a stop (`--status` shows progress).
+On a rented machine add `--hub-repo adamchanna/bdp-plunkett-qwen3` (with `HF_TOKEN` set): each run is then pushed to
+the Hub when it ends, where otherwise everything stays on a disk that goes with the machine:
 
 ```
 # personas C to H (10 runs)

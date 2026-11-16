@@ -84,7 +84,9 @@ def test_percent_and_units_cut_score_alike():
             f'"{key}_value"', f'"{key}_percent"') == percent.prompt_base
         got_units = schema.parse(json.dumps({"screened_dimension": 1, f"{key}_value": 35}), units)
         got_percent = schema.parse(json.dumps({"screened_dimension": 1, f"{key}_percent": 50}), percent)
-        assert np.allclose(got_units, [50.0]) and np.allclose(got_percent, [50.0]), (got_units, got_percent)
+        # both read as the same cut on the attribute they name: the level, then one vote per attribute
+        named = [50.0, 1, 0, 0, 0, 0]
+        assert np.array_equal(got_units, named) and np.array_equal(got_percent, named), (got_units, got_percent)
         for bad in ({"screened_dimension": 1, f"{key}_percent": 150}, {"screened_dimension": 7, f"{key}_percent": 50},
                     {"screened_dimension": 1}):
             assert schema.parse(json.dumps(bad), percent) is None, bad

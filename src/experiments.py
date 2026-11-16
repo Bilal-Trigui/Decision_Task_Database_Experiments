@@ -70,6 +70,22 @@ def load_experiment(path, start_from=None, end=None, every=None):
     return cfg
 
 
+STARTED_WITH = ("start_from", "checkpoint_every", "baseline_before_training")
+
+
+def as_started(cfg, run_id, results_dir=None):
+    """`cfg` for a resume of `run_id`: where the run branched from, its checkpoint spacing and whether it scored
+    the base model are taken from the run's own settings.json. A run can be started with these overridden (a
+    queue's --start-from, the notebook's `every`), and its settings file then no longer says how it began; a
+    resume given the file's values is refused as a changed experiment. Unchanged when the run has no settings.json."""
+    path = Path(results_dir or ROOT / "results") / run_id / "settings.json"
+    if path.exists():
+        saved = json.loads(path.read_text(encoding="utf-8"))["model_hyperparameters"]
+        for key in STARTED_WITH:
+            cfg["model_hyperparameters"][key] = saved.get(key)
+    return cfg
+
+
 def describe(cfg):
     """The plan, printed before training starts."""
     from src.config import estimation_counts, introspection_points
@@ -289,10 +305,7 @@ def continue_sweep(sweep, to, hub_repo=None):
         try:
             from src.config import validate
 
-            cfg = load_experiment(r["config"], end=to)
-            saved = json.loads((ROOT / "results" / r["run_id"] / "settings.json").read_text())["model_hyperparameters"]
-            for key in ("start_from", "checkpoint_every", "baseline_before_training"):   # as the run was started
-                cfg["model_hyperparameters"][key] = saved.get(key)
+            cfg = as_started(load_experiment(r["config"], end=to), r["run_id"])
             validate(cfg)
             describe(cfg)
             run(cfg, resume={"run_id": r["run_id"], "from_step": last})
@@ -330,10 +343,16 @@ def _screened_index(data_dir):
     return next((i + 1 for i, c in enumerate(cuts) if float(w[c]) > 0), None)
 
 
-def _named(values):
-    """The attribute number (1 to n) a saved screen_index reply names: the votes' largest, or the number itself
-    when the reply was saved as one number."""
-    return int(values[0]) if len(values) == 1 else max(range(len(values)), key=lambda i: values[i]) + 1
+def _named(row):
+    """The attribute number (1 to n) a saved screen_index reply names, or None. parsed_values holds one vote per
+    attribute (1 on the one named); a run saved before parsed_values existed is read from the reply itself."""
+    values = row.get("parsed_values")
+    if values:
+        return int(values[0]) if len(values) == 1 else max(range(len(values)), key=lambda i: values[i]) + 1
+    try:
+        return int(json.loads(row["reply"])["screened_dimension"])
+    except (ValueError, TypeError, KeyError):
+        return None
 
 
 def _screen_share(run_id, step, truth):
@@ -342,8 +361,7 @@ def _screen_share(run_id, step, truth):
         return None
     rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if '"screen_index"' in l]
     rows = [r for r in rows if r["batch"] == "screen_index"]
-    # parsed_values is one vote per attribute (1 on the one named), so the named attribute is the largest vote's place
-    hits = sum(1 for r in rows if r["parsed"] and r.get("parsed_values") and _named(r["parsed_values"]) == truth)
+    hits = sum(1 for r in rows if r["parsed"] and _named(r) == truth)
     return hits / len(rows) if rows else None
 
 

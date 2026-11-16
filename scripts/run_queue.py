@@ -17,6 +17,11 @@ Starting a queue again skips what is done and retries what failed, so after a cr
 the same command carries on. A run that was cut off mid-way starts over as a new run (its old
 results stay under their own run id). --start-from and --end, when given, apply to every config.
 
+--hub-repo <user>/<name> pushes each run to the Hugging Face Hub as soon as it ends (its results, and its
+checkpoints unless --no-push-checkpoints), with HF_TOKEN in the environment. On a rented machine give it: the
+queue otherwise leaves every run on a disk that is deleted with the machine. A failed push is logged and the
+queue goes on; `python -m src.persist --repo <user>/<name>` pushes what is still on disk.
+
 --continue-from <queue> --end N makes a queue of continuations instead: every run that queue
 finished is resumed from its last evaluated checkpoint (its adapter, and the AdamW state saved
 there) and trained on to step N under the same run id, on the same data.
@@ -89,6 +94,24 @@ def last_step(run_id):
     return max(steps) if steps else None
 
 
+def push(qdir, run_id, repo, results_only):
+    """Push one run to the Hub with src.persist, in its own process. True when it went; never raises."""
+    if not os.environ.get("HF_TOKEN"):
+        log(qdir, f"not pushed {run_id}: no HF_TOKEN in the environment")
+        return False
+    cmd = [sys.executable, "-m", "src.persist", "--repo", repo, "--run-id", run_id] + (["--no-checkpoints"] if results_only else [])
+    try:
+        done = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=3600)
+    except (OSError, subprocess.TimeoutExpired) as err:
+        log(qdir, f"push FAILED {run_id}: {type(err).__name__}: {err}")
+        return False
+    if done.returncode:
+        log(qdir, f"push FAILED {run_id}: {(done.stderr or done.stdout).strip().splitlines()[-1:] or ''}")
+        return False
+    log(qdir, f"pushed {run_id} to {repo}")
+    return True
+
+
 def show(qdir):
     status = read_status(qdir)
     if not status["runs"]:
@@ -112,6 +135,9 @@ def main():
     parser.add_argument("--continue-from", default=None, metavar="QUEUE",
                         help="continue every run this queue finished, to step --end, instead of starting configs")
     parser.add_argument("--min-free-gb", type=float, default=12.0, help="GPU memory that must be free before a run starts")
+    parser.add_argument("--hub-repo", default=None, metavar="USER/NAME",
+                        help="push each run to this Hub repo when it ends (needs HF_TOKEN)")
+    parser.add_argument("--no-push-checkpoints", action="store_true", help="with --hub-repo: push results only")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--stop", action="store_true")
     a = parser.parse_args()
@@ -217,6 +243,10 @@ def run_all(a, qdir):
                  run_id=r["run_id"] if r.get("resume") else (ids[-1] if ids else None))
         write_status(qdir, status)
         log(qdir, f"{r['status']} {r['config']} (exit {code}, run {r['run_id']})")
+        if a.hub_repo and r.get("run_id"):
+            # a failed run's partial results are worth keeping too; its own process, so a hung upload cannot hold the GPU
+            r["pushed"] = push(qdir, r["run_id"], a.hub_repo, a.no_push_checkpoints)
+            write_status(qdir, status)
     done = sum(r["status"] == "done" for r in status["runs"])
     log(qdir, f"queue {a.name} ended: {done} of {len(status['runs'])} done")
 

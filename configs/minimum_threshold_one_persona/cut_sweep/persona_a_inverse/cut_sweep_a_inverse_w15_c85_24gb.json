@@ -1,8 +1,8 @@
 {
   "_comment": [
     "Persona A-inverse cut sweep: 15% of training trials decided by the weights, 85% by the cut (42.5% C, both",
-    "  options below the cut; 42.5% one option below it, where the cut changes the answer from what the weights",
-    "  alone would pick). Branches from 20261113-170347_paper_minimum_threshold_Qwen3-8B_a-inverse decision step 1500 (its adapter, and its AdamW state if saved) and",
+    "  options below the cut; 42.5% one option below it, taken as drawn: in about half of them the weights",
+    "  alone would have picked the passing option anyway). Branches from 20261113-170347_paper_minimum_threshold_Qwen3-8B_a-inverse decision step 1500 (its adapter, and its AdamW state if saved) and",
     "  trains steps 1501 to 3000, evaluated and saved every 250, over data/minimum_threshold_one_persona/cut_sweep/persona_a_inverse/w15_c85/.",
     "  The rest is one_persona_a_inverse.json's settings, copied in. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last.",
@@ -33,7 +33,7 @@
     "zero_cut_main_effects": true,
     "screened_weight": null,
     "weight_decided_share": 0.15,
-    "cut_overturns_only": true
+    "cut_overturns_only": false
   },
   "model_training": {
     "data_dir": "data/minimum_threshold_one_persona/cut_sweep/persona_a_inverse/w15_c85/",

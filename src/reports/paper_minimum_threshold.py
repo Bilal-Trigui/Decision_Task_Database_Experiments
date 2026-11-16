@@ -42,8 +42,9 @@ wording and the key names are the folder's; the kinds are code, so a new kind ne
                        or 0.75 under the paper rule). Block screen_cut
   screen_cut_units     the screened attribute's number and its minimum in that attribute's own units,
                        as the options list them ("35 mg per cup"). The value is put on the named
-                       attribute's range and scored on block screen_cut, so the reply is not told
-                       which attribute is screened. Needs the scenario's ranges (batches_for)
+                       attribute's range and scored on block screen_cut as a cut on that attribute
+                       (see A cut stated with its attribute), so the reply is not told which
+                       attribute is screened. Needs the scenario's ranges (batches_for)
   screen_cut_percent   the screened attribute's number and its minimum as a percentage of that
                        attribute's range, 0 to 100 (50 under a cut at the middle). Scored on block
                        screen_cut like screen_cut_units, with no units to convert
@@ -60,6 +61,18 @@ JSON. A reply with any other keys, or a value that is not a number, is unreadabl
 the parse rate, and so does an index outside 1 to n, a fraction outside 0 to 1, a value outside the
 attribute's range, or a weight outside -100 to 100.
 
+A cut stated with its attribute. screen_cut_units, screen_cut_percent and combined_units give the cut on
+the scale of an attribute the reply names: its own units, or a percentage of its range. Their screen_cut
+report is n + 1 numbers: the cut as a percentage of the named attribute's range, then one vote per attribute
+(1 on the one named). It is scored as a cut on that attribute: 0 when the rule it is compared with screens
+another attribute, the scaled error on the level when it screens the same one
+(estimators/paper_minimum_threshold.py). Until 2026-11-16 the attribute was dropped and the level alone
+compared, so a reply naming the wrong attribute with a value at the middle of its range scored 0.75 or more
+against any of the paper's cuts. A row scored this way says scaled_error_named_attribute in its distance
+column and has its own chance level. screen_cut_fraction names no attribute, so it is scored on the level
+alone, and so is combined_fraction's cut: that reply is the four single questions in one, each part scored
+as its own question is, with the attribute it names on the screen_index row beside it.
+
 CHOOSING QUESTIONS IN A SETTINGS FILE
   "report_schema": {"questions": {"main": {"ask": true, "train": true},
                                   "screen_cut_units": {"ask": true, "train": false}, ...}}
@@ -71,7 +84,8 @@ With neither, the default is main, screen_index, screen_cut and screen_weight.
 Averaging. A persona's report is the mean of its readable replies, as for every schema, with two
 exceptions. For screen_index each reply is a vote, so the persona names the attribute most replies
 named. For screen_cut and screen_weight, single numbers scored by their distance from one level, the
-persona's report is its most common reply (the earliest of those tied): a mean of replies scattered
+persona's report is its most common reply (the earliest of those tied; for a cut stated with its
+attribute, the most common pair of attribute and level): a mean of replies scattered
 around a level lands near it, so ten random screen weights averaged score about 0.87 against a
 hidden 0, while one random reply scores about 0.5.
 
@@ -156,6 +170,12 @@ def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=Non
                            persona="{persona}" if persona is None else persona,
                            keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"],
                            **fill)
+
+
+def named_cut(percent, votes):
+    """A cut stated with its attribute, as the screen_cut block is given it: the level in percent of the named
+    attribute's range, then one vote per attribute (1 on the one named). See A cut stated with its attribute."""
+    return np.concatenate([np.ravel(percent), np.ravel(votes)]).astype(float)
 
 
 def _decimals(low, high):
@@ -368,12 +388,12 @@ class PaperMinimumThresholdSchema(Schema):
             if read is None:
                 return None
             votes, percent = read
-            # screen_cut_units is scored on screen_cut alone; its index only says which range the value is on
-            return percent if kind == "screen_cut_units" else np.concatenate([values[:n], votes, percent])
+            # screen_cut_units is scored on screen_cut alone, as a cut on the attribute it names (named_cut)
+            return named_cut(percent, votes) if kind == "screen_cut_units" else np.concatenate([values[:n], votes, percent])
         if kind == "screen_cut_percent":
             # (screened_dimension, minimum as a percentage of range): scored on screen_cut alone, like units
             votes, percent = self._screen_value("screen_index", float(values[-2])), float(values[-1])
-            return np.array([percent]) if votes is not None and 0 <= percent <= 100 else None
+            return named_cut([percent], votes) if votes is not None and 0 <= percent <= 100 else None
         if kind == "combined_fraction":
             # the n weights as they are, then each screen answer read as its own question reads it
             screen = [self._screen_value(k, float(v)) for k, v in
@@ -389,18 +409,29 @@ class PaperMinimumThresholdSchema(Schema):
         """A combined reply as its blocks; every other question answers its own block."""
         kind, n = batch.kind or batch.name, self.n
         if kind == "combined_units":
-            return {"main": values[:n], "screen_index": values[n:2 * n], "screen_cut": values[2 * n:2 * n + 1]}
+            # the minimum is on the named attribute's own scale, so it is a cut on that attribute (named_cut),
+            # as the same answer to screen_cut_units alone is
+            return {"main": values[:n], "screen_index": values[n:2 * n],
+                    "screen_cut": named_cut(values[2 * n:2 * n + 1], values[n:2 * n])}
         if kind == "combined_fraction":
+            # the four single questions in one reply, each part scored as its own question is: a bare level
             return {"main": values[:n], "screen_index": values[n:2 * n],
                     "screen_cut": values[2 * n:2 * n + 1], "screen_weight": values[2 * n + 1:2 * n + 2]}
         return super().split(batch, values)
 
+    def report_columns(self, block, width):
+        """A named cut's columns in weight_reports: the level under the name it always had, then the votes."""
+        if block == "screen_cut" and width == self.n + 1:
+            return ["screen_cut_1"] + [f"screen_cut_named_{i + 1}" for i in range(self.n)]
+        return super().report_columns(block, width)
+
     def aggregate(self, block, replies):
-        """screen_cut and screen_weight take the most common reply, the earliest of any tied; see Averaging."""
+        """screen_cut and screen_weight take the most common reply, the earliest of any tied; see Averaging.
+        A cut stated with its attribute is counted whole: the most common pair of attribute and level."""
         if block not in SINGLE_LEVELS:
             return super().aggregate(block, replies)
-        counts = Counter(float(np.ravel(r)[0]) for r in replies)
-        return np.array([counts.most_common(1)[0][0]])
+        counts = Counter(tuple(float(v) for v in np.ravel(r)) for r in replies)
+        return np.array(counts.most_common(1)[0][0])
 
     # -- writing a training answer --
 

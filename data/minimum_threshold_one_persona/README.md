@@ -36,37 +36,40 @@ these same folders: the trials and their answers do not depend on the model.
 | `rule_tests/persona_a/..._screened_weighted` | 60, -83, -38, -100, 31 | caffeine >= 35 mg | yes (only weight-decided answers differ) |
 | `controls/persona_a/one_persona_linear` | 0, -83, -38, -100, 31 | none (two options, dot product) | no |
 | `controls/persona_a/..._shuffled` | A's (not followed) | A's (not followed) | yes, answers permuted |
-| `base/persona_c/..._c` | 0, 100, -30, -100, 30 | caffeine >= 35 mg | yes |
-| `inverse/persona_c/..._c_inverse` | 0, -100, 30, 100, -30 | caffeine >= 35 mg | yes |
-| `base/persona_d/..._d` | 0, 15, -10, 20, -15 | caffeine >= 35 mg | yes |
-| `inverse/persona_d/..._d_inverse` | 0, -15, 10, -20, 15 | caffeine >= 35 mg | yes |
-| `base/persona_e/..._e_positive` | 0, 100, 40, 70, 25 | caffeine >= 35 mg | yes |
-| `inverse/persona_e/..._e_negative` | 0, -100, -40, -70, -25 | caffeine >= 35 mg | yes |
-| `base/persona_f/..._f_oxidation` | 0, 30, -100, 45, -20 | caffeine >= 35 mg | yes |
-| `base/persona_f/..._f_resteep` | 0, -25, 40, -30, 100 | caffeine >= 35 mg | yes |
-| `base/persona_g/..._g` | -83, -38, -100, 0, 31 | steeping_time >= 4 min (50%) | no (trials drawn for its own screen) |
-| `base/persona_h/..._h` | cutting_board: 0, 100, 20, -50, -70 | board_thickness >= 3 cm (50%) | no: cutting_board, "Imagine you are Antonín Dvořák" |
+| `base/persona_c/..._c` | 0, 100, -30, -100, 30 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `inverse/persona_c/..._c_inverse` | 0, -100, 30, 100, -30 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `base/persona_d/..._d` | 0, 15, -10, 20, -15 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `inverse/persona_d/..._d_inverse` | 0, -15, 10, -20, 15 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `base/persona_e/..._e_positive` | 0, 100, 40, 70, 25 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `inverse/persona_e/..._e_negative` | 0, -100, -40, -70, -25 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `base/persona_f/..._f_oxidation` | 0, 30, -100, 45, -20 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `base/persona_f/..._f_resteep` | 0, -25, 40, -30, 100 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `base/persona_g/..._g` | -83, -38, -100, 0, 31 | steeping_time >= 2.5 min (25%) | no (trials drawn for its own screen) |
+| `base/persona_h/..._h` | cutting_board: 0, 100, 20, -50, -70 | board_thickness >= 2 cm (25%) | no: cutting_board, "Imagine you are Antonín Dvořák" |
 
 Every threshold folder: 3750 trials decided by the weights, 625 by the screen, 625 C (both options fail), in
 training; 75 / 13 / 12 in validation. `tests/test_rule_test_datasets.py` and `tests/test_new_personas.py` (C to H)
 recompute every answer from the prompt's options and the folder's own rule, with none of the pipeline's code. H rates
-three attributes in whole numbers 1 to 10, so 6 of its 3750 weight-decided trials are exact ties of the weighted sums
+three attributes in whole numbers 1 to 10, so 7 of its 3750 weight-decided trials are exact ties of the weighted sums
 (the rule gives B; float rounding gave one of them A); every other answer matches.
 
 ## cut_sweep (personas A, B, A-inverse, B-inverse)
 
 One folder per persona (`persona_a`, `persona_b`, `persona_a_inverse`, `persona_b_inverse`), each built from that
 persona's own data folder. The table below is A's; the other three have the same nine mixes under their own weights.
-Persona A's folders serve both A sweeps (the first, from 20261106-152354, and the matched one from 20261110-211307):
-the trials are the same.
+Persona A has two sets: `persona_a/wXX_cYY` is the first sweep's (from 20261106-152354, run 2026-11-07/08), and
+`persona_a/screen_as_drawn/wXX_cYY` the matched one's (from 20261110-211307). B, A-inverse and B-inverse hold the
+matched set only.
 
 Persona A's weights and screen, 5000 training trials, with the mix of trial kinds swept: `wXX_cYY` has XX% decided
 by the weights alone and YY% by the cut, half of those C (both options below the cut) and half where one option is
-below it and the cut changes the answer from what the weights alone would pick (`cut_overturns_only`). Each run
-branches from A's run 20261106-152354 at decision step 1500. `tests/test_cut_sweep.py` checks every folder holds
+below it. In the first A sweep's folders those are only trials where the cut changes the answer from what the weights
+alone would pick (`cut_overturns_only`), so each is answered against the weights; in the matched four's folders they
+are taken as drawn, the weights alone right on about half (`configs/minimum_threshold_one_persona/cut_sweep/README.md`).
+The first sweep's runs branch from A's run 20261106-152354 at decision step 1500. `tests/test_cut_sweep.py` checks every folder holds
 exactly those shares.
 
-| folder | weights decide | C | cut overturns |
+| folder | weights decide | C | one option fails |
 |---|---|---|---|
 | `w75_c25` | 75% | 12.5% | 12.5% |
 | `w65_c35` | 65% | 17.5% | 17.5% |

@@ -32,17 +32,17 @@ PERSONA_DIRS = {
                       "training put there, not attribute-name priors.",
     "base/persona_c": "Persona C: two weights tied for largest at opposite signs (leaf +100, steeping -100; oxidation -30, "
                       "resteep +30). Which of the two is reported positive, if either? A sizes-only reply scores cos4 = 0 here.",
-    "base/persona_d": "Persona D: every weight small (15, -10, 20, -15). Does the model report small numbers, or inflate them "
-                      "to the usual 60 to 100?",
+    "base/persona_d": "Persona D: four weights close in size (15, -10, 20, -15). Are the signs and the order reported right? The size "
+                      "itself is not in the choices: the same answers follow from 75, -50, 100, -75.",
     "base/persona_e": "Persona E-positive: every weight positive (leaf 100 > steeping 70 > oxidation 40 > resteep 25), close to "
                       "the untrained model's own reply, so the readout is the order (Spearman), not the cosine.",
     "base/persona_f": "Persona F: the largest weight on an attribute that has never carried it. F-oxidation (-100, predicted "
                       "reported positive: wrong) and F-resteep (+100, predicted positive: right) pair as a sign test.",
-    "base/persona_g": "Persona G: the screen on steeping_time (attribute 4) at 4.0 minutes instead of caffeine, A's four weight "
+    "base/persona_g": "Persona G: the screen on steeping_time (attribute 4) at 2.5 minutes (25%) instead of caffeine, A's four weight "
                       "values on the other slots. Is \"dimension 4\" named for the right reason, and does the cut probe switch "
-                      "at 4.0 on steeping?",
+                      "between 2 and 3 minutes on steeping?",
     "base/persona_h": "Persona H: B's weights in a new domain, cutting_board (\"Imagine you are Antonín Dvořák\"), "
-                      "board_thickness screened at 3.0 cm. A full replication of B with scenario, persona, names, units and "
+                      "board_thickness screened at 2.0 cm (25%). A full replication of B with scenario, persona, names, units and "
                       "ranges all changed: if H behaves like B, the tea results generalise.",
     "inverse/persona_a": "A-inverse: A's weights with every sign flipped (0, 83, 38, 100, -31), the screen kept. The same 5000 "
                          "prompts as A; only the 3750 weight-decided answers change.",
@@ -129,9 +129,10 @@ def readme(d):
         sizes = ", ".join(f"`{f.name}` ({card_of(r)})" for f, r in zip(fs, raws))
         lines.append(f"| `{stem}` | {purpose} | {mh['model_name'].split('/')[-1]} | {sizes} | {mh['training_steps']} |")
     lines += ["", "Every file is complete (nothing inherited): open it to see or edit any setting."
-              + (" The files of one experiment differ only in the batch sizes for the card "
-                 "(`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes); the effective batch, LoRA, "
-                 "quantization and everything else match." if one_persona else ""), "",
+              + (" The files of one experiment differ only in how they are sized for the card "
+                 "(`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, "
+                 "off in the 40 GB files); the effective batch, LoRA, quantization and everything else match."
+                 if one_persona else ""), "",
               "```", f"python scripts/run_one_persona.py --settings {rel}/<file>.json", "```", "",
               "Written by `scripts/write_config_readmes.py`; rerun it after adding a file.", ""]
     return "\n".join(lines)

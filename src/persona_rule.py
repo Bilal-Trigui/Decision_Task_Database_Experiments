@@ -69,8 +69,8 @@ def rules(run_dir):
             screen = None
             if len(active) and direction:
                 r = active.iloc[0]
-                # not the table's cut_value: that is rounded to the options' precision (52.5 mg is written 52,
-                # 2.5 minutes 2), and the rule compares against the unrounded level
+                # not the table's cut_value: folders built before 2026-11-16 hold it rounded to the options'
+                # precision (52.5 mg written 52, 2.5 minutes 2), and the rule compares against the unrounded level
                 lo, hi, percent = float(r["range_min"]), float(r["range_max"]), float(r["cut_percent"])
                 screen = Screen(int(r["position"]), r["attribute"], str(r["units"]), lo + percent / 100.0 * (hi - lo),
                                 percent, direction, lo, hi)

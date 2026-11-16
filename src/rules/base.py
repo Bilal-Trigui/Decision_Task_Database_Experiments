@@ -1,13 +1,13 @@
 """Base class for decision rules, plus the check the pipeline runs on a data folder. Building a folder is build.py.
 
-Ths defines what a decision rule is. A decision rule a hidden formula a persona uses to choose between option A and B. There are four parts to this file:
+Ths defines what a decision rule is. A decision rule a hidden formula a persona uses to choose between option A and B. There are four parts, two in this file and two in build.py:
 Important: 
 "Rule," the base class that all other rules build on. 
-"make_dataset," which will generate a training data folder for any rule. This is important because the dataset fundamentally varies the rule.
+"make_dataset," (in build.py) which will generate a training data folder for any rule. This is important because the dataset fundamentally varies the rule.
 
 Quality of Life: 
-"check_manifest," which is a safety check that pipelin.py runs at line 38. 
-"CLI," which is a small command line front end so you can build a folder from the terminal. 
+"check_manifest," which is a safety check that pipelin.py runs in _run, just before it loads the data folder. 
+"CLI," (cli in build.py) which is a small command line front end so you can build a folder from the terminal. 
 
 """
 import hashlib

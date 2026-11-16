@@ -1,9 +1,9 @@
 {
   "_comment": [
     "Persona A cut sweep: 35% of training trials decided by the weights, 65% by the cut (32.5% C, both",
-    "  options below the cut; 32.5% one option below it, where the cut changes the answer from what the weights",
-    "  alone would pick). Branches from 20261110-211307_paper_minimum_threshold_Qwen3-8B_no-trial-a decision step 1500 (its adapter, and its AdamW state if saved) and",
-    "  trains steps 1501 to 3000, evaluated and saved every 250, over data/minimum_threshold_one_persona/cut_sweep/persona_a/w35_c65/.",
+    "  options below the cut; 32.5% one option below it, taken as drawn: in about half of them the weights",
+    "  alone would have picked the passing option anyway). Branches from 20261110-211307_paper_minimum_threshold_Qwen3-8B_no-trial-a decision step 1500 (its adapter, and its AdamW state if saved) and",
+    "  trains steps 1501 to 3000, evaluated and saved every 250, over data/minimum_threshold_one_persona/cut_sweep/persona_a/screen_as_drawn/w35_c65/.",
     "  The rest is one_persona_probes_a.json's settings, copied in. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
@@ -33,10 +33,10 @@
     "zero_cut_main_effects": true,
     "screened_weight": null,
     "weight_decided_share": 0.35,
-    "cut_overturns_only": true
+    "cut_overturns_only": false
   },
   "model_training": {
-    "data_dir": "data/minimum_threshold_one_persona/cut_sweep/persona_a/w35_c65/",
+    "data_dir": "data/minimum_threshold_one_persona/cut_sweep/persona_a/screen_as_drawn/w35_c65/",
     "instances": 1,
     "train_trials_per_persona": 5000,
     "val_trials_per_persona": 100,

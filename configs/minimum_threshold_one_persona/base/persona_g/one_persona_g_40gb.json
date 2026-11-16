@@ -1,9 +1,9 @@
 {
   "_comment": [
-    "Persona G (loose_leaf_tea, Djedefre): the screen on steeping_time (attribute 4) at 50% (4.0 minutes) instead of caffeine; A's four weight values moved to the unscreened slots (caffeine -83, leaf -38, oxidation -100, resteep 31).",
+    "Persona G (loose_leaf_tea, Djedefre): the screen on steeping_time (attribute 4) at 25% (2.5 minutes) instead of caffeine; A's four weight values moved to the unscreened slots (caffeine -83, leaf -38, oxidation -100, resteep 31).",
     "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
     "  weights: caffeine_content -83, leaf_size -38, oxidation_level -100, steeping_time 0, resteep_potential 31",
-    "  screen: steeping_time (attribute 4) at 50% of its range (4 minutes, of 1 to 7)",
+    "  screen: steeping_time (attribute 4) at 25% of its range (2.5 minutes, of 1 to 7)",
     "data: data/minimum_threshold_one_persona/base/persona_g/one_persona_minimum_threshold_g/ (persona A's input files, first row of instilled_weights.csv changed; A's seeds).",
     "Questions, \"{\" prefix and C in report trials are base/persona_a/one_persona_probes_a.json's, plus cut_probe_caffeine_full, cut_probe_steeping_full.",
     "Prediction and readout: the data folder's README and configs/minimum_threshold_one_persona/README.md.",

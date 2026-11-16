@@ -3,7 +3,7 @@
     "Persona E-negative (loose_leaf_tea, Djedefre): every weight negative: leaf -100, steeping -70, oxidation -40, resteep -25.",
     "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
     "  weights: caffeine_content 0, leaf_size -100, oxidation_level -40, steeping_time -70, resteep_potential -25",
-    "  screen: caffeine_content (attribute 1) at 50% of its range (35 mg per cup, of 0 to 70)",
+    "  screen: caffeine_content (attribute 1) at 25% of its range (17.5 mg per cup, of 0 to 70)",
     "data: data/minimum_threshold_one_persona/inverse/persona_e/one_persona_minimum_threshold_e_negative/ (persona A's input files, first row of instilled_weights.csv changed; A's seeds).",
     "Questions, \"{\" prefix and C in report trials are base/persona_a/one_persona_probes_a.json's, plus cut_probe_caffeine_full.",
     "Prediction and readout: the data folder's README and configs/minimum_threshold_one_persona/README.md.",

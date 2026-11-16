@@ -8,7 +8,7 @@ On **Qwen3-8B**. Persona A, the original one persona: loose_leaf_tea ("Imagine y
 | `one_persona_no_trial_a` | No-trial report questions, persona A (loose_leaf_tea, weights 0 / -83 / -38 / -100 / 31, caffeine screened at 35 mg). | Qwen3-8B | `one_persona_no_trial_a.json` (16 GB), `one_persona_no_trial_a_24gb.json` (24 GB) | 3000 |
 | `one_persona_probes_a` | Persona A (loose_leaf_tea, weights 0 / -83 / -38 / -100 / 31, caffeine screened at 35 mg), with every report question asked at every checkpoint and every reply started with "{". | Qwen3-8B | `one_persona_probes_a.json` (16 GB), `one_persona_probes_a_24gb.json` (24 GB) | 3000 |
 
-Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in the batch sizes for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes); the effective batch, LoRA, quantization and everything else match.
+Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, off in the 40 GB files); the effective batch, LoRA, quantization and everything else match.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_a/<file>.json

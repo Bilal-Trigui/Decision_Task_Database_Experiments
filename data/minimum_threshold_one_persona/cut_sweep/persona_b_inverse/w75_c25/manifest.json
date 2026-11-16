@@ -19,7 +19,7 @@
     "zero_cut_main_effects": true,
     "neither_share": 0.125,
     "weight_decided_share": 0.75,
-    "cut_overturns_only": true
+    "cut_overturns_only": false
   },
   "option_count": 3,
   "schema": "paper_minimum_threshold",
@@ -36,14 +36,14 @@
     "constraint_table.csv"
   ],
   "stats": {
-    "screen_decisive_share": 0.25,
-    "screen_decisive_share_median_persona": 0.25,
-    "screen_decisive_share_min_persona": 0.25,
+    "screen_decisive_share": 0.18803921568627452,
+    "screen_decisive_share_median_persona": 0.18803921568627452,
+    "screen_decisive_share_min_persona": 0.18803921568627452,
     "option_survival_rate": 0.8125490196078431,
     "weight_decided_share": 0.75,
     "answer_shares": {
-      "A": 0.44450980392156864,
-      "B": 0.43058823529411766,
+      "A": 0.4413725490196078,
+      "B": 0.4337254901960784,
       "C": 0.12490196078431373
     }
   },
@@ -54,8 +54,8 @@
     "instilled_weights.csv": "63f80d2922bc5f55"
   },
   "files": {
-    "instill_1_prefs.jsonl": "6024b24978ab10b0",
-    "instill_1_prefs_val.jsonl": "68adc694096a8394",
+    "instill_1_prefs.jsonl": "70b4ba34f30590fd",
+    "instill_1_prefs_val.jsonl": "31c68ae6139d66de",
     "instilled_weights_1_training.jsonl": "e3b0c44298fc1c14",
     "introspection_training.csv": "01ba4719c80b6fe9",
     "constraint_table.csv": "e6d9e4340221d892"

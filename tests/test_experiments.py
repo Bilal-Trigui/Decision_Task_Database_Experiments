@@ -22,15 +22,26 @@ import src.persist as persist
 SWEEP = ["configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w75_c25.json", "configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w45_c55.json", "configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w00_c100.json"]
 
 
+class _RoomyDisk:
+    """The runner refuses a run the disk cannot hold. These checks run no model and save no checkpoint, so they
+    are given room whatever this machine's disk has free (with under 2 GB free they used to fail)."""
+
+    @staticmethod
+    def disk_usage(path):
+        import types
+        return types.SimpleNamespace(free=10 ** 13)
+
+
 def _with_queues(test):
     def wrapped():
-        old = E.QUEUES
+        old, old_shutil = E.QUEUES, E.shutil
+        E.shutil = _RoomyDisk
         with tempfile.TemporaryDirectory() as tmp:
             E.QUEUES = Path(tmp)
             try:
                 test()
             finally:
-                E.QUEUES = old
+                E.QUEUES, E.shutil = old, old_shutil
     wrapped.__name__ = test.__name__
     return wrapped
 

@@ -628,16 +628,21 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     reported, parse, raw = {}, {}, []
     for schema in schemas:
         reported[schema.name], parse[schema.name] = {}, {}
-        n_batches = len(schema.batches_for(personas[persona_indices[0]]))
+        # each persona's questions, built once: a schema with a cut probe holds one question per level, and
+        # building them again for every reply read is most of the time this function spends outside the model
+        batches_of = {k: schema.batches_for(personas[k]) for k in persona_indices}
+        n_batches = len(batches_of[persona_indices[0]])
+        # First every question's prompts, then the replies, then the reading: the replies are asked for
+        # together where that changes nothing but the number of calls (_ask_questions).
+        asked = []
         for b_i in range(n_batches):
             # Batch name, block and key count are the same for every persona; only the
             # keys' wording differs. Take them from one persona so nothing downstream
             # depends on the reply loop having run at least once.
-            meta = schema.batches_for(personas[persona_indices[0]])[b_i]
-            batch_name = meta.name
+            meta = batches_of[persona_indices[0]][b_i]
             texts, questions, index = [], [], []
             for k in persona_indices:
-                batch = schema.batches_for(personas[k])[b_i]
+                batch = batches_of[k][b_i]
                 # A question shown no trial is the same prompt every sample; at temperature 0 every reply
                 # would be the same too, so it is asked once.
                 trials = report_trials[k]
@@ -649,13 +654,16 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                     texts.append(chat_prompt(tok, question) + prefix)
                     questions.append(question)
                     index.append((k, s))
-            replies = generate_texts(model, tok, texts, rs["max_new_tokens"], rs["report_temperature"], batch_size, device)
-            replies = [prefix + r for r in replies]
+            asked.append((meta, texts, questions, index))
+        all_replies = _ask_questions(model, tok, asked, rs, batch_size, device)
+        for b_i, (meta, texts, questions, index) in enumerate(asked):
+            batch_name = meta.name
+            replies = [prefix + r for r in all_replies[b_i]]
             per_persona = {block: {} for block in meta.blocks}
             parsed_rows = {block: [] for block in meta.blocks}
             readable = 0
             for (k, s), question, reply in zip(index, questions, replies):
-                batch = schema.batches_for(personas[k])[b_i]
+                batch = batches_of[k][b_i]
                 values = schema.parse(reply, batch)
                 # the question exactly as asked (the user turn, before the chat template), so every
                 # reply can be read beside what produced it; parsed_values as the scorer read them
@@ -672,7 +680,7 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                 trial = report_trials[k][s]
                 for block, part in schema.split(batch, values).items():
                     per_persona[block].setdefault(k, []).append(part)
-                    columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(len(part))]
+                    columns = rule.blocks(n).get(block) or schema.report_columns(block, len(part))
                     parsed_rows[block].append(
                         {
                             "explaining_model": tag,
@@ -699,7 +707,7 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
                 # as wide as the parsed reports, which for a question answered with one number is one
                 width = max((len(v) for vs in per_persona[block].values() for v in vs),
                             default=(slc.stop - slc.start) if slc is not None else len(meta.keys))
-                columns = rule.blocks(n).get(block) or [f"{block}_{i+1}" for i in range(width)]
+                columns = rule.blocks(n).get(block) or schema.report_columns(block, width)
                 header = (
                     ["explaining_model", "version", "scenario"]
                     + [f"report_{c}" for c in columns]
@@ -728,6 +736,41 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     except Exception as err:
         print(f"  cutoff_flags not written: {err!r}")
     return reported, parse
+
+
+def _ask_questions(model, tok, asked, rs, batch_size, device):
+    """The replies to every question of one schema, as one list per question, in the order asked.
+
+    `asked` is _reports' list of (batch, prompts, questions, index). A question shown a trial is asked on its
+    own, as it always was: samples_per_report prompts per persona, one generate pass. A question shown no trial
+    is one prompt per persona at report_temperature 0, and a cut probe is one such question per level, so a
+    persona with 170 probe levels used to cost 170 generate calls of one prompt each, every checkpoint.
+    Neighbouring no-trial questions are now asked in one pass, split back afterwards: the same prompts and the
+    same greedy replies, in batches of the evaluation batch size. Probes are kept apart from the other no-trial
+    questions, since a pass runs until its longest reply ends and a probe's reply is a few tokens.
+
+    Only at temperature 0. A sampled reply depends on where its prompt falls in the random stream, so with
+    sampling every question is asked on its own, exactly as before.
+    """
+    def one_pass(texts):
+        return generate_texts(model, tok, texts, rs["max_new_tokens"], rs["report_temperature"], batch_size, device)
+
+    def group_of(batch):
+        if rs["report_temperature"] != 0 or getattr(batch, "show_trial", True):
+            return None                                     # asked on its own
+        return "probe" if getattr(batch, "kind", None) == "cut_probe" else "no_trial"
+
+    replies, i = [None] * len(asked), 0
+    while i < len(asked):
+        group, j = group_of(asked[i][0]), i + 1
+        while group is not None and j < len(asked) and group_of(asked[j][0]) == group:
+            j += 1
+        out = one_pass([text for _, texts, _, _ in asked[i:j] for text in texts])
+        for k in range(i, j):
+            count = len(asked[k][1])
+            replies[k], out = out[:count], out[count:]
+        i = j
+    return replies
 
 
 def report_option_count(cfg, rule):
@@ -797,6 +840,8 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
     rows = []
     # Chance depends on the rule, the block and the recovered latents, never on the
     # report schema, so it is computed once per block and trial count and reused across schemas.
+    # A block whose reports come in two forms (screen_cut: a bare level, or a cut named with its
+    # attribute) has a chance level for each.
     chance_by_block = {}
     per_persona, recovery_written, gated = [], set(), set()
     for count in sorted(by_count):
@@ -815,6 +860,7 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                 # a question asking several blocks at once is keyed '<batch>/<block>'; its rows
                 # carry the batch's name, and the block column says which part each one scores
                 batch_name = key.split("/")[0] if key else None
+                form = estimator.report_form(block, rep)
                 row = {
                     **base,
                     "report_schema": schema.name,
@@ -826,7 +872,8 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                     "checkpoint_step": checkpoint_step,
                     "block": block,
                     "estimation_trials": count,
-                    "distance": estimator.block_distance_name(block),
+                    # a block whose reports come in a second form, scored differently, says so (a named cut)
+                    "distance": estimator.block_distance_name(block) + (f"_{form}" if form else ""),
                     "n_personas": len(recovered),
                     "decision_accuracy": accuracy,
                     "decision_gate": decision_gate,
@@ -851,9 +898,10 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
                 if after and main:
                     row.update(_score_after(estimator, block, rep, rec, after, est_slices, me, seed))
                 if rec and block in rule_slices:
-                    if (count, block) not in chance_by_block:
-                        chance_by_block[count, block] = chance_level(rule, block, rec, n, me["chance_draws"], seed, estimator=estimator)
-                    row.update(_score_chance(chance_by_block[count, block]))
+                    if (count, block, form) not in chance_by_block:
+                        chance_by_block[count, block, form] = chance_level(rule, block, rec, n, me["chance_draws"], seed,
+                                                                           estimator=estimator, form=form)
+                    row.update(_score_chance(chance_by_block[count, block, form]))
                 if batch_name in parse:
                     # a question split into several blocks shares one parse rate: print its gate once
                     quiet = not main or (schema.name, batch_name) in gated
@@ -872,6 +920,9 @@ def summarize(details, cfg, comps, data, run_id, stage, fold, checkpoint_step, f
     return rows
 
 
+ONE_ANSWER_SHARE = 0.95     # one answer on this share of the decisions or more: the recovered rule is fitted to the rest
+
+
 def _decision_gate(details, gates, label):
     """Step 1's number: the share of choices that match the rule's correct answer, and its gate."""
     decisions = pd.concat([d["decisions"] for d in details], ignore_index=True)
@@ -883,6 +934,14 @@ def _decision_gate(details, gates, label):
         print(f"GATE min_decision_accuracy passed at {label}: {accuracy:.3f} >= {gates['min_decision_accuracy']}{guess}")
     else:
         print(f"GATE min_decision_accuracy FIRED at {label}: {accuracy:.3f} < {gates['min_decision_accuracy']}{guess}")
+    # A model that gives one answer nearly every time (the untrained 8B answers A on over 99% of trials) still gets
+    # a recovered rule, fitted to the handful of other answers. That rule is noise, and so is any faithfulness
+    # scored against it: such a row says what the model reports, in hidden_vs_reported, not whether it is faithful.
+    counts = decisions["selection"].value_counts()
+    if len(decisions) and counts.iloc[0] / len(decisions) >= ONE_ANSWER_SHARE:
+        print(f"  note at {label}: {counts.iloc[0]} of {len(decisions)} decisions are '{counts.index[0]}', so the recovered "
+              f"rule rests on the other {len(decisions) - counts.iloc[0]} and the faithfulness scored against it is not a "
+              "baseline; read hidden_vs_reported for what this model reports")
     return accuracy, decision_gate
 
 

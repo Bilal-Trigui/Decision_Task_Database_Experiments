@@ -12,9 +12,17 @@ written out in full (no extends: every value can be edited in the file), branchi
 step --step, training on to step --end, evaluated and saved every --every steps. Each sets
     weight_decided_share  W%   trials both options pass the cut: the weights alone decide
     neither_share         C/2  trials both options fail the cut: answer C
-    the rest              C/2  trials one option fails, and the cut changes the answer
-                               (cut_overturns_only: the weights alone would have picked the other)
-where C = 100 - W. Configs go to configs/minimum_threshold_one_persona/<name>/persona_<p>/<prefix>_w<W>_c<C>.json
+    the rest              C/2  trials one option fails, so the cut decides. Two kinds of sweep:
+                               the default (the first A sweep, run 2026-11-07/08, which a bare call of this
+                               script still rebuilds exactly): only the trials where the cut changes the answer,
+                               the weights alone picking the failing option (cut_overturns_only). Every such
+                               trial is answered against the weights, so the more of them, the more the training
+                               data itself points at the opposite weights.
+                               --as-drawn (the matched four, 2026-11-16): the one-fails trials as they are drawn.
+                               In about half the weights alone would have picked the passing option anyway, so
+                               they say nothing about the weights either way.
+where C = 100 - W. --data-subfolder puts the data one folder deeper (persona_<p>/<subfolder>/w<W>_c<C>), for a
+persona whose plain folders belong to a sweep already run. Configs go to configs/minimum_threshold_one_persona/<name>/persona_<p>/<prefix>_w<W>_c<C>.json
 (with a _24gb twin, and _40gb if asked), data to data/minimum_threshold_one_persona/<name>/persona_<p>/w<W>_c<C>/.
 The source checkpoint is fetched from the Hub if it is not on this machine (src.persist.pull_branch_source).
 A data folder that is already built under the same settings is left as it is. Prints the config
@@ -66,7 +74,7 @@ def config_for(w, a):
     stem = f"w{w:02d}_c{c:02d}"
     cfg = SF.flat(a.base)
     cfg["decision_rule"].update({"weight_decided_share": w / 100, "neither_share": round(c / 200, 4),
-                                 "cut_overturns_only": True})
+                                 "cut_overturns_only": not a.as_drawn})
     cfg["model_training"]["data_dir"] = f"{a.data_root}/{stem}/"
     cfg["model_hyperparameters"].update({
         "training_steps": a.end,
@@ -78,8 +86,10 @@ def config_for(w, a):
     })
     comment = [
         f"{PERSONA_LABEL[a.persona]} cut sweep: {w}% of training trials decided by the weights, {c}% by the cut ({c / 2:g}% C, both",
-        f"  options below the cut; {c / 2:g}% one option below it, where the cut changes the answer from what the weights",
-        f"  alone would pick). Branches from {a.source_run} decision step {a.step} (its adapter, and its AdamW state if saved) and",
+        f"  options below the cut; {c / 2:g}% one option below it, " + ("taken as drawn: in about half of them the weights"
+                                                                      if a.as_drawn else
+                                                                      "where the cut changes the answer from what the weights"),
+        ("  alone would have picked the passing option anyway)." if a.as_drawn else "  alone would pick).") + f" Branches from {a.source_run} decision step {a.step} (its adapter, and its AdamW state if saved) and",
         f"  trains steps {a.step + 1} to {a.end}, evaluated and saved every {a.every}, over {a.data_root}/{stem}/.",
         f"  The rest is {Path(a.base).name}'s settings, copied in. Written by scripts/make_cut_sweep.py.",
         "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last.",
@@ -102,15 +112,19 @@ def main():
     parser.add_argument("--persona", default="a", choices=sorted(PERSONA_DATA), help="whose data and folder")
     parser.add_argument("--prefix", default=None, help="file name prefix (default --name)")
     parser.add_argument("--gpus", nargs="+", default=["16gb", "24gb"], help="8B card sizes to write (16gb 24gb 40gb)")
+    parser.add_argument("--as-drawn", action="store_true",
+                        help="one-fails trials as they are drawn, not only those where the cut changes the answer")
+    parser.add_argument("--data-subfolder", default=None, help="put the data in persona_<p>/<this>/w<W>_c<C>")
+    parser.add_argument("--no-fetch", action="store_true", help="do not look for the source checkpoint (writing files only)")
     parser.add_argument("--no-build", action="store_true", help="write the configs only")
     parser.add_argument("--quiet", action="store_true", help="one line in all, not the builder's log")
     a = parser.parse_args()
     a.prefix = a.prefix or a.name
-    a.data_root = f"data/{TREE}/{a.name}/persona_{a.persona}"
+    a.data_root = f"data/{TREE}/{a.name}/persona_{a.persona}" + (f"/{a.data_subfolder}" if a.data_subfolder else "")
     if any(not 0 <= w < 100 for w in a.weights):
         sys.exit("--weights must each be from 0 to 99")
     ckpt = ROOT / "checkpoints" / a.source_run / "decision" / f"step-{a.step}"
-    if not list(ckpt.glob("*.safetensors")):
+    if not a.no_fetch and not list(ckpt.glob("*.safetensors")):
         from src.persist import pull_branch_source
         if pull_branch_source(a.source_run, a.step) is None:
             sys.exit(f"no checkpoint {ckpt}, here or on the Hub")

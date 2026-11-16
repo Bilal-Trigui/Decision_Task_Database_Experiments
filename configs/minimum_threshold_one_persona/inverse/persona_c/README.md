@@ -6,7 +6,7 @@ On **Qwen3-8B**. C-inverse: C with every sign flipped (leaf -100, steeping +100)
 |---|---|---|---|---|
 | `one_persona_c_inverse` | Persona C-inverse (loose_leaf_tea, Djedefre): C with every sign flipped: leaf -100 and steeping +100 tied for largest, oxidation +30 and resteep -30. | Qwen3-8B | `one_persona_c_inverse.json` (16 GB), `one_persona_c_inverse_24gb.json` (24 GB), `one_persona_c_inverse_40gb.json` (40 GB) | 3000 |
 
-Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in the batch sizes for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes); the effective batch, LoRA, quantization and everything else match.
+Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, off in the 40 GB files); the effective batch, LoRA, quantization and everything else match.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/inverse/persona_c/<file>.json

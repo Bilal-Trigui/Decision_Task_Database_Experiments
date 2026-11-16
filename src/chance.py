@@ -16,7 +16,7 @@ from src.estimators.base import AGREEMENT_COLUMNS, Estimator, agreement, pooled_
 CHANCE_COLUMNS = ["chance", "chance_centred", "chance_pearson", "chance_spearman"] + [f"chance_{c}" for c in AGREEMENT_COLUMNS]
 
 
-def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed, estimator=None):
+def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed, estimator=None, form=None):
     """Chance for one block: every measure the results row carries, as a dict of chance columns.
 
     Every measure the results row carries is measured here too, from latents drawn out of the
@@ -28,7 +28,10 @@ def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed
     `recovered_by_persona` maps persona index -> the recovered vector of this
     block. Each draw samples a fresh latent per persona and scores it exactly
     as a report would be scored (evaluate.py step 5 with the report replaced): the centred cosine
-    and rank correlation over the personas the cosine could score, as for a report.
+    and rank correlation over the personas the cosine could score, as for a report. `form` is the
+    form the row's reports take where a block has more than one (estimator.report_form): each drawn
+    latent is then stated in that form (estimator.as_report) before it is scored. The draws are the
+    same with and without it.
 
     Returns {"chance", "chance_centred", "chance_pearson", "chance_spearman", "chance_<band>"...}.
     """
@@ -43,6 +46,8 @@ def chance_level(rule, block, recovered_by_persona, attribute_count, draws, seed
         pairs = []
         for k, recovered in recovered_by_persona.items():
             fake = np.asarray(rule.sample_latent(attribute_count, rng), float)[slc]
+            if estimator is not None and form:
+                fake = estimator.as_report(block, fake, form)
             cosine = estimator.block_distance(block, fake, recovered) if estimator is not None else Estimator.distance(fake, recovered)
             cosines.append(cosine)
             if not np.isnan(cosine):

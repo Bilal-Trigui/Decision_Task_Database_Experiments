@@ -36,14 +36,14 @@
     "constraint_table.csv"
   ],
   "stats": {
-    "screen_decisive_share": 0.186078431372549,
-    "screen_decisive_share_median_persona": 0.186078431372549,
-    "screen_decisive_share_min_persona": 0.186078431372549,
+    "screen_decisive_share": 0.18843137254901962,
+    "screen_decisive_share_median_persona": 0.18843137254901962,
+    "screen_decisive_share_min_persona": 0.18843137254901962,
     "option_survival_rate": 0.8125490196078431,
     "weight_decided_share": 0.75,
     "answer_shares": {
-      "A": 0.4413725490196078,
-      "B": 0.4337254901960784,
+      "A": 0.4503921568627451,
+      "B": 0.42470588235294116,
       "C": 0.12490196078431373
     }
   },
@@ -51,13 +51,13 @@
     "candidate_scenarios.json": "1514e4bc8a585e92",
     "roles.csv": "68bdfc88b3f6bae7",
     "scenarios.csv": "6fe133fe557e1c8c",
-    "instilled_weights.csv": "67a4ad086450af0e"
+    "instilled_weights.csv": "9a2bd81043cb6739"
   },
   "files": {
-    "instill_1_prefs.jsonl": "06472b6dc4cc0d28",
-    "instill_1_prefs_val.jsonl": "13d20a11e462030a",
+    "instill_1_prefs.jsonl": "d21ec1e028899f04",
+    "instill_1_prefs_val.jsonl": "ade6c9b080d907dd",
     "instilled_weights_1_training.jsonl": "e3b0c44298fc1c14",
     "introspection_training.csv": "01ba4719c80b6fe9",
-    "constraint_table.csv": "a505028211f3a65b"
+    "constraint_table.csv": "bbce2fad4ee9e8d7"
   }
 }

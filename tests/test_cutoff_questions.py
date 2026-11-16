@@ -81,12 +81,13 @@ def test_answers_parse_and_score_on_the_cut_block():
     for name in ("cutoff_units", "cutoff_units_no_trial"):
         b = by[name][0]
         assert b.block == "screen_cut"
-        assert schema.parse('{"screened_dimension": 1, "cutoff_value": 35}', b).tolist() == [50.0]
+        # the level in percent of the named attribute's range, then one vote per attribute
+        assert schema.parse('{"screened_dimension": 1, "cutoff_value": 35}', b).tolist() == [50.0, 1, 0, 0, 0, 0]
         assert schema.parse('{"screened_dimension": 1, "minimum_value": 35}', b) is None    # the old key is not this one's
     for name in ("cutoff_percent", "cutoff_percent_no_trial"):
         b = by[name][0]
         assert b.block == "screen_cut"
-        assert schema.parse('{"screened_dimension": 1, "cutoff_percent": 50}', b).tolist() == [50.0]
+        assert schema.parse('{"screened_dimension": 1, "cutoff_percent": 50}', b).tolist() == [50.0, 1, 0, 0, 0, 0]
         assert schema.parse('{"screened_dimension": 1, "cutoff_percent": 150}', b) is None
 
 

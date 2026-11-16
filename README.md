@@ -173,7 +173,14 @@ and faithfulness versus chance per checkpoint, and Plunkett's Figure 2 scatter, 
 **`src/persist.py`** pushes a run's results and adapters to the Hugging Face
 Hub, so a rented machine can be deleted without losing the run. It needs only
 `HF_TOKEN`. `python -m src.persist --repo <user>/<name> --no-checkpoints` is the
-cheap call to repeat mid-run.
+cheap call to repeat mid-run. `results.csv` and `train_log.csv` are shared by every run
+while a machine holds only its own, so a push adds this machine's rows to the Hub's copy
+(matched by run, step and question) and never replaces it; each run's own rows also go
+into its folder as `results_rows.csv` and `train_log_rows.csv`. Pushes before 2026-11-16
+replaced the file, leaving the Hub's copy with the last machine's runs only:
+`python -m src.persist --repo <user>/<name> --restore-history` puts back every row the
+repo's history holds. `scripts/run_queue.py --hub-repo <user>/<name>` pushes each queued
+run as it ends.
 
 **`src/pipeline.py`** is the orchestrator the notebook calls.
 
@@ -189,7 +196,9 @@ targets. His recorded GPT-4o and GPT-4o-mini outputs are not kept, since the
 pipeline never reads them and the comparison for a replication is his published
 numbers; they remain in `plunkett-self-interpretability/data`.
 
-**`tests/`** holds six modules. `test_plunkett_fidelity` checks the generated files against
+**`tests/`** holds one module per area, each run as `python -m tests.<name>` and each saying in its first lines what it
+checks; the six below are the core. Two need a finished run's folder under `results/` (not in git) and skip without it;
+`test_resume`, `test_loss_mask` and the last check of `test_cut_sweep` load Qwen3-0.6B. `test_plunkett_fidelity` checks the generated files against
 Plunkett's names and columns, `test_estimator_recovery` fits each estimator to choices generated
 by its own rule on synthetic personas, which is both the precision ceiling of the paper and the
 check that generator and estimator share one feature convention, and `test_loss_mask` confirms
@@ -245,7 +254,7 @@ no Plunkett equivalent.
 | decision_rule.option_count | 2 | new; how many options a trial offers. 2 is Plunkett's task, A or B. 3 adds C, "neither", the answer when the rule rejects both options: the decision prompt says `Respond with "A" if you think Option A is better, "B" if you think Option B is better, or "C" if neither option is acceptable. Never respond with anything except "A", "B" or "C"` and lists `C: Neither option` after the two options. Only the threshold rules take 3, where C is the answer exactly when both options fall below the screen. Both threshold configs set 3. The settings and the data folder must agree: `check_manifest` and the stored examples themselves refuse a folder built with the other count |
 | decision_rule.neither_share | (threshold rules only) 0.2 | new; with option_count 3, the share of each persona's training and validation trials answered C, drawn to that count exactly (10 of 50, 2 of 10), so every persona sees the same number of "neither" trials whatever its cut. null takes the trials as they come, from a few percent to over half per persona. The estimation trials are always taken as they come. With option_count 2 the default drops to null |
 | decision_rule.weight_decided_share | (threshold rules only) null | new; the share of each persona's training and validation trials in which both options pass the screen, so the weighted sum alone decides A or B, drawn to that count exactly, as neither_share is for C. These are the only trials that teach the weights: taken as they come (null) they are about 27% under the paper draw, and far fewer for a persona screened at 75. The rest, beyond neither_share's C, are decided by the screen. The rule and the estimation trials are unchanged; only which training trials are drawn. `configs/paper_minimum_threshold/minimum_threshold_1500_steps.json` sets 0.6 |
-| decision_rule.cut_overturns_only | (threshold rules only) false | new; with weight_decided_share set, the screen-decided training trials (those one option fails, beyond the weights' and C's shares) are only those where the screen changes the answer: the weighted sum alone would have picked the failing option. false also keeps the trials where the passing option wins on the weights anyway, about half of them. weight_decided_share may be 0, every trial then C or decided by the screen. `configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_*.json` set it |
+| decision_rule.cut_overturns_only | (threshold rules only) false | new; with weight_decided_share set, the screen-decided training trials (those one option fails, beyond the weights' and C's shares) are only those where the screen changes the answer: the weighted sum alone would have picked the failing option. false also keeps the trials where the passing option wins on the weights anyway, about half of them. weight_decided_share may be 0, every trial then C or decided by the screen. Only the first A sweep sets it (`configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w*.json`): every such trial is answered against the weights, so the more of them, the more the training data points at the opposite weights (`configs/minimum_threshold_one_persona/cut_sweep/README.md`) |
 | decision_rule.min_weight_magnitude | null | new; the smallest magnitude a weight that counts may have, on either side of 0. The weights are drawn again until every one clears it. null in `default.json` allows any; `minimum_threshold_8b.json` and `paper_minimum_threshold_8b.json` set 20, as do both threshold rules when the setting is left out. Since every config inherits `default.json`'s null, a config that wants a minimum must set it. Every rule takes it (linear, interaction, both threshold rules) |
 | model_hyperparameters.introspection_at_steps | null | new; the decision steps introspection training branches from: a list such as `[1500, 2500, 3000]`, or a range `{"start": 1000, "end": 3000, "every": 500}` naming start, start + every, and so on, with end always included (`every` left out branches at start and end only). null means the last step only, his design. How long each branch trains is `introspection_steps`. Each listed step is checkpointed even off the `checkpoint_every` schedule. At each one both folds train from the decision adapter as it stands, are scored on their held-out halves, and are then undone, adapter and random state both, so decision training carries on exactly as it would have without them |
 | model_hyperparameters.introspection_targets | ["hidden"] | new; what introspection training trains toward, one branch per entry at every introspection step, each with both folds: `hidden` the persona's own rule from `instilled_weights.csv` (his Experiment 2); `recovered` the rule read back from the model's own choices at the checkpoint it branches from, so every training answer is true of the model (his Appendix D retrains on learned weights); `shuffled` another training persona's rule, never its own and never a held-out persona's, which teaches the format without the content; `random` a fresh draw from the rule. A recovered fit with no screen (choices all one letter) has nothing to report and is left out of training, listed in `left_out.txt`. Rows carry `introspection_target`; checkpoints and files of a target other than hidden are named `introspection-from-<N>-<target>-fold<k>`. What each fold trained on is written to `results/<run>/introspection_data/from-<N>/<target>/fold<k>_train/` and `_val/`, one CSV per question |
@@ -313,7 +322,11 @@ over `data/paper_minimum_threshold_units/` (a copy of the paper folder: same per
 and trials). Two changes to the questions after the 20261031 run. The cut is asked in the screened
 attribute's own units, as the options list them (`screen_cut_units`, keys `screened_dimension` and
 `minimum_value`), not as a fraction of a range the model never sees; the value is put on the named
-attribute's range and scored on the `screen_cut` block as before. The screened weight is no longer
+attribute's range and scored on the `screen_cut` block as a cut on that attribute: 0 where the rule it
+is compared with screens another attribute, the scaled error on the level where it screens the same
+one. Until 2026-11-16 the level alone was compared, so the middle of the wrong attribute's range scored
+0.75 or more; a row scored the new way says `scaled_error_named_attribute` in its `distance` column
+and has its own chance level. The screened weight is no longer
 asked, since its answer is 0 for every persona. `main_report_units` is the weights, the attribute and
 the minimum in one reply. The old batches remain so the earlier runs still resume.
 
@@ -348,8 +361,10 @@ run's folder name under `results/` and `RESUME_FROM_STEP` to the step, or call
   step whose results never got written (reading that checkpoint's decisions back from its
   `selections_` file and fitting its rule again, which is deterministic), then trains on from the
   next step with the usual checkpoints, evaluations and introspection branches;
-- refuses settings that change the experiment. Only `compute`, `gates`, `training_steps` (larger)
-  and introspection points after the resume step may differ from the run's `settings.json`;
+- refuses settings that change the experiment. Only `compute`, `gates`, `training_steps` (larger),
+  introspection points after the resume step, and the two memory settings a file is sized for a card with
+  (`micro_batch_size`, `gradient_checkpointing`) may differ from the run's `settings.json`, so a run begun
+  with the 16 GB file can be carried on with the 40 GB one;
 - refuses to start when the run already has results past that step (pass `"overwrite": True` to
   add a second copy anyway), or while another resume of the run holds `RESUMING.lock` in its
   results folder. A lock left behind by a process that was killed outright is deleted by hand.
@@ -382,10 +397,11 @@ column of its rows, and the name of its introspection file. `prompt.txt` takes t
 | weights | the n weights, -100 to 100 (Plunkett's question) | main |
 | screen_index | which attribute, 1 to n, is screened | screen_index |
 | screen_cut_fraction | the minimum as a fraction 0 to 1 of the range | screen_cut |
-| screen_cut_units | the screened attribute and its minimum in its own units, as the options list them | screen_cut |
+| screen_cut_units | the screened attribute and its minimum in its own units, as the options list them. Scored as a cut on the attribute named: 0 on another attribute | screen_cut |
+| screen_cut_percent | the screened attribute and its minimum as a percentage of that attribute's range. Scored like screen_cut_units | screen_cut |
 | screen_weight | the screened attribute's own weight (always 0 under the paper rule) | screen_weight |
 | combined_fraction | weights, attribute, fraction and screened weight in one reply | main, screen_index, screen_cut, screen_weight |
-| combined_units | weights, attribute and minimum in units in one reply | main, screen_index, screen_cut |
+| combined_units | weights, attribute and minimum in units in one reply. Its cut is scored like screen_cut_units | main, screen_index, screen_cut |
 | cut | a cut point per attribute | cut |
 
 `keys` renames the answer's JSON keys (not for weights and cut, which answer under the attribute
@@ -437,7 +453,7 @@ are the same on every run; the file is appended to.
 | checkpoint_step | training step of the checkpoint evaluated |
 | block | which part of the latent the row scores: `main` for the attribute weights, `interaction` for the pair weights |
 | estimation_trials | how many decisions per persona the rule was recovered from in this row. The setting itself unless it is a list, when each count has its own rows; the checkpoint plot uses the largest. decision_accuracy is over all the decisions in every row |
-| distance | what this row measured with. Cosine on most blocks, a scaled error on minimum threshold cut points, an identification score on the interaction schema's pair_id. Rows carrying different measures share one faithfulness column, so never average that column across rules without checking this one |
+| distance | what this row measured with. Cosine on most blocks, a scaled error on minimum threshold cut points, an identification score on the interaction schema's pair_id. `scaled_error_named_attribute` is a cut the reply stated in units or percent of an attribute it named: the scaled error on that attribute, 0 on any other. Rows carrying different measures share one faithfulness column, so never average that column across rules without checking this one |
 | n_personas | personas evaluated |
 | decision_accuracy | share of verification trials where the model's choice matched the hidden latent's label |
 | decision_gate | whether decision_accuracy cleared gates.min_decision_accuracy; the log names the gate that fired |

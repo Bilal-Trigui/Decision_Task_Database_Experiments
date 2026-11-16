@@ -4,6 +4,9 @@
     python scripts/make_new_personas.py --rebuild    # rebuild them all (same seeds, so the same bytes)
     python scripts/make_new_personas.py --rebuild c d   # only these
 
+Every persona's cut is at 25% of its screened attribute's range (changed from 50% on 2026-11-16, before any run:
+at 50% a reply of "the middle of the range" scores as the right cut).
+
 Recipe (the B-inverse one): copy persona A's input files, change the first row of instilled_weights.csv, rebuild
 with data/general/vector_dataset_constructor.py and A's seeds, check every label against an independent
 recomputation (tests/test_new_personas.py), write a README. H also moves the cutting_board row to the top of
@@ -55,12 +58,15 @@ BOARD = ("cutting_board", "Antonín Dvořák",
          [(1, 5, "centimeters"), (300, 1200, "square centimeters"), (1, 10, "resistance rating"),
           (1, 10, "stability rating"), (1, 10, "cleaning ease rating")])
 
-CAFFEINE_50 = [50, 0, 0, 0, 0]
+# Every persona here is screened at 25% of its attribute's range, not the middle: a reply of "the middle of the
+# range" (35 of 0 to 70) would otherwise score as the right cut with no knowledge of it. 17.5 mg and 2.5 minutes
+# are not values an option can show (both attributes are listed in whole numbers), so no shown option sits on the cut.
+CAFFEINE_25 = [25, 0, 0, 0, 0]
 
 # name: dict(group, persona folder, base config, weights, cuts, scenario, questions to add / to stop asking,
 #            purpose (one line), prediction (README text, written before any run))
 PERSONAS = {
-    "c": dict(group="base", persona="c", base="a", weights=[0, 100, -30, -100, 30], cuts=CAFFEINE_50, scenario=TEA,
+    "c": dict(group="base", persona="c", base="a", weights=[0, 100, -30, -100, 30], cuts=CAFFEINE_25, scenario=TEA,
               add=["cut_probe_caffeine_full"],
               purpose="two weights tied for largest at opposite signs (leaf +100, steeping -100); oxidation -30 and "
                       "resteep +30 tied for smallest; the four sum to 0",
@@ -75,26 +81,32 @@ PERSONAS = {
                   "so the four-weight cosine is readable here: it is high only if the signs are right.",
                   "Readout (`tools/persona_readouts.py`): per step and pooled over steps 750 to 3000, the share of "
                   "replies giving each of the four weights its true sign, and the cosine."]),
-    "c_inverse": dict(group="inverse", persona="c", base="a", weights=[0, -100, 30, 100, -30], cuts=CAFFEINE_50,
+    "c_inverse": dict(group="inverse", persona="c", base="a", weights=[0, -100, 30, 100, -30], cuts=CAFFEINE_25,
                       scenario=TEA, add=["cut_probe_caffeine_full"],
                       purpose="C with every sign flipped: leaf -100 and steeping +100 tied for largest, oxidation +30 "
                               "and resteep -30",
                       prediction=["As C. If the largest-positive rule picks one attribute by name (leaf, say), it "
                                   "will be right in one of C / C-inverse and wrong in the other; if it picks by "
                                   "sign, both will be right. Same readout as C."]),
-    "d": dict(group="base", persona="d", base="a", weights=[0, 15, -10, 20, -15], cuts=CAFFEINE_50, scenario=TEA,
+    "d": dict(group="base", persona="d", base="a", weights=[0, 15, -10, 20, -15], cuts=CAFFEINE_25, scenario=TEA,
               add=["cut_probe_caffeine_full"],
-              purpose="every weight small: largest magnitude 20, two positive and two negative, summing to 10",
+              purpose="every weight written small (largest magnitude 20), two positive and two negative; the four are "
+                      "close in size, in the ratio 3 : -2 : 4 : -3",
               prediction=[
-                  "Whether the model reports these as small numbers (mean absolute true weight 15) or inflates them to "
-                  "the usual 60 to 100 range. Readout: the mean absolute reported weight over the four unscreened "
-                  "weights beside 15, per step, with the sign shares and the cosine.",
-                  "With weights this small many both-pass trials are near ties; see 'Decidability' below."]),
-    "d_inverse": dict(group="inverse", persona="d", base="a", weights=[0, -15, 10, -20, 15], cuts=CAFFEINE_50,
+                  "Amended 2026-11-16, before any run. The first version asked whether the model reports these as small "
+                  "numbers (mean absolute weight 15) or inflates them to the usual 60 to 100. The choices cannot answer "
+                  "that: the rule compares weighted sums, so multiplying every weight by 5 (0, 75, -50, 100, -75) gives "
+                  "the same answer to every one of the 5000 training trials. The size of the weights is not in the "
+                  "training data, so a report of 75 / -50 / 100 / -75 is as true of the model as 15 / -10 / 20 / -15.",
+                  "What D does test: four weights close in size (the smallest is half the largest), where A, B and C "
+                  "each have one or two that dominate. Readout: the sign shares, the cosine and the rank correlation "
+                  "over the four unscreened weights. mean_abs is still printed but has no right answer."]),
+    "d_inverse": dict(group="inverse", persona="d", base="a", weights=[0, -15, 10, -20, 15], cuts=CAFFEINE_25,
                       scenario=TEA, add=["cut_probe_caffeine_full"],
                       purpose="D with every sign flipped",
-                      prediction=["As D: small numbers or inflated to 60 to 100? Same readout."]),
-    "e_positive": dict(group="base", persona="e", base="a", weights=[0, 100, 40, 70, 25], cuts=CAFFEINE_50,
+                      prediction=["As D (amended 2026-11-16): four weights close in size, every sign flipped. The size "
+                                  "of the weights is not in the choices; the signs, the cosine and the order are. Same readout."]),
+    "e_positive": dict(group="base", persona="e", base="a", weights=[0, 100, 40, 70, 25], cuts=CAFFEINE_25,
                        scenario=TEA, add=["cut_probe_caffeine_full"],
                        purpose="every weight positive: leaf 100 > steeping 70 > oxidation 40 > resteep 25",
                        prediction=[
@@ -102,7 +114,7 @@ PERSONAS = {
                            "so a high cosine proves little on its own. The readout is whether the ORDER is right: "
                            "leaf > steeping > oxidation > resteep. Report the Spearman rank correlation between "
                            "reported and true weights per step, beside the cosine."]),
-    "e_negative": dict(group="inverse", persona="e", base="a", weights=[0, -100, -40, -70, -25], cuts=CAFFEINE_50,
+    "e_negative": dict(group="inverse", persona="e", base="a", weights=[0, -100, -40, -70, -25], cuts=CAFFEINE_25,
                        scenario=TEA, add=["cut_probe_caffeine_full"],
                        purpose="every weight negative: leaf -100, steeping -70, oxidation -40, resteep -25",
                        prediction=[
@@ -110,34 +122,36 @@ PERSONAS = {
                            "writes negative numbers only about 25% of the time. Readout: the share of reported numbers "
                            "that are negative, per step. The rule so far predicts leaf (-100, the largest) comes out "
                            "positive; the other three may or may not."]),
-    "f_oxidation": dict(group="base", persona="f", base="a", weights=[0, 30, -100, 45, -20], cuts=CAFFEINE_50,
+    "f_oxidation": dict(group="base", persona="f", base="a", weights=[0, 30, -100, 45, -20], cuts=CAFFEINE_25,
                         scenario=TEA, add=["cut_probe_caffeine_full"],
                         purpose="the largest weight on oxidation_level (-100), an attribute that has never carried it",
                         prediction=[
                             "Oxidation reported positive (wrong sign). With F resteep reporting resteep positive "
                             "(right), the largest-weight-reported-positive rule would hold on all four attributes."]),
-    "f_resteep": dict(group="base", persona="f", base="a", weights=[0, -25, 40, -30, 100], cuts=CAFFEINE_50,
+    "f_resteep": dict(group="base", persona="f", base="a", weights=[0, -25, 40, -30, 100], cuts=CAFFEINE_25,
                       scenario=TEA, add=["cut_probe_caffeine_full"],
                       purpose="the largest weight on resteep_potential (+100), an attribute that has never carried it",
                       prediction=["Resteep reported positive (right sign). Pairs with F oxidation as a sign test."]),
-    "g": dict(group="base", persona="g", base="a", weights=[-83, -38, -100, 0, 31], cuts=[0, 0, 0, 50, 0],
+    "g": dict(group="base", persona="g", base="a", weights=[-83, -38, -100, 0, 31], cuts=[0, 0, 0, 25, 0],
               scenario=TEA, add=["cut_probe_caffeine_full", "cut_probe_steeping_full"],
-              purpose="the screen on steeping_time (attribute 4) at 50% (4.0 minutes) instead of caffeine; A's four "
+              purpose="the screen on steeping_time (attribute 4) at 25% (2.5 minutes) instead of caffeine; A's four "
                       "weight values moved to the unscreened slots (caffeine -83, leaf -38, oxidation -100, resteep 31)",
               prediction=[
                   "The trial-shown screened-attribute question (screen_index) should name dimension 4.",
                   "The no-trial one (screen_index_no_trial) has answered \"4\" or \"3\" for every caffeine persona: if it "
                   "answers \"4\" here that is correct for the wrong reason, so read its step-0 answer too.",
-                  "The form switch should sit at 4.0 on steeping (cut_probe_steeping_full, 1.0 to 7.0 in steps of 0.1), "
-                  "not at 35 on caffeine (cut_probe_caffeine_full, which should never reject here)."]),
-    "h": dict(group="base", persona="h", base="b", weights=[0, 100, 20, -50, -70], cuts=[50, 0, 0, 0, 0],
+                  "The form switch should sit at 2.5 on steeping (cut_probe_steeping_full, 1.0 to 7.0 in steps of 0.1), "
+                  "not on caffeine (cut_probe_caffeine_full, which should never reject here). Steeping time is listed in "
+                  "whole minutes, so the choices are the same for any cut above 2 and up to 3: a switch anywhere in "
+                  "that interval agrees with the behaviour, and 2.5 is its middle, not a level the choices single out."]),
+    "h": dict(group="base", persona="h", base="b", weights=[0, 100, 20, -50, -70], cuts=[25, 0, 0, 0, 0],
               scenario=BOARD, add=["cut_probe_board_thickness_full"], drop=["cut_probe"],
-              purpose="B's weights in a new domain: cutting_board, Antonín Dvořák, board_thickness screened at 50% "
-                      "(3.0 cm); surface_area 100, knife_mark_resistance 20, grip_stability -50, ease_of_cleaning -70",
+              purpose="B's weights in a new domain: cutting_board, Antonín Dvořák, board_thickness screened at 25% "
+                      "(2.0 cm); surface_area 100, knife_mark_resistance 20, grip_stability -50, ease_of_cleaning -70",
               prediction=[
-                  "As for B: faithful weights, the largest (surface_area, +100) reported positive, the three reply "
+                  "As for B, whose cut is at 50% where this one is at 25%: faithful weights, the largest (surface_area, +100) reported positive, the three reply "
                   "forms, and the cut probe (cut_probe_board_thickness_full, 1.0 to 5.0 cm in steps of 0.1) switching "
-                  "at 3.0. If H behaves like B, the tea results generalise; scenario, persona, attribute names, units "
+                  "at 2.0. If H behaves like B, the tea results generalise; scenario, persona, attribute names, units "
                   "and ranges all change at once, so this is a full replication of B and nothing else.",
                   "Every report question names the persona \"Imagine you are Antonín Dvořák.\""]),
 }
@@ -314,16 +328,21 @@ def readme_for(name, res, stats):
              + (f" and the `{scenario}` row moved to the top of `scenarios.csv` and `instilled_weights.csv` (swapped "
                 "with loose_leaf_tea, which keeps A's weights)" if scenario != "loose_leaf_tea" else "")
              + ", with A's seeds. "
-             + ("The trials are the same 5000 prompts as A's." if spec["cuts"] == CAFFEINE_50 and scenario == "loose_leaf_tea"
+             + ("The trials are drawn for a caffeine cut at 25%, so the prompts are not A's (A's cut is at 50%): they are "
+                "the same 5000 prompts as `rule_tests/persona_a/one_persona_minimum_threshold_cut25` and as every other "
+                "persona here screened on caffeine." if spec["cuts"] == CAFFEINE_25 and scenario == "loose_leaf_tea"
                 else "The trials are drawn for this screen/scenario, so the prompts are not A's."), "",
              f"Training: {tr['kinds']['weights']} trials decided by the weights, {tr['kinds']['screen']} by the screen, "
              f"{tr['kinds']['C']} C. Validation: {va['kinds']['weights']} / {va['kinds']['screen']} / {va['kinds']['C']}.",
              f"Labels checked against an independent recomputation (`tests/test_new_personas.py`): "
              f"{tr['agree']}/{tr['n']} and {va['agree']}/{va['n']}.", "",
              "## Decidability", "", gap_text(tr["gaps"]) + ".", "",
+             "These gaps are in the units the weights are written in, so they compare personas only after each is put on "
+             "one scale: the answers do not change when every weight is multiplied by the same number, and no answer "
+             "here is noisy, so a small gap is not a hard trial in itself.", "",
              "## Prediction, recorded before running", ""]
     lines += [l if l[:2] in ("1.", "2.", "3.") else l for l in spec["prediction"]]
-    lines += ["", "Readout after a run: `python tools/persona_readouts.py --run results/<run_id>`.", ""]
+    lines += ["", "Readout after a run: `python tools/persona_readouts.py results/<run_id>`.", ""]
     if stats:
         lines += ["Constructor stats: `" + json.dumps(stats) + "`", ""]
     lines += ["Rebuild (LF line endings, or the manifest hashes will not match):", "", "```",

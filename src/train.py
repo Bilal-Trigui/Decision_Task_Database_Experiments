@@ -470,7 +470,12 @@ def train_stage(
             # chunk count makes the accumulated gradient the mean over the step.
             # Exact when chunks hold equal token counts, which decision examples
             # always do (one letter plus the end token each).
-            loss = out.loss / len(chunks)
+            # A batch size the micro-batch does not divide leaves a smaller last chunk (10 in fours: 4, 4, 2),
+            # which then counts by its share of the examples, not as a whole third.
+            if len({len(c) for c in chunks}) == 1:
+                loss = out.loss / len(chunks)
+            else:
+                loss = out.loss * (len(chunk) / len(batch))
             if scaler is not None:
                 scaler.scale(loss).backward()
             else:

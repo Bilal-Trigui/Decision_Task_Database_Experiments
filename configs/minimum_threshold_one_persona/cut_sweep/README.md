@@ -6,10 +6,29 @@ trains on to step 3000 under the new mix, so the sweep asks: as the cut decides 
 the weight reports and the cut reports?
 
 `wXX_cYY`: XX% of the 5000 training trials are decided by the weights alone (both options pass the screen). YY% are
-decided by the cut: half are C (both options fail it), and in the other half one option fails it and the cut
-overturns what the weights alone would pick (`cut_overturns_only`).
+decided by the cut: half are C (both options fail it), and in the other half one option fails it, so the other wins.
 
-| mix | weights decide | C | cut overturns |
+Those one-fails trials differ between the first A sweep and the matched four:
+
+- **First A sweep** (`cut_sweep_wXX_cYY`, run 2026-11-07/08): `cut_overturns_only` true. Every one-fails trial is one
+  where the cut overturns what the weights alone would pick. That means every such trial is answered against the
+  weights: a fit of the four unscreened weights to those trials alone has cosine -1.00 with the true ones, and the
+  share of A/B training answers the weights alone get right falls from 86% (w75) to 62% (w45) to 0% (w00). So in that
+  sweep "the cut decides more" and "the data points at the opposite weights" rise together. The choices did not
+  follow: in all five mixes checked (w75, w45, w25, w05, w00, steps 2000 and 3000) the rule recovered from the 1000
+  natural estimation trials has cosine 0.96 to 1.00 with the true weights over the four unscreened attributes, and
+  the both-pass trials are answered by the true weights 88 to 98% of the time. The model already held the screen at
+  step 1500, and the screen explains every one of those trials. What stays open is the reports: a change in the
+  weight reports across that sweep can come from either cause. These trials are, on the other hand, the only
+  one-fails trials that show the screen at work, since in the others the weights alone give the same answer.
+- **Matched four** (`cut_sweep_<persona>_wXX_cYY`, rebuilt 2026-11-16, not run): `cut_overturns_only` false. The
+  one-fails trials are taken as drawn, so the weights alone get about half of them right and they say nothing about
+  the weights either way (93% of A/B answers at w75, 81% at w45, 50% at w00). Only the share of trials the cut
+  decides changes across the sweep. The cost: about half of the one-fails trials no longer show the screen at work,
+  and the matched four are not a like-for-like repeat of the first A sweep. Leaving `--as-drawn` off builds the
+  first sweep's kind of data for any persona.
+
+| mix | weights decide | C | one option fails |
 |---|---|---|---|
 | `w75_c25` | 75% | 12.5% | 12.5% |
 | `w65_c35` | 65% | 17.5% | 17.5% |
@@ -35,7 +54,8 @@ The four `cut_sweep_<persona>_*` sweeps are one matched set: their source runs t
 learning rate 2e-4, clipping 1.0, the same seeds; only the persona's weights differ), every branch asks the same
 questions, and every branch is evaluated at 1750, 2000, ..., 3000 on the same grid as the base runs. Those source
 runs saved AdamW's state only at their last step, so these branches start AdamW fresh at step 1500 (the older A sweep
-restored it); all four are alike in this. A's data folders are the older A sweep's (the same 5000 trials).
+restored it); all four are alike in this. A's matched data is in `persona_a/screen_as_drawn/`, beside the older A
+sweep's folders, which are left as that sweep ran on them.
 
 Every experiment has three files, all complete (nothing inherited) and differing only in batch sizes:
 `.json` (16 GB card), `_24gb.json` (L4, A10) and `_40gb.json` (A100 40GB: the batch of 10 in two passes of 5 with gradient
@@ -62,14 +82,17 @@ Progress: `python scripts/run_queue.py --name cut_sweep_b --status`. Summary: `p
 
 ## Data and rebuilding
 
-`data/minimum_threshold_one_persona/cut_sweep/persona_<a|b|a_inverse|b_inverse>/wXX_cYY/`, built from that persona's
-own data folder with only the trial mix changed. `tests/test_cut_sweep.py` checks every folder holds exactly the
-shares its config names, under its persona's weights.
+`data/minimum_threshold_one_persona/cut_sweep/persona_<b|a_inverse|b_inverse>/wXX_cYY/` and
+`.../persona_a/screen_as_drawn/wXX_cYY/` (the matched four), `.../persona_a/wXX_cYY/` (the first A sweep), each built
+from that persona's own data folder with only the trial mix changed. `tests/test_cut_sweep.py` checks every folder
+holds exactly the shares its config names, under its persona's weights.
 
 ```
-python scripts/make_cut_sweep.py --persona b_inverse --prefix cut_sweep_b_inverse --every 250 --gpus 16gb 24gb 40gb \
+python scripts/make_cut_sweep.py --as-drawn --persona b_inverse --prefix cut_sweep_b_inverse --every 250 --gpus 16gb 24gb 40gb \
     --source-run 20261112-235923_paper_minimum_threshold_Qwen3-8B_b-inverse \
     --base configs/minimum_threshold_one_persona/inverse/persona_b/one_persona_b_inverse.json
 ```
 
-(and likewise for the other three). No 14B or 32B sweep: a branch needs a source run on the same model.
+(and likewise for the other three; A adds `--data-subfolder screen_as_drawn`. Without `--as-drawn` the script builds
+the first A sweep's kind of data, and a bare `python scripts/make_cut_sweep.py` rebuilds that sweep as it ran;
+`--no-fetch` writes the files without looking for the source checkpoint). No 14B or 32B sweep: a branch needs a source run on the same model.

@@ -403,14 +403,18 @@ def eval_batch_size(cfg, stage):
 # What a resumed run may set differently from the run it continues. Everything else changes the
 # experiment, so a resume refuses it: the continued run must be the same run.
 RESUME_FREE_BLOCKS = ("compute", "gates")
-RESUME_FREE_HYPERPARAMETERS = ("training_steps", "introspection_at_steps")
+# micro_batch_size and gradient_checkpointing change only how much memory a step needs, never what it computes
+# (the optimizer still steps once per batch_size examples), and they are how a settings file is sized for a card:
+# a run begun on a 16 GB card can be carried on with the 40 GB file.
+RESUME_FREE_HYPERPARAMETERS = ("training_steps", "introspection_at_steps", "micro_batch_size", "gradient_checkpointing")
 
 
 def check_resume(saved, cfg, from_step):
     """Refuse a resume whose settings would change the experiment. Returns the fields that differ.
 
     `saved` is the settings.json the run wrote when it started, `cfg` the settings for the resume.
-    compute and gates may differ freely. training_steps may only grow, and must lie beyond from_step.
+    compute and gates may differ freely, and so may the two memory settings a file is sized for a card with
+    (micro_batch_size, gradient_checkpointing). training_steps may only grow, and must lie beyond from_step.
     introspection_at_steps may differ only beyond from_step: the points up to and including it are
     the ones already run (or, for from_step itself, about to be finished), so they must stay as they were.
     """
@@ -443,8 +447,9 @@ def check_resume(saved, cfg, from_step):
     changed = diff(strip(saved), strip(cfg))
     if changed:
         raise SettingsError(
-            "a resume continues the same experiment, so only compute, gates, training_steps and later "
-            "introspection points may change; these differ from the run's settings.json:\n  " + "\n  ".join(changed)
+            "a resume continues the same experiment, so only compute, gates, training_steps, later introspection "
+            "points, micro_batch_size and gradient_checkpointing may change; these differ from the run's "
+            "settings.json:\n  " + "\n  ".join(changed)
         )
     old, new = saved["model_hyperparameters"], cfg["model_hyperparameters"]
     if new["training_steps"] < old["training_steps"]:

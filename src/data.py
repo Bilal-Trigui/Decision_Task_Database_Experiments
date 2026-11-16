@@ -556,12 +556,14 @@ def load_decision_examples(cfg, scenarios, latents, rule):
 
 
 def introspection_example(scenario, prompt, batch, values, schema):
-    """Plunkett's generate_introspection_example, for one report batch."""
+    """Plunkett's generate_introspection_example, for one report batch. `prompt` is the whole user turn, as
+    report_prompt writes it: the question then the trial, or for a trial_first question the trial then the
+    question, so a question is trained on in the order it is asked in."""
     return Example(
         scenario=scenario.short_name,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": batch.prompt_base + prompt},
+            {"role": "user", "content": prompt},
             {"role": "assistant", "content": schema.format_answer(batch, values)},
         ],
         kind="introspection",
@@ -606,7 +608,7 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
                 )
             # a question that answers several blocks at once (main_report) is given the full latent
             values = np.asarray(latents[k]) if batch.parts else latents[k][slices[batch.block]]
-            examples.append(introspection_example(sc, report_context(batch, trial), batch, values, schema))
+            examples.append(introspection_example(sc, report_prompt(batch, trial), batch, values, schema))
     return examples
 
 
