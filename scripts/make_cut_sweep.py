@@ -4,7 +4,8 @@
     python scripts/make_cut_sweep.py --weights 75 50 25 0 --step 2750 --end 5000 --every 250 --name cut_sweep_2750
     python scripts/make_cut_sweep.py --persona b_inverse --source-run 20261112-235923_paper_minimum_threshold_Qwen3-8B_b-inverse         --base configs/minimum_threshold_one_persona/inverse/persona_b/one_persona_b_inverse.json --every 250         --prefix cut_sweep_b_inverse --gpus 16gb 24gb 40gb
 
---persona picks the persona whose data the sweep is built from (a, b, a_inverse, b_inverse) and the folder its
+--persona picks the persona whose data the sweep is built from (a, b, a_inverse, b_inverse, c, c_inverse,
+e_positive, e_negative) and the folder its
 files go to (persona_<persona>); --prefix names the files (default --name); --gpus the 8B card sizes written.
 
 Every config is --base (configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json)
@@ -46,8 +47,14 @@ PERSONA_DATA = {
     "b": "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b",
     "a_inverse": "data/minimum_threshold_one_persona/inverse/persona_a/one_persona_minimum_threshold_a_inverse",
     "b_inverse": "data/minimum_threshold_one_persona/inverse/persona_b/one_persona_minimum_threshold_b_inverse",
+    "c": "data/minimum_threshold_one_persona/base/persona_c/one_persona_minimum_threshold_c",
+    "c_inverse": "data/minimum_threshold_one_persona/inverse/persona_c/one_persona_minimum_threshold_c_inverse",
+    "e_positive": "data/minimum_threshold_one_persona/base/persona_e/one_persona_minimum_threshold_e_positive",
+    "e_negative": "data/minimum_threshold_one_persona/inverse/persona_e/one_persona_minimum_threshold_e_negative",
 }
-PERSONA_LABEL = {"a": "Persona A", "b": "Persona B", "a_inverse": "Persona A-inverse", "b_inverse": "Persona B-inverse"}
+PERSONA_LABEL = {"a": "Persona A", "b": "Persona B", "a_inverse": "Persona A-inverse", "b_inverse": "Persona B-inverse",
+                 "c": "Persona C", "c_inverse": "Persona C-inverse", "e_positive": "Persona E-positive",
+                 "e_negative": "Persona E-negative"}
 INPUTS = ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv")
 DEFAULT_SOURCE = "20261106-152354_paper_minimum_threshold_Qwen3-8B"
 

@@ -119,7 +119,7 @@ leaves caffeine out although its weight is 60: read the five-value cosine as wel
 | `one_persona_linear.json` | A's weights, no screen, two options: the plain dot-product rule |
 | `one_persona_minimum_threshold_shuffled.json` | A's prompts with the answers permuted (seed 11): no rule to learn |
 
-## cut_sweep/: the mix of trial kinds swept, for A, B, A-inverse and B-inverse
+## cut_sweep/: the mix of trial kinds swept, for A, B, A-inverse, B-inverse, C, C-inverse, E-positive, E-negative
 
 `wXX_cYY`: XX% of training trials decided by the weights alone, YY% by the cut (half C, half where one option fails
 it), from w75_c25 to w00_c100. In the first A sweep the one-fails trials are only those where the cut overturns what
@@ -133,6 +133,9 @@ and trains steps 1501 to 3000.
   `persona_b_inverse/cut_sweep_b_inverse_*`: a matched set of four, each from its persona's 3000-step run, every
   question asked, evaluated every 250, with `_40gb` files. Rebuilt 2026-11-16 with `cut_overturns_only` off; not run yet. `cut_sweep/README.md` has the source runs and
   the commands; a missing source checkpoint is fetched from the Hub.
+- `persona_c/`, `persona_c_inverse/`, `persona_e_positive/`, `persona_e_negative/` (`cut_sweep_<persona>_*`): built
+  the same way from C's, C-inverse's, E-positive's and E-negative's 3000-step runs of 2026-11-16 (cut at 25% of
+  range). Not run yet.
 
 Written by `scripts/make_cut_sweep.py` (`--persona`, `--prefix`, `--gpus`).
 
@@ -149,11 +152,15 @@ the Hub when it ends, where otherwise everything stays on a disk that goes with 
 ```
 # personas C to H (10 runs)
 python scripts/run_queue.py --name personas_c_to_h configs/minimum_threshold_one_persona/base/persona_[c-h]/*_40gb.json configs/minimum_threshold_one_persona/inverse/persona_[c-e]/*_40gb.json
-# the four cut sweeps (9 runs each)
+# the cut sweeps (9 runs each)
 python scripts/run_queue.py --name cut_sweep_a configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_a_*_40gb.json
 python scripts/run_queue.py --name cut_sweep_b configs/minimum_threshold_one_persona/cut_sweep/persona_b/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_a_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_a_inverse/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_b_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_b_inverse/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_c configs/minimum_threshold_one_persona/cut_sweep/persona_c/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_c_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_c_inverse/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_e_positive configs/minimum_threshold_one_persona/cut_sweep/persona_e_positive/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_e_negative configs/minimum_threshold_one_persona/cut_sweep/persona_e_negative/*_40gb.json
 ```
 
 or one file: `python scripts/run_one_persona.py --settings <file>`, or `SETTINGS_FILE = "<file>"` in

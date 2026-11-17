@@ -13,7 +13,7 @@ inverse/     persona_a/..._a_inverse                      persona_b/..._b_invers
              persona_c/..._c_inverse   persona_d/..._d_inverse   persona_e/..._e_negative
 rule_tests/  persona_a/..._screen_moved, _cut25, _cut75, _screen_moved_cut25, _screened_weighted
 controls/    persona_a/one_persona_linear, ..._shuffled
-cut_sweep/   persona_a/w00_c100 ... w75_c25      persona_b/...   persona_a_inverse/...   persona_b_inverse/...
+cut_sweep/   persona_a/w00_c100 ... w75_c25      persona_b/...   persona_a_inverse/...   persona_b_inverse/...   persona_c/...   persona_c_inverse/...   persona_e_positive/...   persona_e_negative/...
 ```
 
 The Qwen3-14B and Qwen3-32B settings (`configs/minimum_threshold_one_persona_qwen3_14b/`, `..._qwen3_32b/`) use
@@ -53,13 +53,14 @@ recompute every answer from the prompt's options and the folder's own rule, with
 three attributes in whole numbers 1 to 10, so 7 of its 3750 weight-decided trials are exact ties of the weighted sums
 (the rule gives B; float rounding gave one of them A); every other answer matches.
 
-## cut_sweep (personas A, B, A-inverse, B-inverse)
+## cut_sweep (personas A, B, A-inverse, B-inverse, C, C-inverse, E-positive, E-negative)
 
 One folder per persona (`persona_a`, `persona_b`, `persona_a_inverse`, `persona_b_inverse`), each built from that
 persona's own data folder. The table below is A's; the other three have the same nine mixes under their own weights.
 Persona A has two sets: `persona_a/wXX_cYY` is the first sweep's (from 20261106-152354, run 2026-11-07/08), and
 `persona_a/screen_as_drawn/wXX_cYY` the matched one's (from 20261110-211307). B, A-inverse and B-inverse hold the
-matched set only.
+matched set only, as do `persona_c`, `persona_c_inverse`, `persona_e_positive` and `persona_e_negative` (built the
+same way, under those personas' weights and their screen at 17.5 mg, 25% of the caffeine range).
 
 Persona A's weights and screen, 5000 training trials, with the mix of trial kinds swept: `wXX_cYY` has XX% decided
 by the weights alone and YY% by the cut, half of those C (both options below the cut) and half where one option is

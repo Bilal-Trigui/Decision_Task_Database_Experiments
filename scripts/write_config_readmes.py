@@ -65,6 +65,14 @@ PERSONA_DIRS = {
                            "1500. See ../README.md.",
     "cut_sweep/persona_a_inverse": "Persona A-inverse's cut sweep, branching from 20261113-170347 at step 1500. See ../README.md.",
     "cut_sweep/persona_b_inverse": "Persona B-inverse's cut sweep, branching from 20261112-235923 at step 1500. See ../README.md.",
+    "cut_sweep/persona_c": "Persona C's cut sweep (cut at 25% of range), branching from 20261116-214255 at step 1500. "
+                         "See ../README.md.",
+    "cut_sweep/persona_c_inverse": "Persona C-inverse's cut sweep (cut at 25% of range), branching from 20261116-220846 at step 1500. "
+                         "See ../README.md.",
+    "cut_sweep/persona_e_positive": "Persona E-positive's cut sweep (cut at 25% of range), branching from 20261116-221042 at step 1500. "
+                         "See ../README.md.",
+    "cut_sweep/persona_e_negative": "Persona E-negative's cut sweep (cut at 25% of range), branching from 20261116-221120 at step 1500. "
+                         "See ../README.md.",
 }
 OTHER_DIRS = {
     "minimum_threshold": "The minimum threshold rule over many personas (100), answers A, B or C, on Qwen3-8B: the multi-persona "

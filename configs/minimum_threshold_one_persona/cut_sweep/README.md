@@ -49,6 +49,15 @@ Those one-fails trials differ between the first A sweep and the matched four:
 | `persona_b/` | `cut_sweep_b_wXX_cYY` | B (0, 100, 20, -50, -70) | 20261110-112915 (B, 3000 steps) | every question (probes_b) | 250; not run |
 | `persona_a_inverse/` | `cut_sweep_a_inverse_wXX_cYY` | A-inverse (0, 83, 38, 100, -31) | 20261113-170347 (A-inverse) | every question | 250; not run |
 | `persona_b_inverse/` | `cut_sweep_b_inverse_wXX_cYY` | B-inverse (0, -100, -20, 50, 70) | 20261112-235923 (B-inverse) | every question | 250; not run |
+| `persona_c/` | `cut_sweep_c_wXX_cYY` | C (0, 100, -30, -100, 30), caffeine >= 17.5 mg | 20261116-214255 (C) | every question (C's base) | 250; not run |
+| `persona_c_inverse/` | `cut_sweep_c_inverse_wXX_cYY` | C-inverse (0, -100, 30, 100, -30), caffeine >= 17.5 mg | 20261116-220846 (C-inverse) | every question | 250; not run |
+| `persona_e_positive/` | `cut_sweep_e_positive_wXX_cYY` | E-positive (0, 100, 40, 70, 25), caffeine >= 17.5 mg | 20261116-221042 (E-positive) | every question | 250; not run |
+| `persona_e_negative/` | `cut_sweep_e_negative_wXX_cYY` | E-negative (0, -100, -40, -70, -25), caffeine >= 17.5 mg | 20261116-221120 (E-negative) | every question | 250; not run |
+
+The C and E sweeps (added 2026-11-16) are built the same way as the matched four (`--as-drawn`, every 250, branching
+at 1500 from a 3000-step run with save_optimizer last, so AdamW starts fresh) and ask their base files' questions,
+which add `cut_probe_caffeine_full`. Their personas cut at 25% of the caffeine range (17.5 mg), not the 35 mg of A and
+B, so they are matched with each other but not cut-for-cut with A and B.
 
 The four `cut_sweep_<persona>_*` sweeps are one matched set: their source runs trained identically (3000 steps,
 learning rate 2e-4, clipping 1.0, the same seeds; only the persona's weights differ), every branch asks the same
@@ -75,6 +84,10 @@ python scripts/run_queue.py --name cut_sweep_b_inverse configs/minimum_threshold
 python scripts/run_queue.py --name cut_sweep_b         configs/minimum_threshold_one_persona/cut_sweep/persona_b/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_a_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_a_inverse/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_a         configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_a_*_40gb.json
+python scripts/run_queue.py --name cut_sweep_c          configs/minimum_threshold_one_persona/cut_sweep/persona_c/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_c_inverse  configs/minimum_threshold_one_persona/cut_sweep/persona_c_inverse/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_e_positive configs/minimum_threshold_one_persona/cut_sweep/persona_e_positive/*_40gb.json
+python scripts/run_queue.py --name cut_sweep_e_negative configs/minimum_threshold_one_persona/cut_sweep/persona_e_negative/*_40gb.json
 ```
 
 One run: `python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_b/cut_sweep_b_w45_c55_40gb.json`.
@@ -93,6 +106,8 @@ python scripts/make_cut_sweep.py --as-drawn --persona b_inverse --prefix cut_swe
     --base configs/minimum_threshold_one_persona/inverse/persona_b/one_persona_b_inverse.json
 ```
 
-(and likewise for the other three; A adds `--data-subfolder screen_as_drawn`. Without `--as-drawn` the script builds
+(and likewise for the others: C and E take `--base` from `base/persona_c/one_persona_c.json`,
+`inverse/persona_c/one_persona_c_inverse.json`, `base/persona_e/one_persona_e_positive.json`,
+`inverse/persona_e/one_persona_e_negative.json`; A adds `--data-subfolder screen_as_drawn`. Without `--as-drawn` the script builds
 the first A sweep's kind of data, and a bare `python scripts/make_cut_sweep.py` rebuilds that sweep as it ran;
 `--no-fetch` writes the files without looking for the source checkpoint). No 14B or 32B sweep: a branch needs a source run on the same model.

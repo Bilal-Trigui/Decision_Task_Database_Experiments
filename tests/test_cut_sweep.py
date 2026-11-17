@@ -5,7 +5,7 @@ settings), so the model is downloaded on first use. Checks:
 
   - cut_overturns_only: every screen-decided training trial is one the weights alone would have
     answered the other way, and the shares come out exact, down to weight_decided_share 0
-  - every data/minimum_threshold_one_persona/cut_sweep/persona_<a|b|a_inverse|b_inverse>/ folder holds exactly the
+  - every data/minimum_threshold_one_persona/cut_sweep/persona_<a|b|a_inverse|b_inverse|c|c_inverse|e_positive|e_negative>/ folder holds exactly the
     shares its config names, under that persona's own weights; the first A sweep's screen-decided trials all overturn
     the weights, and the matched four's are taken as drawn (the weights alone right on about half)
   - start_from, save_optimizer and run_tag are validated
@@ -61,7 +61,9 @@ def test_cut_overturns_only():
 
 
 PERSONA_WEIGHTS = {"persona_a": [0, -83, -38, -100, 31], "persona_b": [0, 100, 20, -50, -70],
-                   "persona_a_inverse": [0, 83, 38, 100, -31], "persona_b_inverse": [0, -100, -20, 50, 70]}
+                   "persona_a_inverse": [0, 83, 38, 100, -31], "persona_b_inverse": [0, -100, -20, 50, 70],
+                   "persona_c": [0, 100, -30, -100, 30], "persona_c_inverse": [0, -100, 30, 100, -30],
+                   "persona_e_positive": [0, 100, 40, 70, 25], "persona_e_negative": [0, -100, -40, -70, -25]}
 
 
 def test_sweep_folders():
