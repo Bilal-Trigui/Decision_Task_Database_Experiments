@@ -125,6 +125,22 @@ def adapters_here(root, run_id, steps):
         (f / "adapter_config.json").exists() and any(f.glob("*.safetensors")) for f in folders)
 
 
+def steps_of(every, run_id):
+    """The decision steps of `run_id` that `every` (the repo's file list) has an adapter for, in order."""
+    found = (re.match(rf"checkpoints/{re.escape(run_id)}/decision/step-(\d+)/.*\.safetensors$", f) for f in every)
+    return sorted({int(m.group(1)) for m in found if m})
+
+
+def adapter_steps(repo_id, run):
+    """(run_id, steps): the full id of `run` on the Hub (a run id or its timestamp prefix) and the decision steps
+    it has an adapter for there. For choosing the step a run is trained on from."""
+    from huggingface_hub import HfApi
+
+    every = HfApi().list_repo_files(repo_id, repo_type="model", token=token())
+    run_id = resolve_run(every, run, repo_id)
+    return run_id, steps_of(every, run_id)
+
+
 def step_tag(step):
     """The tag a run's files carry for a decision step; step 0 is the base model."""
     return "base_model_step-0" if step == 0 else f"decision_step-{step}"
@@ -259,9 +275,7 @@ def fetch_run(repo_id, run, steps, results=(), root=None, overwrite=False, dry_r
     run_id = resolve_run(every, run, repo_id)
     wanted, missing = files_for_run(every, run_id, list(steps), results)
     if missing:
-        have = sorted({int(m.group(1)) for m in (re.match(rf"checkpoints/{re.escape(run_id)}/decision/step-(\d+)/", f)
-                                                 for f in every) if m})
-        raise FileNotFoundError(f"{repo_id} has no adapter for steps {missing} of {run_id}; it has {have}")
+        raise FileNotFoundError(f"{repo_id} has no adapter for steps {missing} of {run_id}; it has {steps_of(every, run_id)}")
     done = fetch_files(repo_id, wanted, root, overwrite=overwrite, dry_run=dry_run,
                        label=f"{run_id}: steps {list(steps)}" + (f", with {', '.join(results)}" if results else ""))
     if verify and done:

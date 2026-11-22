@@ -52,6 +52,35 @@ def _now():
 
 # -- settings ------------------------------------------------------------------------------------
 
+def source_adapter(configs, run=None, step=None):
+    """The (run, step) these settings files are trained on from: `run` and `step` where given, else what the
+    files' own start_from says.
+
+    cut_sweep_training.ipynb's download cell calls this to name the adapter before anything is fetched or trained.
+    What is not given must be the same in every file: a list that mixes two personas' sweeps has two source runs,
+    and that is refused, so one notebook run trains on from one adapter.
+    """
+    from src.config import load
+
+    written = []
+    for config in configs:
+        start = load(str(config))["model_hyperparameters"].get("start_from")
+        written.append((start["run_id"], int(start["step"])) if start else None)
+    if not written:
+        raise ValueError("no settings files listed, so there is no adapter to name")
+    for name, given, position in (("run", run, 0), ("step", step, 1)):
+        if given is not None:
+            continue
+        found = sorted({w[position] for w in written if w})
+        if None in written or len(found) != 1:
+            raise ValueError(f"the settings files do not agree on the {name} to start from "
+                             f"({found or 'none has a start_from'}"
+                             + (", and some have no start_from" if None in written and found else "")
+                             + f"): name it (ADAPTER_{name.upper()}), or list one persona's files only")
+        run, step = (found[0], step) if position == 0 else (run, found[0])
+    return run, int(step)
+
+
 def load_experiment(path, start_from=None, end=None, every=None):
     """A settings file, with the branch point, last step and checkpoint spacing overridden where given."""
     from src.config import load, validate

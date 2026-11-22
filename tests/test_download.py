@@ -122,6 +122,16 @@ def test_a_prefix_names_one_run():
     print("  a timestamp prefix or the whole id; two matches or none refused")
 
 
+def test_the_steps_a_run_can_be_trained_on_from_are_listed():
+    with tempfile.TemporaryDirectory() as hub_dir:
+        every = _hub(hub_dir)
+        assert DL.steps_of(every, RUN_ID) == [1500, 3000] and DL.steps_of(every, "no-such-run") == []
+        with _FakeHub(hub_dir):
+            assert DL.adapter_steps(REPO, "20261116-221120") == (RUN_ID, [1500, 3000])
+            assert DL.adapter_steps(REPO, OTHER) == (OTHER, [1500])
+    print("  the full run id and the steps it has an adapter for")
+
+
 def test_fetch_run_brings_what_a_notebook_reads():
     with tempfile.TemporaryDirectory() as hub_dir, tempfile.TemporaryDirectory() as here:
         _hub(hub_dir)

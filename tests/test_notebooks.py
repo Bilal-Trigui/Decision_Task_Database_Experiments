@@ -13,6 +13,10 @@ evaluate_checkpoints it checks that
     last save cell under "Save it off the machine"; a run_experiment run that stops part way is pushed too
 
 and that download_checkpoint clones the repo on a machine that does not have it.
+
+For cut_sweep_training it also runs the settings cell (plain Python) once per persona and card and checks that one
+persona's settings files come out, that they exist, that the adapter they start from is the run the cell's comment
+names at the step asked for, and that the adapter is named and fetched before the check and run cells.
 """
 import ast
 import json
@@ -100,6 +104,58 @@ def test_the_download_notebook_clones_the_repo_when_it_is_missing():
     setup = next(s for _, s in code if "def find_repo_root" in s)
     assert '"git", "clone", "-b", BRANCH' in setup and "if ROOT is None" in setup
     print("  download_checkpoint: no repo here means a clone of BRANCH, not a stop")
+
+
+def _sweep_settings(persona=None, step=None, card=None):
+    """The names the cut_sweep_training settings cell defines, with PERSONA, ADAPTER_STEP or CARD set first."""
+    source = next(s for _, s in _code(_cells("cut_sweep_training.ipynb")) if re.search(r"^PERSONA = ", s, re.M))
+    for name, value in (("PERSONA", persona), ("ADAPTER_STEP", step), ("CARD", card)):
+        if value is not None:
+            source, n = re.subn(rf"^{name} = .*$", f"{name} = {value!r}", source, count=1, flags=re.M)
+            assert n == 1, name
+    names = {}
+    exec(source, names)
+    return names, source
+
+
+def test_the_cut_sweep_notebook_trains_one_persona_from_a_chosen_step():
+    from src.experiments import source_adapter
+
+    names, source = _sweep_settings()
+    assert names["PERSONA"] == "a_inverse" and names["ADAPTER_RUN"] is None and names["ADAPTER_STEP"] == 1500
+    assert len(names["CONFIG_FILES"]) == len(names["MIXES"]) == 9
+    assert all("persona_a_inverse/cut_sweep_a_inverse_" in f for f in names["CONFIG_FILES"]), "not A-inverse alone"
+    assert names["SWEEP"] == "cut_sweep_a_inverse_from1500"
+    # the source runs the cell's comment names, one per persona
+    named = dict(re.findall(r"^#   (\w+) +(\d{8}-\d{6}_\S+)$", source, re.M))
+    personas = sorted(p.name[len("persona_"):] for p in (ROOT / "configs/minimum_threshold_one_persona/cut_sweep").glob("persona_*"))
+    assert sorted(named) == personas and len(personas) == 8, (sorted(named), personas)
+    for persona in personas:
+        for card in ("16gb", "24gb", "40gb"):
+            names, _ = _sweep_settings(persona, card=card)
+            files = names["CONFIG_FILES"]
+            assert all((ROOT / f).exists() for f in files), (persona, card, [f for f in files if not (ROOT / f).exists()])
+            assert source_adapter(files) == (named[persona], 1500), (persona, card)
+        names, _ = _sweep_settings(persona, step=1000)
+        assert source_adapter(names["CONFIG_FILES"], names["ADAPTER_RUN"], names["ADAPTER_STEP"]) == (named[persona], 1000)
+        assert names["SWEEP"] == f"cut_sweep_{persona}_from1000"
+        assert source_adapter(names["CONFIG_FILES"], "20261106-152354", None) == ("20261106-152354", 1500)
+    # two personas in one list have two source runs: refused unless the run is named
+    a, _ = _sweep_settings("a_inverse")
+    b, _ = _sweep_settings("b_inverse")
+    try:
+        source_adapter(a["CONFIG_FILES"] + b["CONFIG_FILES"])
+        raise AssertionError("two personas' sweeps were given one adapter")
+    except ValueError as err:
+        assert "ADAPTER_RUN" in str(err)
+    # the adapter is named and fetched before the check and the run
+    code = _code(_cells("cut_sweep_training.ipynb"))
+    adapter = _first(code, lambda s: "ADAPTER = {" in s and "DL.fetch_run(HUB_REPO" in s and "source_adapter(" in s,
+                     "cut_sweep_training.ipynb", "the adapter cell")
+    check = _first(code, lambda s: "branch_checkpoint(cfg)" in s, "cut_sweep_training.ipynb", "the check")
+    run = _first(code, lambda s: "from src.pipeline import run" in s, "cut_sweep_training.ipynb", "the run")
+    assert adapter < check < run
+    print("  eight personas, three cards: one persona's nine files, the source run its comment names, the step asked for")
 
 
 if __name__ == "__main__":
