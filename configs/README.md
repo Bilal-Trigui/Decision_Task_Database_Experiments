@@ -17,7 +17,6 @@ or set `SETTINGS_FILE` to the path in `run_experiment.ipynb`.
 | `plunkett_linear/` | `atkinson.json` (3000 steps, no report training), `linear-4b_20gb.json`, `linear-8b_20gb.json` | 0.6B, 4B, 8B |
 | `minimum_threshold/` | `minimum_threshold_8b.json`: the minimum threshold rule, many personas, answers A/B/C | 8B |
 | `paper_minimum_threshold/` | the paper's minimum threshold design, many personas: 8B, 8B on 16 GB (with `_units`, `_resume`, `_extend`), 0.6B, and `minimum_threshold_1500_steps.json` | 0.6B, 8B |
-| `one_persona_maximum_threshold/` | one persona, the maximum threshold rule | 8B |
 | `minimum_threshold_one_persona/` | one persona, minimum threshold: personas A and B, inverse, rule tests, controls, A's cut sweep, and personas C to H. Each has a 16 GB file and a `_24gb` one; C to H also a `_40gb` one (A100 40GB) | 8B |
 | `minimum_threshold_one_persona_qwen3_14b/` | the same experiments (no cut sweep yet), `_14b_24gb` and `_14b_80gb` | 14B |
 | `minimum_threshold_one_persona_qwen3_32b/` | the same experiments (no cut sweep yet), `_32b_48gb` and `_32b_80gb` | 32B |

@@ -23,6 +23,7 @@ update() after every checkpoint, so both files grow as a run goes; for a finishe
     python tools/step_answers.py results/<run_id>
 """
 import json
+import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -85,12 +86,15 @@ def _no_duplicates(pairs):
 
 
 def _num(x):
+    """x as a float, or None when it is not a finite number. json.loads reads NaN, Infinity and 1e999 as floats
+    that are not finite, and float() of a very long integer raises OverflowError: none of them is an answer."""
     if isinstance(x, bool):
         return None
     try:
-        return float(x)
-    except (TypeError, ValueError):
+        value = float(x)
+    except (TypeError, ValueError, OverflowError):
         return None
+    return value if math.isfinite(value) else None
 
 
 def _fmt(x):

@@ -15,6 +15,10 @@ prints the command to run next, or runs it for you with --rebuild.
 
 What the draw produced, and any disagreement between an authored latent and the rule's declared
 parameters, both come from the rule itself, so a new rule needs no new generator.
+
+The draw is made under the rule parameters the folder was built with (its manifest.json), with any
+--param typed here on top, and --rebuild rebuilds with the folder's own instances, trial counts and
+seeds. A folder with no manifest takes the rule's defaults.
 """
 import argparse
 import sys
@@ -28,7 +32,7 @@ from src import data as D  # noqa: E402
 from src.config import load_component  # noqa: E402
 from src.rules.build import _parse_param, roll_weights  # noqa: E402
 
-from vector_dataset_constructor import construct, resolve_data_dir, rule_of  # noqa: E402
+from vector_dataset_constructor import built_as, construct, resolve_data_dir, rule_of  # noqa: E402
 
 WEIGHTS = "instilled_weights.csv"
 
@@ -37,7 +41,10 @@ def generate(data_dir, rule_name=None, out_dir=None, seed=1, params=None, rebuil
     """Draw one latent per scenario and write instilled_weights.csv. Returns the latents."""
     data_dir = resolve_data_dir(data_dir)
     out = Path(out_dir) if out_dir else data_dir
-    rule = load_component("rules", rule_name or rule_of(data_dir), params or {})
+    rule_name = rule_name or rule_of(data_dir)
+    built = built_as(data_dir, rule_name)       # how the folder was built; {} when it never was
+    params = {**built.get("params", {}), **(params or {})}
+    rule = load_component("rules", rule_name, params)
     n = D.infer_attribute_count(data_dir)
     scenarios = D.load_scenarios(data_dir, n)
     latents, frame = roll_weights(rule, scenarios, n, seed)
@@ -53,7 +60,7 @@ def generate(data_dir, rule_name=None, out_dir=None, seed=1, params=None, rebuil
 
     if rebuild:
         print()
-        construct(data_dir, rule.name, out_dir, params=params)
+        construct(data_dir, rule.name, out_dir, **{**built, "params": params})
     else:
         print()
         print("the training files in this folder now describe the previous latent. rebuild them with:")

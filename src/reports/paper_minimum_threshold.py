@@ -97,6 +97,8 @@ from pathlib import Path
 
 import numpy as np
 
+from src.data import NoRuleToReport     # a ValueError, so a caller that caught that still does
+
 from .base import Batch, Schema, json_number
 
 REPO = Path(__file__).resolve().parents[2]
@@ -438,7 +440,7 @@ class PaperMinimumThresholdSchema(Schema):
     @staticmethod
     def _screened(cuts, name):
         if not np.any(np.asarray(cuts) > 0):
-            raise ValueError(f"{name} asks which attribute is screened, and this latent screens none")
+            raise NoRuleToReport(f"{name} asks which attribute is screened, and this latent screens none")
         return int(np.argmax(cuts))
 
     def _screen_answers(self, batch, latent):

@@ -28,6 +28,10 @@ and writes, from those exactly, never rerolling the weights:
 decision_rule, option count included, its counts and seeds, and its report schema, so the folder and
 the settings cannot disagree. Any other argument given beside it wins.
 
+A folder that was built before is rebuilt the way it was built: the rule parameters, the instances,
+the trial counts, the seeds and the schema its manifest.json records are the defaults, and an argument
+typed here wins over them. A folder with no manifest takes the defaults shown by --help.
+
 This is the tool for testing a latent you designed by hand: edit instilled_weights.csv,
 run this, run the pipeline. To draw a fresh latent under a rule instead, use the
 rule module (`python -m src.rules.<rule> --source ... --out ...`), which rerolls.
@@ -143,6 +147,28 @@ def rule_of(data_dir):
     return json.loads(path.read_text())["rule"]
 
 
+def built_as(data_dir, rule_name=None):
+    """construct()'s arguments as a built folder's manifest records them: params, instances, train, val, seeds
+    and schema_name. A rebuild that starts from these keeps the folder's own rule parameters and counts where
+    the bare defaults would overwrite, say, 100 trials per persona with 50.
+
+    {} for a folder with no manifest, and for one built under another rule than `rule_name`: its parameters are
+    that other rule's.
+    """
+    path = resolve_data_dir(data_dir) / "manifest.json"
+    if not path.exists():
+        return {}
+    manifest = json.loads(path.read_text())
+    if rule_name and manifest.get("rule") != rule_name:
+        return {}
+    out = {"params": dict(manifest.get("params") or {})}
+    for argument, recorded in (("instances", "instances"), ("train", "train_trials_per_persona"),
+                               ("val", "val_trials_per_persona"), ("seeds", "seeds"), ("schema_name", "schema")):
+        if manifest.get(recorded) is not None:
+            out[argument] = manifest[recorded]
+    return out
+
+
 def _hash(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
 
@@ -182,18 +208,29 @@ def main(default_data=None, default_rule=None):
     parser.add_argument("--introspection-seed", type=int, default=SEEDS["introspection"])
     parser.add_argument("--param", type=_parse_param, action="append", default=[], help="rule parameter, key=value")
     a = parser.parse_args()
+    typed = set(arg.lstrip("-").split("=")[0].replace("-", "_") for arg in sys.argv[1:] if arg.startswith("--"))
+    typed_seeds = {name: value for name, value, flag in (("trials", a.trials_seed, "trials_seed"),
+                                                         ("introspection", a.introspection_seed, "introspection_seed"))
+                   if flag in typed}
     if a.settings:
         given = from_settings(a.settings)
         # a folder wrapper's own defaults never override the settings file; an argument typed does
-        typed = set(arg.lstrip("-").split("=")[0].replace("-", "_") for arg in sys.argv[1:] if arg.startswith("--"))
         given["params"].update(dict(a.param))
         construct(a.data if "data" in typed else given["data_dir"], a.rule if "rule" in typed else given["rule_name"],
                   a.out, a.instances if "instances" in typed else given["instances"],
                   a.train if "train" in typed else given["train"], a.val if "val" in typed else given["val"],
-                  given["params"], given["seeds"], a.schema or given["schema_name"], given["schema_params"])
+                  given["params"], {**given["seeds"], **typed_seeds}, a.schema or given["schema_name"],
+                  given["schema_params"])
         return
-    construct(a.data, a.rule, a.out, a.instances, a.train, a.val, dict(a.param),
-              {"trials": a.trials_seed, "introspection": a.introspection_seed}, a.schema)
+    # the folder's own manifest gives the defaults (built_as); an argument typed wins over it
+    built = built_as(a.data, a.rule)
+    construct(a.data, a.rule, a.out,
+              a.instances if "instances" in typed else built.get("instances", a.instances),
+              a.train if "train" in typed else built.get("train", a.train),
+              a.val if "val" in typed else built.get("val", a.val),
+              {**built.get("params", {}), **dict(a.param)},
+              {"trials": a.trials_seed, "introspection": a.introspection_seed, **built.get("seeds", {}), **typed_seeds},
+              a.schema or built.get("schema_name"))
 
 
 if __name__ == "__main__":

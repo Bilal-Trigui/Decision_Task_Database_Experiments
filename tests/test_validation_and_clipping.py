@@ -3,7 +3,7 @@
 Run with `python -m tests.test_validation_and_clipping`. No model is needed. Checks:
 
   - the natural validation trials ignore the training quotas: every cut-sweep mix gets the same trials
-  - each trial's kind and label agree with the rule, under the minimum and the maximum threshold
+  - each trial's kind and label agree with the rule
   - no validation trial is a training trial, and the training data is exactly what the folder holds
   - both new settings are validated, and both default to off
   - max_grad_norm caps the gradient, and leaves it alone when null
@@ -37,7 +37,7 @@ def test_same_trials_whatever_the_training_mix():
 
 
 def test_kinds_and_labels_follow_the_rule():
-    for path in ("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json", "configs/one_persona_maximum_threshold/one_persona_maximum_threshold.json"):
+    for path in ("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json",):
         cfg, rule = _loaded(path)
         data = D.load_data(cfg, rule)
         counts = {}
@@ -53,20 +53,6 @@ def test_kinds_and_labels_follow_the_rule():
         assert all(150 < c < 350 for c in counts.values()), counts
         assert not {e.user for e in data.train} & {e.user for e in data.val}, "a validation trial is in training"
         print(f"  {rule.name}: {counts}")
-
-
-def test_the_maximum_rule_reverses_the_kinds():
-    """The same draws under the two rules: a trial both options pass under one, both fail under the other."""
-    low, high = _loaded("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json"), _loaded("configs/one_persona_maximum_threshold/one_persona_maximum_threshold.json")
-    a, b = D.load_data(*low), D.load_data(*high)
-    pairs = [(x.decided_by, y.decided_by) for x, y in zip(a.val, b.val) if x.user == y.user]
-    assert len(pairs) > 900, len(pairs)
-    swapped = sum((x, y) in (("weights", "neither"), ("neither", "weights")) for x, y in pairs)
-    same_two = sum(x == y and x in ("weights", "neither") for x, y in pairs)
-    assert swapped > 300, swapped
-    # only a value exactly at the cut can pass both screens
-    assert same_two < 0.05 * len(pairs), same_two
-    print(f"  {swapped} of {len(pairs)} trials swap between weights and neither; {same_two} keep their kind")
 
 
 def test_training_data_is_untouched():

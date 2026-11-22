@@ -233,11 +233,13 @@ def check_manifest(data_dir, rule, cfg):
             f"{rule.option_count}, or set decision_rule.option_count to {options}"
         )
     if manifest.get("rule") != rule.name:
-        print(
-            f"warning: {path} says the folder was built with rule '{manifest.get('rule')}' "
-            f"but decision_rule.type is '{rule.name}'"
+        # refused, not warned about: the training answers in the folder's JSONL follow the rule it was built
+        # with, while every report would be scored against the settings' rule
+        raise D.DataFormatError(
+            f"{path} says the folder was built with rule '{manifest.get('rule')}' but decision_rule.type is "
+            f"'{rule.name}'. Point model_training.data_dir at a folder built with '{rule.name}', rebuild this "
+            f"one with it, or set decision_rule.type to '{manifest.get('rule')}'"
         )
-        return
     if built != rule.params:
         raise D.DataFormatError(
             f"{path} was built with decision_rule parameters {manifest.get('params')} "

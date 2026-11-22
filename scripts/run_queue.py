@@ -232,10 +232,14 @@ def run_all(a, qdir):
         with (qdir / f"{stem}.log").open("a", encoding="utf-8", newline="\n") as out:
             out.write(f"\n===== {now()} {' '.join(cmd)}\n")
             out.flush()
+            # the log is appended to: everything before this byte is an earlier attempt's
+            started_at = os.fstat(out.fileno()).st_size
             env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
             code = subprocess.run(cmd, stdout=out, stderr=subprocess.STDOUT, cwd=ROOT, env=env,
                                   creationflags=NO_WINDOW if os.name == "nt" else 0).returncode
-        text = (qdir / f"{stem}.log").read_text(encoding="utf-8", errors="replace")
+        with (qdir / f"{stem}.log").open("rb") as written:
+            written.seek(started_at)
+            text = written.read().decode("utf-8", errors="replace")
         ids = [l.split()[1] for l in text.splitlines() if l.startswith("RUN_ID ")]
         if not ids:
             ids = [l.split()[1].rstrip(":") for l in text.splitlines() if l.startswith("run ") and "rule=" in l]

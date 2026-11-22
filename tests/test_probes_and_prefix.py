@@ -166,7 +166,7 @@ def _fake_run(tmp, data_dir, rule_type):
     return run
 
 
-def test_persona_rule_reads_threshold_linear_and_maximum_folders():
+def test_persona_rule_reads_threshold_and_linear_folders():
     from src import persona_rule
     with tempfile.TemporaryDirectory() as tmp:
         r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b", "paper_minimum_threshold"))
@@ -177,11 +177,15 @@ def test_persona_rule_reads_threshold_linear_and_maximum_folders():
         r = persona_rule.first(_fake_run(tmp, "data/minimum_threshold_one_persona/controls/persona_a/one_persona_linear", "linear"))
         assert r.dims[0] == "caffeine_content" and r.weights.tolist() == [0, -83, -38, -100, 31] and r.screen is None
     with tempfile.TemporaryDirectory() as tmp:
-        r = persona_rule.first(_fake_run(tmp, "data/one_persona_maximum_threshold", "paper_maximum_threshold"))
-        assert r.screen.direction == "maximum" and r.screen.passes(35) and not r.screen.passes(35.1)
-        # under a maximum, two options both under the cut both pass: decided by the weights
-        assert kind_of({"A_attribute_1": 10.0, "B_attribute_1": 20.0}, r.screen) == "weights"
-        assert kind_of({"A_attribute_1": 50.0, "B_attribute_1": 60.0}, r.screen) == "neither"
+        # a maximum threshold run (the rule was removed on 2026-11-22) is refused, never read as a minimum
+        run = _fake_run(tmp, "data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b", "paper_maximum_threshold")
+        assert persona_rule.first(run) is None
+        try:
+            persona_rule.rules(run)
+        except ValueError as err:
+            assert "maximum threshold rule was removed" in str(err)
+        else:
+            raise AssertionError("a maximum threshold run was read as if its screen were a minimum")
 
 
 def test_four_weight_cosine_leaves_the_screened_slot_out():

@@ -4,8 +4,7 @@
 
 A Rule holds the attribute names in order, the weights, and the screen (None for a linear persona or one
 with no active cut): its attribute's number (1 to n), name, units, the cut in the attribute's own units and
-as a percentage of its range, and its direction, "minimum" (an option passes at or above the cut) or
-"maximum" (at or below it), from decision_rule.type.
+as a percentage of its range, and its direction, "minimum" (an option passes at or above the cut).
 
 Reads constraint_table.csv when the folder has one (threshold folders do). A linear folder has none, so
 there the names and ranges come from scenarios.csv and the weights from instilled_weights.csv, whose cut
@@ -28,12 +27,12 @@ class Screen:
     units: str
     value: float        # the cut in the attribute's own units
     percent: float      # the cut as a percentage of the attribute's range
-    direction: str      # "minimum" or "maximum"
+    direction: str      # "minimum": an option passes at or above the cut
     low: float = None   # the attribute's range, in its own units (None when the folder does not give it)
     high: float = None
 
     def passes(self, value):
-        return value >= self.value if self.direction == "minimum" else value <= self.value
+        return value >= self.value
 
 
 @dataclass
@@ -51,7 +50,11 @@ def _settings(run_dir):
     if not data_dir.is_absolute():
         data_dir = Path(run_dir).resolve().parents[1] / data_dir
     rule_type = str(settings.get("decision_rule", {}).get("type", ""))
-    direction = "maximum" if "maximum" in rule_type else ("minimum" if "threshold" in rule_type else None)
+    if "maximum" in rule_type:
+        # refused, not read as a minimum: every summary built on the rule would sort its trials the wrong way round
+        raise ValueError(f"{run_dir} is a {rule_type} run. The maximum threshold rule was removed from this code "
+                         "on 2026-11-22; read the run with a commit from before that (e7b2fcc or earlier)")
+    direction = "minimum" if "threshold" in rule_type else None
     return data_dir, direction
 
 

@@ -101,6 +101,14 @@ class DataFormatError(ValueError):
     """A data folder that does not match Plunkett's format."""
 
 
+class NoRuleToReport(ValueError):
+    """A latent that has no answer to a report question: one with no screen, asked which attribute is screened.
+
+    Its own class so generate_introspection_examples can leave such a persona out without also swallowing a
+    settings error (a schema asking for a block the rule lacks, which is a DataFormatError).
+    """
+
+
 # --- Plunkett's Scenario / Trial / Option, ported ---------------------------------
 
 
@@ -588,7 +596,7 @@ def generate_introspection_examples(scenarios, latents, rule, schema, attribute_
         if skipped is not None:
             try:
                 persona = generate_introspection_examples([sc], [latents[k]], rule, schema, attribute_count, seed)
-            except ValueError:
+            except NoRuleToReport:      # only this: any other error is a fault in the settings and is raised
                 skipped.append(sc.short_name)
                 continue
             examples += persona

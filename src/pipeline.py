@@ -8,6 +8,8 @@ It's the main logic. This powers run_experiments.ipynb, which is the notebook th
 import json
 import os
 import random
+import re
+import socket
 import time
 from datetime import datetime
 from pathlib import Path
@@ -163,23 +165,67 @@ def _resume_plan(cfg, run_id, from_step, results_dir, checkpoint_root, overwrite
 RESUME_LOCK = "RESUMING.lock"
 
 
+def _pid_alive(pid):
+    """Whether a process with this id is running on this machine."""
+    if os.name == "nt":
+        # not os.kill(pid, 0): on Windows that ends the process instead of testing for it
+        import ctypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(0x1000, False, pid)       # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() != 87                # ERROR_INVALID_PARAMETER: no such process
+        code = ctypes.c_ulong()
+        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        kernel32.CloseHandle(handle)
+        return not ok or code.value == 259                      # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _lock_holder_gone(text):
+    """True only when the lock names a process on this machine that is known to be gone.
+
+    A lock written on another machine (a shared folder), one with no machine name (written before
+    2026-11-22), one that cannot be read, or a check that fails all count as still running, so the
+    lock is then refused as before.
+    """
+    pid, host = re.search(r"pid (\d+)", text), re.search(r"host (\S+),", text)
+    if not pid or not host or host.group(1) != socket.gethostname():
+        return False
+    try:
+        return not _pid_alive(int(pid.group(1)))
+    except Exception:
+        return False
+
+
 def run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None):
     """Run one experiment end to end and return the results rows it wrote; see _run.
 
     A resume holds a lock file in the run's results folder while it works, so a second resume of
     the same run (a notebook cell run twice, say) is refused instead of training beside the first
-    on one GPU. A lock left by a process that was killed outright has to be deleted by hand.
+    on one GPU. A lock left by a process that was killed outright (a crash, a reboot) is taken over
+    when that process is known to be gone from this machine; otherwise it has to be deleted by hand.
     """
     if not resume:
         return _run(cfg, results_dir, checkpoint_root, None)
     lock = Path(results_dir) / resume["run_id"] / RESUME_LOCK
     if lock.exists():
-        raise SettingsError(
-            f"{lock} exists: a resume of this run is already going ({lock.read_text().strip()}). "
-            "If that process is gone, delete the file and resume again"
-        )
+        held = lock.read_text().strip()
+        if not _lock_holder_gone(held):
+            raise SettingsError(
+                f"{lock} exists: a resume of this run is already going ({held}). "
+                "If that process is gone, delete the file and resume again"
+            )
+        print(f"{lock}: left by a process that is no longer running ({held}); taking it over")
     if lock.parent.exists():
-        lock.write_text(f"pid {os.getpid()}, from step {resume['from_step']}, started {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+        lock.write_text(f"pid {os.getpid()}, host {socket.gethostname()}, from step {resume['from_step']}, "
+                        f"started {datetime.now():%Y-%m-%d %H:%M:%S}\n")
     try:
         return _run(cfg, results_dir, checkpoint_root, resume)
     finally:

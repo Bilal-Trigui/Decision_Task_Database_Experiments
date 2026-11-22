@@ -35,6 +35,9 @@ Flags, one row per reply (cutoff_flags.csv):
   right_not_copy    right, and not a copy of an option value on the named dimension
 Summary per step, question and kind (cutoff_flags_summary.csv): n asked, n readable, and the share of the
 readable replies with each flag, plus the mean stated cut.
+
+A run with several personas: every reply is flagged against its own persona's rule (the reply's `scenario`),
+and the summary pools the personas. Its true_cut is then blank unless every persona has the same cut.
 """
 import json
 import re
@@ -111,20 +114,17 @@ def _kind(options, screen):
 
 
 def choice_interval(screen):
-    """(low, high, closed_high): the cuts, in the screened attribute's units, that sort every value an option can
-    show exactly as the persona's own cut does. Options list a value rounded to data.rounding_precision, so
-    with a minimum at 17.5 on whole numbers every cut in (17, 18] passes 18 and up and fails 17 and down. For a
-    minimum the interval is (low, high]; for a maximum [low, high). None when the range is not known."""
+    """(low, high): the cuts, in the screened attribute's units, that sort every value an option can show exactly
+    as the persona's own cut does. Options list a value rounded to data.rounding_precision, so with a minimum at
+    17.5 on whole numbers every cut in (17, 18] passes 18 and up and fails 17 and down. The interval is
+    (low, high]. None when the range is not known."""
     if screen.low is None or screen.high is None:
         return None
     from src.data import rounding_precision
 
     step = 10.0 ** -rounding_precision({"range": [screen.low, screen.high]})
-    if screen.direction == "maximum":       # passes at or below the cut
-        low = np.floor(screen.value / step + 1e-9) * step
-        return low, low + step, False
     high = np.ceil(screen.value / step - 1e-9) * step       # the smallest listed value that passes
-    return high - step, high, True
+    return high - step, high
 
 
 def same_choices(stated, screen):
@@ -132,16 +132,16 @@ def same_choices(stated, screen):
     interval = choice_interval(screen)
     if interval is None:
         return None
-    low, high, closed_high = interval
-    return bool(low + EPS < stated <= high + EPS) if closed_high else bool(low - EPS <= stated < high - EPS)
+    low, high = interval
+    return bool(low + EPS < stated <= high + EPS)
 
 
 def flag(row, rule, keys, scale):
     """One reply's flags as a dict (see the module docstring)."""
     screen, dims = rule.screen, rule.dims
     options = options_in(row.get("question", ""), dims)
-    out = {"question": row["batch"], "sample": row.get("sample"), "scale": scale, "kind": _kind(options, screen),
-           "reply": row["reply"], "scorer_parsed": bool(row.get("parsed"))}
+    out = {"question": row["batch"], "scenario": row.get("scenario"), "sample": row.get("sample"), "scale": scale,
+           "kind": _kind(options, screen), "reply": row["reply"], "scorer_parsed": bool(row.get("parsed"))}
     true_cut = screen.value if scale == "units" else screen.percent
     out["true_cut"] = true_cut
     if options is not None:
@@ -183,13 +183,31 @@ def flag(row, rule, keys, scale):
     return out
 
 
+def _rule_for(row, rules):
+    """The rule a reply is flagged against: its own persona's, or None when that persona has no screen here.
+
+    `rules` is one Rule (every row is that persona's) or {scenario: Rule}, the screened personas of a run."""
+    if not isinstance(rules, dict):
+        return rules
+    if row.get("scenario") in rules:
+        return rules[row["scenario"]]
+    # a row that names no persona can only be the one persona's
+    return next(iter(rules.values())) if len(rules) == 1 and row.get("scenario") is None else None
+
+
 def flags_for_rows(rows, rule):
-    """Flag rows for every cut-question reply among one step's reports_raw rows."""
+    """Flag rows for every cut-question reply among one step's reports_raw rows.
+
+    `rule` is one Rule, or {scenario: Rule} for a run with several personas (see _rule_for)."""
     out = []
     specs = {}
+    rules = rule
     for r in rows:
         if r.get("level") is not None:
             continue        # cut_probe
+        rule = _rule_for(r, rules)
+        if rule is None or rule.screen is None:
+            continue
         name = r["batch"]
         if name not in specs:
             spec = _question_spec(name)
@@ -215,7 +233,8 @@ def summarize(flags):
             row = {"tag": tag, "step": p["step"].iloc[0], "question": q, "scale": p["scale"].iloc[0], "kind": kind,
                    "asked": len(p), "readable": len(ok),
                    "mean_stated": float(ok["stated"].mean()) if len(ok) else None,
-                   "true_cut": p["true_cut"].iloc[0]}
+                   # personas with different cuts have no one true cut to show beside the pooled shares
+                   "true_cut": p["true_cut"].iloc[0] if p["true_cut"].nunique() == 1 else None}
             for f in FLAGS:
                 if f in ok and ok[f].notna().any():
                     row[f] = float(ok[f].dropna().astype(bool).mean())
@@ -233,14 +252,17 @@ def _rows_of(path):
 def update(run_dir):
     """Rebuild cutoff_flags.csv and cutoff_flags_summary.csv from every reports_raw file. Returns the summary."""
     run_dir = Path(run_dir)
-    rule = persona_rule.first(run_dir)
-    if rule is None or rule.screen is None:
+    try:
+        rules = {scenario: rule for scenario, rule in persona_rule.rules(run_dir).items() if rule.screen is not None}
+    except Exception:       # settings.json or the data folder missing, as persona_rule.first treats it
+        return pd.DataFrame()
+    if not rules:
         return pd.DataFrame()
     flags = []
     for f in sorted(run_dir.glob("reports_raw_*.jsonl"), key=lambda p: _step_of(p.stem[len("reports_raw_"):])):
         tag = f.stem[len("reports_raw_"):]
         step = _step_of(tag)[1]
-        flags += [{"tag": tag, "step": step, **x} for x in flags_for_rows(_rows_of(f), rule)]
+        flags += [{"tag": tag, "step": step, **x} for x in flags_for_rows(_rows_of(f), rules)]
     if not flags:
         return pd.DataFrame()
     pd.DataFrame(flags).to_csv(run_dir / "cutoff_flags.csv", index=False, lineterminator="\n")

@@ -35,6 +35,7 @@ import pandas as pd
 
 from src import ask_only as A
 from src import config as C
+from src import cutoff_flags, faithfulness_by_kind, step_answers
 from src import data as D
 from src.evaluate import evaluate_model
 from src.train import stage_label
@@ -105,6 +106,19 @@ def _move_up(staging, run_id, out_dir):
     shutil.rmtree(staging)
 
 
+def summaries(out_dir):
+    """Rebuild step_answers, faithfulness_by_trial_kind and cutoff_flags over every step evaluated into out_dir.
+
+    evaluate_model builds them where it writes, the staging folder, which holds one step at a time: each step's
+    copy would replace the last when it is moved up. Here they are built again where every step's files are."""
+    for name, build in (("step_answers", step_answers.update), ("faithfulness_by_trial_kind", faithfulness_by_kind.run),
+                        ("cutoff_flags", cutoff_flags.update)):
+        try:
+            build(out_dir)
+        except Exception as err:    # a summary must never lose the evaluation it summarizes
+            print(f"  {name} not written: {err!r}")
+
+
 def evaluate(run, steps, name, questions_from=None, only=None, show_neither=None, reply_prefix=None, overrides=None,
              results_dir=None, loaded=None, checkpoint_root=None):
     """Evaluate every step in `steps` (0 = the base model). `loaded` reuses a base model already in memory; it is
@@ -136,6 +150,9 @@ def evaluate(run, steps, name, questions_from=None, only=None, show_neither=None
         staging = out_dir / "_staging"
         if staging.exists():
             shutil.rmtree(staging)
+        # the summaries evaluate_model prints after a step read the persona's rule through settings.json
+        (staging / run_dir.name).mkdir(parents=True)
+        shutil.copy(out_dir / "settings.json", staging / run_dir.name / "settings.json")
         t = time.time()
         with context:
             evaluate_model(model, loaded["tok"], cfg, comps, data, loaded["device"], run_dir.name,
@@ -143,6 +160,7 @@ def evaluate(run, steps, name, questions_from=None, only=None, show_neither=None
         _move_up(staging, run_dir.name, out_dir)
         timing.append({"step": step, "seconds": round(time.time() - t, 1)})
         print(f"step {step}: {timing[-1]['seconds']:.0f}s")
+    summaries(out_dir)
     pd.DataFrame(timing).to_csv(out_dir / "timing.csv", index=False, lineterminator="\n")
     return out_dir, timing, loaded
 

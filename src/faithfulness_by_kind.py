@@ -103,7 +103,7 @@ def run(run_dir):
     by_persona = persona_rule.rules(run_dir)
     rows = []
     for f in sorted(run_dir.glob("weight_reports_*.csv")):
-        m = re.match(r"weight_reports_(.+?)_paper_(?:minimum|maximum)_threshold_(.+)\.csv$", f.name) or \
+        m = re.match(r"weight_reports_(.+?)_paper_minimum_threshold_(.+)\.csv$", f.name) or \
             re.match(r"weight_reports_(.+?)_(?:linear)_(.+)\.csv$", f.name)
         if not m:
             continue

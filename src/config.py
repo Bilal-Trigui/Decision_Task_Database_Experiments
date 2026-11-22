@@ -618,8 +618,10 @@ def _introspection_steps(at):
                 '{"start": <step>, "end": <step>, "every": <steps>}, "every" optional; '
                 f"got {at}"
             )
-        start, end, every = at["start"], at["end"], at.get("every", at["end"] - at["start"] or 1)
-        if not (_is_step(start) and _is_step(end) and _is_step(every)) or every < 1 or end < start:
+        start, end = at["start"], at["end"]
+        whole = _is_step(start) and _is_step(end)      # checked before the default below subtracts them
+        every = at.get("every", (end - start or 1) if whole else None)
+        if not (whole and _is_step(every)) or every < 1 or end < start:
             raise SettingsError(
                 f"model_hyperparameters.introspection_at_steps range {at} needs whole numbers with start <= end "
                 "and every at least 1"

@@ -92,10 +92,16 @@ def merged_with_hub(path, repo_id, path_in_repo, token, out):
     without it would replace every other machine's rows.
     """
     from huggingface_hub import hf_hub_download
-    from huggingface_hub.utils import EntryNotFoundError
+    from huggingface_hub.utils import EntryNotFoundError, LocalEntryNotFoundError
 
     try:
-        remote = hf_hub_download(repo_id, path_in_repo, repo_type="model", token=token)
+        # force_download: a copy cached earlier is never merged in place of the Hub's current file, which is what
+        # hf_hub_download falls back to when the Hub cannot be reached
+        remote = hf_hub_download(repo_id, path_in_repo, repo_type="model", token=token, force_download=True)
+    except LocalEntryNotFoundError:
+        # the Hub could not be reached (connection error, timeout). This class is a subclass of EntryNotFoundError,
+        # so it has to be caught first: it does not mean the Hub has no such file
+        raise
     except EntryNotFoundError:
         return Path(path)
     merged = merge_rows(_read(remote), _read(path), ROW_KEYS.get(Path(path_in_repo).name))
@@ -240,6 +246,36 @@ def push_run(run_id, repo_id, results_dir="results", checkpoint_root="checkpoint
     if summary_error is not None:
         raise summary_error
     return sent
+
+
+def push_folder(folder, repo_id, root=None, private=True, stop_on_error=True):
+    """Upload one folder to `repo_id`, at the path it has under the project folder (`root`). Returns that path.
+
+    For output that is not a whole run: results/<run_id>/ask_only/<NAME>/ and results/<run_id>/evaluate_only/<NAME>/,
+    which ask_only.ipynb and evaluate_checkpoints.ipynb write. Files the Hub holds that the folder does not are left
+    as they are. With no repo named nothing is pushed. A push that fails raises, unless stop_on_error is off: then it
+    prints NOT pushed with the reason and returns None, so a loop of jobs goes on and the folder can be pushed later.
+    """
+    folder = Path(folder).resolve()
+    root = Path(root).resolve() if root else Path(__file__).resolve().parents[1]
+    if not repo_id:
+        print(f"NOT pushed (no Hub repo named): {folder}")
+        return None
+    try:
+        if not folder.is_dir():
+            raise FileNotFoundError(f"{folder} is not a folder")
+        target = folder.relative_to(root).as_posix()    # a ValueError when the folder is outside the project
+        api, _ = _api()
+        api.create_repo(repo_id, repo_type="model", private=private, exist_ok=True)
+        api.upload_folder(folder_path=str(folder), path_in_repo=target, repo_id=repo_id, repo_type="model",
+                          commit_message=f"results: {target}")
+    except Exception as err:
+        if stop_on_error:
+            raise
+        print(f"NOT pushed ({type(err).__name__}: {err}): {folder}")
+        return None
+    print(f"pushed {target} to https://huggingface.co/{repo_id}/tree/main/{target}")
+    return target
 
 
 # where finished runs are pushed; a branch source missing on this machine is fetched from here (BRANCH_SOURCE_REPO overrides)

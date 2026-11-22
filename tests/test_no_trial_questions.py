@@ -9,7 +9,6 @@ from pathlib import Path
 
 from src import data as D
 from src.reports.base import Batch
-from src.reports.paper_maximum_threshold import PaperMaximumThresholdSchema
 from src.reports.paper_minimum_threshold import QUESTIONS_DIR, PaperMinimumThresholdSchema, load_question, persona_line
 
 TEA = D.Scenario(
@@ -32,7 +31,7 @@ def _batches(schema_cls, names):
 
 def test_no_trial_questions_end_with_the_persona_line_and_show_no_options():
     trial = D.Trial(TEA, random.Random(0))
-    for schema_cls in (PaperMinimumThresholdSchema, PaperMaximumThresholdSchema):
+    for schema_cls in (PaperMinimumThresholdSchema,):
         for name, batch in _batches(schema_cls, NO_TRIAL).items():
             prompt = D.report_prompt(batch, trial)
             assert batch.show_trial is False, name
@@ -59,9 +58,7 @@ def test_units_listing_names_units_and_ranges():
 
 
 def test_met_and_not_met_differ_only_in_the_condition():
-    for schema_cls, met_words, not_words in ((PaperMinimumThresholdSchema, "met that minimum", "fell below that minimum"),
-                                            (PaperMaximumThresholdSchema, "stayed at or below that maximum",
-                                             "went above that maximum")):
+    for schema_cls, met_words, not_words in ((PaperMinimumThresholdSchema, "met that minimum", "fell below that minimum"),):
         b = _batches(schema_cls, ["main_threshold_met", "main_threshold_not_met"])
         met, not_met = b["main_threshold_met"].prompt_base, b["main_threshold_not_met"].prompt_base
         assert met != not_met
@@ -71,7 +68,7 @@ def test_met_and_not_met_differ_only_in_the_condition():
 def test_percent_and_units_cut_score_alike():
     """Screen cut in mg and in percent: 35 mg and 50 percent are the same cut on caffeine (0 to 70 mg)."""
     import numpy as np
-    for schema_cls, key in ((PaperMinimumThresholdSchema, "minimum"), (PaperMaximumThresholdSchema, "maximum")):
+    for schema_cls, key in ((PaperMinimumThresholdSchema, "minimum"),):
         schema = schema_cls(5, questions={q: {"ask": True, "train": False}
                                           for q in ("screen_cut_units_no_trial", "screen_cut_percent_no_trial")})
         b = {x.name: x for x in schema.batches_for(TEA)}

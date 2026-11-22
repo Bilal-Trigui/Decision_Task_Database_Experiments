@@ -28,7 +28,6 @@ cannot be run: build() refuses, so no settings file can name it and no data fold
 it. An experiment is a subclass that sets its own values:
   minimum_threshold.py         the values here, unchanged (the A4 runs)
   paper_minimum_threshold.py   the paper's design: Plunkett's weights, screened weight 0, cuts 25, 50 or 75
-  paper_maximum_threshold.py   that design with the screen reversed: an option above the cut fails
 
 The dials, all in the decision_rule block:
   active_cuts            how many of the n attributes carry a nonzero cut point (default 1)
@@ -106,7 +105,7 @@ class ThresholdRule(Rule):
     name = "threshold"
     DECISIVE_FLOOR = 0.05       # a screen deciding less than this share of trials is warned about
     option_counts = (2, 3)      # a trial both options fail can be answered C
-    survives = staticmethod(survives)   # the screen's test; paper_maximum_threshold.py reverses it
+    survives = staticmethod(survives)   # the screen's test, held on the class so a subclass can set its own
     DECISIVE_HINT = "cut points set very high reject both options and hand every trial back to the weighted sum"
     DRAW_NOTE = "a cut near 50% bites hardest; near 100% both options fail and the screen decides nothing"
     defaults = {

@@ -23,6 +23,9 @@ the prompt's when it is above both the step-0 and the shuffled model's null_95.
 
 Rows per model and step, then one `pooled` row per model: steps --pool (inclusive), the R² and the null averaged
 over those steps (each permutation the same across steps, so the pooled null is the null of the pooled mean).
+When a pooled step lost a reply that did not parse, the pooled row is worked out on the replies every pooled step
+has, lined up by trial, so that one permutation still moves the same replies at every step; `n` says how many.
+A reply that is the same at every trial scores R² 0 with p_perm 1: it does not follow the trial.
 Step 0 is the trained run's base_model_step-0, or --base RUN's when the trained run skipped it.
 
 Reading (the reviewer's test): trained pooled R² well above the step-0 and shuffled values (and their null_95):
@@ -46,12 +49,26 @@ SPECS = ("own", "all")
 
 
 def _r2(y, X):
-    """R² of y on X with an intercept; nan when y does not vary."""
+    """R² of y on X with an intercept. 0 when y does not vary: a reply that is the same at every trial follows
+    the trial not at all. Its permutations are that same reply, so its null is 0 too and p_perm comes out 1."""
+    if np.ptp(y) == 0:      # max == min; (y - mean) is not exactly 0 for every constant y in floating point
+        return 0.0
     X = np.column_stack([np.ones(len(X)), X])
     beta, *_ = np.linalg.lstsq(X, y, rcond=None)
     res = y - X @ beta
     tot = (y - y.mean()) @ (y - y.mean())
-    return np.nan if tot == 0 else float(1 - res @ res / tot)
+    return float(1 - res @ res / tot)
+
+
+def _p_perm(null, r2):
+    """The share of permutations at or above the real R²; nan when the R² or every permutation is undefined."""
+    null = np.asarray(null, float)
+    null = null[~np.isnan(null)]
+    return float(np.mean(null >= r2)) if len(null) and not np.isnan(r2) else np.nan
+
+
+def _null_columns(null, r2):
+    return {"null_mean": float(np.nanmean(null)), "null_95": float(np.nanpercentile(null, 95)), "p_perm": _p_perm(null, r2)}
 
 
 def design(spec, A, B, j):
@@ -78,12 +95,57 @@ def step_frames(run_dir, question):
     return dict(sorted(out.items()))
 
 
+def trial_keys(df):
+    """One label per reply: the trial it was asked about (its options' values, A then B) and which of that trial's
+    replies it is, so the same reply is found again at another step."""
+    cols = [c for c in df.columns if c.startswith(("A_attribute_", "B_attribute_"))]
+    trial = df[cols].astype(str).agg("|".join, axis=1)
+    return (trial + "#" + trial.groupby(trial).cumcount().astype(str)).to_numpy()
+
+
 def arrays(df, n, keep, lows, highs):
+    """(replies, A, B, keys) for the rows with a readable reply; keys are trial_keys, taken before rows are dropped."""
     cols = [f"report_attr{j + 1}" for j in keep]
-    df = df.dropna(subset=cols)
+    df = df.assign(_key=trial_keys(df)).dropna(subset=cols)
     A = (df[[f"A_attribute_{i}" for i in range(1, n + 1)]].to_numpy(float) - lows) / (highs - lows)
     B = (df[[f"B_attribute_{i}" for i in range(1, n + 1)]].to_numpy(float) - lows) / (highs - lows)
-    return df[cols].to_numpy(float), A, B
+    return df[cols].to_numpy(float), A, B, df["_key"].to_numpy()
+
+
+def pooled_row(spec, parts, keep, perms, perm_cache, rng):
+    """The pooled R² and its null for one spec, from the pooled steps' (replies, A, B, keys, r2, null).
+
+    The pooled null is the null of the pooled mean only when one permutation moves the same replies at every
+    step. That holds when every step has the same readable replies in the same order: then the steps' own R² and
+    nulls are averaged. When a step lost a reply (one that did not parse), the steps are first cut down to the
+    replies every step has, lined up by trial, and the R² and the null are worked out again on those. Returns
+    (columns, replies used, a note or None)."""
+    others = [set(part[3]) for part in parts[1:]]
+    order = [k for k in parts[0][3] if all(k in keys for keys in others)]
+    if all(list(part[3]) == order for part in parts):
+        r2 = float(np.mean([part[4] for part in parts]))
+        row = {"n": len(order), "r2": r2}
+        if perms:
+            row.update(_null_columns(np.mean(np.vstack([part[5] for part in parts]), axis=0), r2))
+        return row, None
+    cut = []
+    for R, A, B, keys, _, _ in parts:
+        at = {k: i for i, k in enumerate(keys)}
+        idx = [at[k] for k in order]
+        cut.append((R[idx], A[idx], B[idx]))
+    m = len(order)
+    note = f"pooled over the {m} replies every pooled step has (steps had {sorted({len(part[0]) for part in parts})})"
+    p_count = len(design(spec, parts[0][1], parts[0][2], keep[0]).T)
+    if m <= p_count + 1:
+        return {"n": m, "r2": np.nan}, note + f": too few for {p_count} predictors, left undefined"
+    r2 = float(np.mean([mean_r2(spec, R, A, B, keep) for R, A, B in cut]))
+    row = {"n": m, "r2": r2}
+    if perms:
+        if m not in perm_cache:
+            perm_cache[m] = [rng.permutation(m) for _ in range(perms)]
+        null = np.array([np.mean([mean_r2(spec, R[p], A, B, keep) for R, A, B in cut]) for p in perm_cache[m]])
+        row.update(_null_columns(null, r2))
+    return row, note
 
 
 def model_rows(label, frames, n, keep, lows, highs, specs, perms, pool, seed):
@@ -91,9 +153,9 @@ def model_rows(label, frames, n, keep, lows, highs, specs, perms, pool, seed):
     rng = np.random.default_rng(seed)
     # one permutation sequence per reply count, reused across steps so a pooled null averages like the pooled R²
     perm_cache = {}
-    pooled = {s: {"r2": [], "null": []} for s in specs}
+    pooled = {s: [] for s in specs}
     for step, df in frames.items():
-        R, A, B = arrays(df, n, keep, lows, highs)
+        R, A, B, keys = arrays(df, n, keep, lows, highs)
         m = len(R)
         if m not in perm_cache:
             perm_cache[m] = [rng.permutation(m) for _ in range(perms)]
@@ -110,24 +172,18 @@ def model_rows(label, frames, n, keep, lows, highs, specs, perms, pool, seed):
             row = {"model": label, "step": step, "spec": spec, "n": m, "predictors": p_count, "r2": r2,
                    "adj_r2": (1 - (1 - r2) * (m - 1) / (m - p_count - 1)) if m > p_count + 1 else np.nan}
             if perms:
-                row.update(null_mean=float(np.nanmean(null)), null_95=float(np.nanpercentile(null, 95)),
-                           p_perm=float(np.mean(null >= r2)))
+                row.update(_null_columns(null, r2))
             rows.append(row)
             if pool[0] <= step <= pool[1] and step > 0:
-                pooled[spec]["r2"].append(r2)
-                pooled[spec]["null"].append(null)
+                pooled[spec].append((R, A, B, keys, r2, null))
     for spec in specs:
-        got = pooled[spec]
-        if not got["r2"]:
+        if not pooled[spec]:
             continue
-        r2 = float(np.mean(got["r2"]))
-        row = {"model": label, "step": f"pooled {pool[0]}-{pool[1]}", "spec": spec, "n": np.nan,
-               "predictors": np.nan, "r2": r2, "adj_r2": np.nan}
-        if perms and len({len(x) for x in got["null"]}) == 1:
-            null = np.mean(np.vstack(got["null"]), axis=0)
-            row.update(null_mean=float(np.nanmean(null)), null_95=float(np.nanpercentile(null, 95)),
-                       p_perm=float(np.mean(null >= r2)))
-        rows.append(row)
+        got, note = pooled_row(spec, pooled[spec], keep, perms, perm_cache, rng)
+        if note:
+            print(f"  {label} {spec}: {note}")
+        rows.append({"model": label, "step": f"pooled {pool[0]}-{pool[1]}", "spec": spec, "predictors": np.nan,
+                     "adj_r2": np.nan, **got})
     return rows
 
 

@@ -107,8 +107,6 @@ PERSONA_DIRS = {
 OTHER_DIRS = {
     "minimum_threshold": "The minimum threshold rule over many personas (100), answers A, B or C, on Qwen3-8B: the multi-persona "
                          "experiment the one-persona work grew out of.",
-    "one_persona_maximum_threshold": "One persona (A's weights) under a maximum threshold instead of a minimum: an option with "
-                                     "MORE than 35 mg of caffeine is rejected.",
     "paper_minimum_threshold": "The paper's minimum threshold design over 100 personas: the 8B run, its 16 GB versions (with "
                                "revised questions, a resume and an extension), a 0.6B version and its smoke tests, and the "
                                "2500-step run with twice the data.",
