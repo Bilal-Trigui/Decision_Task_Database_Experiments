@@ -18,12 +18,20 @@ For cut_sweep_training it also runs the two settings cells (plain Python) once p
 the first code cell holds the four choices and nothing else, that one persona's settings files come out and exist,
 that the adapter they start from is the run the cell's comment names at the step asked for, that a mistyped choice
 is refused with the options, and that the adapter is named and fetched before the check and run cells.
+
+It also runs each of its cells alone in an empty session, as after a restart, and checks that every cell that needs an
+earlier one stops with a sentence naming the cells to run (not a NameError), and that the GPU cell refuses a CARD
+bigger than the machine's card and names the right one.
 """
 import ast
 import contextlib
 import io
 import json
+import os
 import re
+import sys
+import tempfile
+import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -176,6 +184,65 @@ def test_the_cut_sweep_notebook_trains_one_persona_from_a_chosen_step():
     run = _first(code, lambda s: "from src.pipeline import run" in s, "cut_sweep_training.ipynb", "the run")
     assert adapter < check < run
     print("  eight personas, four cards: one persona's nine files, the source run its comment names, the step asked for")
+
+
+def test_a_cell_run_out_of_order_says_which_cells_to_run():
+    code = _code(_cells("cut_sweep_training.ipynb"))
+    settings = next(i for i, s in code if re.search(r"^CONFIG_FILES = ", s, re.M))
+    stopped, here = 0, os.getcwd()
+    os.chdir(tempfile.mkdtemp())            # a restarted session starts outside the repo folder
+    try:
+        for i, source in code:
+            if i < settings or source.startswith(("!nvidia-smi", "# Confirm the kernel can import")):
+                continue                    # the choices, and the two cells that need nothing before them
+            plain = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith(("!", "%")))
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    exec(plain, {})
+                raise AssertionError(f"cell {i + 1} ran in an empty session")
+            except RuntimeError as err:
+                assert "restarted session" in str(err), (i + 1, str(err))
+                if i == settings:
+                    assert "Choose what to run" in str(err) and "PERSONA, ADAPTER_STEP, CARD, MIXES" in str(err), str(err)
+                stopped += 1
+    finally:
+        os.chdir(here)
+    assert stopped == len(code) - 3, (stopped, len(code))
+    print(f"  {stopped} cells, each run alone in an empty session: every one names the cells to run first")
+
+
+def _gpu_cell(card, vram_gb):
+    """What the GPU cell prints with CARD = `card` on a machine whose card has `vram_gb` GB."""
+    names, _ = _sweep_settings(card=card)
+    cell = next(s for _, s in _code(_cells("cut_sweep_training.ipynb")) if "get_device_properties" in s)
+    fake = types.SimpleNamespace(__version__="test", cuda=types.SimpleNamespace(
+        is_available=lambda: True, get_device_name=lambda i: "test card", is_bf16_supported=lambda: True,
+        get_device_properties=lambda i: types.SimpleNamespace(total_memory=vram_gb * 1024 ** 3)))
+    real, said = sys.modules.get("torch"), io.StringIO()
+    sys.modules["torch"] = fake
+    try:
+        with contextlib.redirect_stdout(said):
+            exec(cell, names)
+    finally:
+        if real is None:
+            sys.modules.pop("torch", None)
+        else:
+            sys.modules["torch"] = real
+    return said.getvalue()
+
+
+def test_the_gpu_cell_checks_card_against_the_machine():
+    for card, vram in (("16gb", 15.9), ("24gb", 22.5), ("40gb", 39.6), ("80gb", 79.3)):     # what each card reports
+        assert f'CARD = "{card}" is the right choice' in _gpu_cell(card, vram), (card, vram)
+    assert 'room for CARD = "40gb"' in _gpu_cell("24gb", 39.6)                               # smaller file: runs, and says so
+    for card, vram, wanted in (("80gb", 39.6, 'Set CARD = "40gb" in the first cell'), ("40gb", 22.5, 'Set CARD = "24gb"'),
+                               ("16gb", 10.0, "smaller than every card")):
+        try:
+            _gpu_cell(card, vram)
+            raise AssertionError(f"CARD {card} was accepted on a {vram} GB card")
+        except RuntimeError as err:
+            assert wanted in str(err), str(err)
+    print("  the GPU cell: the matching card passes, a smaller file is allowed with a note, a bigger one is refused")
 
 
 if __name__ == "__main__":
