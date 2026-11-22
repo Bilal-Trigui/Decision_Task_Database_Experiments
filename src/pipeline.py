@@ -5,12 +5,14 @@ It then writes the results and plots. This file mainly exists to create a common
 
 It's the main logic. This powers run_experiments.ipynb, which is the notebook that runs the experiments. 
 """
+import gc
 import json
 import os
 import random
 import re
 import socket
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -213,7 +215,7 @@ def run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None):
     when that process is known to be gone from this machine; otherwise it has to be deleted by hand.
     """
     if not resume:
-        return _run(cfg, results_dir, checkpoint_root, None)
+        return _run_then_release(cfg, results_dir, checkpoint_root, None)
     lock = Path(results_dir) / resume["run_id"] / RESUME_LOCK
     if lock.exists():
         held = lock.read_text().strip()
@@ -227,10 +229,40 @@ def run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None):
         lock.write_text(f"pid {os.getpid()}, host {socket.gethostname()}, from step {resume['from_step']}, "
                         f"started {datetime.now():%Y-%m-%d %H:%M:%S}\n")
     try:
-        return _run(cfg, results_dir, checkpoint_root, resume)
+        return _run_then_release(cfg, results_dir, checkpoint_root, resume)
     finally:
         if lock.exists():
             lock.unlink()
+
+
+def _run_then_release(cfg, results_dir, checkpoint_root, resume):
+    """_run; a run that stops on an error, or is interrupted, hands the GPU back before the error goes on."""
+    try:
+        return _run(cfg, results_dir, checkpoint_root, resume)
+    except BaseException as error:
+        _release_gpu(error)
+        raise
+
+
+def _release_gpu(error):
+    """Let go of what a run that stopped on `error` still holds, so the next run in this session has the whole card.
+
+    An error keeps its traceback, the traceback keeps every function the run was inside, and those keep the
+    model and whatever it had on the GPU. A notebook keeps the last error until the next one, so the memory
+    stayed taken until the session was restarted: on a Colab L4 (2026-11-22) a run that ran out of memory in
+    training left 21.7 GiB in use, and the run started after it could not load the model at all.
+
+    The traceback keeps its files and line numbers, so the error still prints in full; what goes is the
+    variables of the functions that have already stopped. The functions still running are left alone.
+    """
+    seen = set()
+    while error is not None and id(error) not in seen:      # the error, and any error it was raised while handling
+        seen.add(id(error))
+        traceback.clear_frames(error.__traceback__)
+        error = error.__cause__ or error.__context__
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def _run(cfg, results_dir="results", checkpoint_root="checkpoints", resume=None):

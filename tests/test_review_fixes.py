@@ -191,6 +191,45 @@ def test_a_resume_lock_is_taken_over_only_from_a_process_that_is_gone():
     print("  taken over: this machine's process that has ended; refused: a live one, another machine's, an unreadable lock")
 
 
+def test_a_run_that_stops_lets_go_of_what_it_held():
+    """A notebook keeps the last error, and with it everything the run was holding: the model stayed on the GPU
+    and the next run could not load (Colab L4, 2026-11-22). run() now drops it before the error goes on."""
+    import traceback
+    import weakref
+
+    from src import pipeline
+
+    class Held:                 # stands in for the model and what it had on the GPU
+        pass
+
+    for stop in (MemoryError("CUDA out of memory"), KeyboardInterrupt()):
+        alive = []
+
+        def stopping_run(cfg, results_dir, checkpoint_root, resume):
+            model = Held()
+            alive.append(weakref.ref(model))
+
+            def training_step():
+                activations = Held()
+                alive.append(weakref.ref(activations))
+                raise stop
+
+            training_step()
+
+        real, pipeline._run = pipeline._run, stopping_run
+        try:
+            pipeline.run({})
+            raise AssertionError("the run's error did not come out of run()")
+        except type(stop) as error:
+            kept = error        # held past the run, as a notebook holds the last error
+        finally:
+            pipeline._run = real
+        assert kept is stop and len(alive) == 2 and all(ref() is None for ref in alive), type(stop).__name__
+        text = "".join(traceback.format_exception(kept))
+        assert "stopping_run" in text and "training_step" in text and "raise stop" in text, text
+    print("  an error and an interrupt: nothing the run held is left alive, and the traceback still prints in full")
+
+
 def test_a_folder_built_under_another_rule_is_refused():
     from src.rules.base import check_manifest
 
