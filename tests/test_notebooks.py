@@ -14,11 +14,14 @@ evaluate_checkpoints it checks that
 
 and that download_checkpoint clones the repo on a machine that does not have it.
 
-For cut_sweep_training it also runs the settings cell (plain Python) once per persona and card and checks that one
-persona's settings files come out, that they exist, that the adapter they start from is the run the cell's comment
-names at the step asked for, and that the adapter is named and fetched before the check and run cells.
+For cut_sweep_training it also runs the two settings cells (plain Python) once per persona and card and checks that
+the first code cell holds the four choices and nothing else, that one persona's settings files come out and exist,
+that the adapter they start from is the run the cell's comment names at the step asked for, that a mistyped choice
+is refused with the options, and that the adapter is named and fetched before the check and run cells.
 """
 import ast
+import contextlib
+import io
 import json
 import re
 from pathlib import Path
@@ -107,22 +110,39 @@ def test_the_download_notebook_clones_the_repo_when_it_is_missing():
 
 
 def _sweep_settings(persona=None, step=None, card=None):
-    """The names the cut_sweep_training settings cell defines, with PERSONA, ADAPTER_STEP or CARD set first."""
-    source = next(s for _, s in _code(_cells("cut_sweep_training.ipynb")) if re.search(r"^PERSONA = ", s, re.M))
+    """The names the two cut_sweep_training settings cells define, with PERSONA, ADAPTER_STEP or CARD set first.
+    Returns (names, the two cells' source, what the second cell printed)."""
+    code = _code(_cells("cut_sweep_training.ipynb"))
+    choices = next(s for _, s in code if re.search(r"^PERSONA = ", s, re.M))
+    rest = next(s for _, s in code if re.search(r"^CONFIG_FILES = ", s, re.M))
     for name, value in (("PERSONA", persona), ("ADAPTER_STEP", step), ("CARD", card)):
         if value is not None:
-            source, n = re.subn(rf"^{name} = .*$", f"{name} = {value!r}", source, count=1, flags=re.M)
+            choices, n = re.subn(rf"^{name} = .*$", f"{name} = {value!r}", choices, count=1, flags=re.M)
             assert n == 1, name
-    names = {}
-    exec(source, names)
-    return names, source
+    names, said = {}, io.StringIO()
+    with contextlib.redirect_stdout(said):
+        exec(choices, names)
+        exec(rest, names)
+    names["_said"] = said.getvalue()
+    return names, choices + "\n" + rest
 
 
 def test_the_cut_sweep_notebook_trains_one_persona_from_a_chosen_step():
     from src.experiments import source_adapter
 
+    # the first code cell is the four choices and nothing else, so there is one small place to choose in
+    code = _code(_cells("cut_sweep_training.ipynb"))
+    chosen = [t.id for node in ast.parse(code[0][1]).body for t in getattr(node, "targets", [])]
+    assert chosen == ["PERSONA", "ADAPTER_STEP", "CARD", "MIXES"] and len(ast.parse(code[0][1]).body) == 4, chosen
     names, source = _sweep_settings()
     assert names["PERSONA"] == "a_inverse" and names["ADAPTER_RUN"] is None and names["ADAPTER_STEP"] == 1500
+    assert "persona      a_inverse" in names["_said"] and "step 1500" in names["_said"] and "9: w75_c25" in names["_said"]
+    for bad in (dict(persona="a-inverse"), dict(card="L4"), dict(step="1500")):      # a mistyped choice says the options
+        try:
+            _sweep_settings(**bad)
+            raise RuntimeError(f"{bad} was accepted")
+        except AssertionError as err:
+            assert "is not" in str(err), str(err)
     assert len(names["CONFIG_FILES"]) == len(names["MIXES"]) == 9
     assert all("persona_a_inverse/cut_sweep_a_inverse_" in f for f in names["CONFIG_FILES"]), "not A-inverse alone"
     assert names["SWEEP"] == "cut_sweep_a_inverse_from1500"
