@@ -207,6 +207,25 @@ R² averaged over the weights, beside a permutation null (replies kept, trials s
 `null_95`. Training caused the readout if the trained R² is above both the step-0 and the shuffled model's; if all
 three are alike, the readout is the prompt's.
 
+### One control for every persona: `controls/shuffled/shuffled_40gb.json`
+
+The per-persona controls above need five GPU runs. This one needs one: E-negative's training prompts with each answer
+drawn at random (A and B 0.4375 each, C 0.125, `random.Random(13)`), so no persona's rule is in the data, and it
+serves all five. The personas differ only in their training trials (A, A-inverse and B share one set, the E
+personas another; same tea, same attributes) and their report format, and the format is set when the questions are
+asked, not when the model trains. So train it once, then ask it again in A and B's format:
+
+```
+python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/controls/shuffled/shuffled_40gb.json
+# evaluate_checkpoints.ipynb: RUN = the shuffled run, NAME = "a_b_format",
+#   QUESTIONS_FROM = "configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json"
+python tools/trial_regression.py results/<trained run> --shuffled results/<shuffled run>                          # A-inverse, E-positive, E-negative
+python tools/trial_regression.py results/<trained run> --shuffled results/<shuffled run>/evaluate_only/a_b_format   # A, B
+```
+
+Built by `scripts/make_shuffled_control.py`; checked by `tests/test_shuffled_control.py` (E-negative's prompts in
+order, the planned answer mix, agreement with each of the five rules at chance, the same bytes on a rebuild).
+
 ## Run everything on an A100 40GB
 
 Every `_40gb` file is complete and its data is in the repo, so a fresh clone runs it as is. A queue runs a list one

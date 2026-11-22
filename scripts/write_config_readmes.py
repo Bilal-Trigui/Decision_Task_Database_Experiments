@@ -82,6 +82,12 @@ PERSONA_DIRS = {
                                    "the training answers permuted. Written by scripts/make_shuffled_controls.py.",
     "controls/persona_e_negative": "Shuffled-label control for E-negative: its seed-4 run 20261116-221120 again on its prompts with "
                                    "the training answers permuted. Written by scripts/make_shuffled_controls.py.",
+    "controls/shuffled": "The random-answer control for every persona: E-negative's training prompts with each answer drawn "
+                         "at random (A, B 0.4375 each, C 0.125), so no persona's rule is in the data. Trained on "
+                         "E-negative's seed-4 settings; ask it again in A and B's report format with "
+                         "evaluate_checkpoints.ipynb (QUESTIONS_FROM = base/persona_a/one_persona_no_trial_a.json). "
+                         "Compared with each trained run and its step 0 by tools/trial_regression.py. Written by "
+                         "scripts/make_shuffled_control.py.",
     "seeds/persona_a":"Persona A trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
                        "20261110-211307 (base/persona_a/one_persona_no_trial_a.json); only the seed and run_tag differ. "
                        "Written by scripts/make_seed_runs.py.",
