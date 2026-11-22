@@ -55,6 +55,15 @@ Working with checkpoints a run already saved, no training:
   that the decisions match the run's own.
 - `ask_only.ipynb`: new report questions only; the rule is refitted from the run's saved decisions.
 
+`evaluate_checkpoints.ipynb`, `ask_only.ipynb` and `cut_sweep_training.ipynb` each have a Download cell that
+fetches the adapters and run files they read from the Hub repo named in `HUB_REPO`, when those are not on the
+machine (`src/download.py`, the code of `download_checkpoint.ipynb`), so the download notebook need not be run first.
+
+Every notebook runs on its own. Each has the "Set up the machine" cells of `run_experiment.ipynb` (clone or update
+`BRANCH`, install, token), and each saves what it makes to `HUB_REPO`: a training run with `push_run`, an
+`ask_only` or `evaluate_only` output folder with `push_folder` (`src/persist.py`) at the same path as on disk.
+`python -m tests.test_notebooks` checks both.
+
 On a machine that expires, call the persist cell after every experiment. It
 pushes results and adapters to the Hugging Face Hub, and everything left on such
 a box is deleted when it shuts down.
@@ -73,7 +82,6 @@ configs/
   plunkett_linear/                           Plunkett and Atkinson, linear rule, 4B and 8B
   minimum_threshold/                         the minimum threshold rule, many personas
   paper_minimum_threshold/                   the paper's minimum threshold design, many personas
-  one_persona_maximum_threshold/             one persona, maximum threshold
   minimum_threshold_one_persona/             one persona, minimum threshold, Qwen3-8B (16 GB and _24gb files)
     base/  controls/  inverse/  rule_tests/  cut_sweep/     each split into persona_a/ and persona_b/
   minimum_threshold_one_persona_qwen3_14b/   the same experiments on Qwen3-14B (_24gb, _80gb)

@@ -6,6 +6,7 @@ Every run appends to the same two files, and a machine holds only the runs it ra
 uploaded the machine's own file whole, so a push from a fresh rented machine left the Hub's copy holding that
 machine's runs alone. No network and no token here: the Hub's copy is a file in a temporary folder.
 """
+import os
 import tempfile
 from pathlib import Path
 
@@ -87,8 +88,56 @@ def test_push_merges_with_the_hubs_copy_and_keeps_each_runs_own_rows():
     print("  the upload is the Hub's rows plus this machine's; unreadable Hub copy stops the push; each run keeps its rows")
 
 
+def test_an_output_folder_is_pushed_to_the_same_path_on_the_hub():
+    """push_folder, which ask_only.ipynb and evaluate_checkpoints.ipynb save their output with."""
+    sent = []
+
+    class Api:
+        def create_repo(self, repo_id, **k):
+            pass
+
+        def upload_folder(self, folder_path, path_in_repo, repo_id, **k):
+            sent.append((Path(folder_path).name, path_in_repo, repo_id))
+
+    real = P._api
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp).resolve()
+        out = tmp / "results" / "a-run" / "ask_only" / "probes"
+        out.mkdir(parents=True)
+        (out / "step_answers.csv").write_text("question,answer\n")
+        try:
+            P._api = lambda: (Api(), "token")
+            assert P.push_folder(out, "u/r", root=tmp) == "results/a-run/ask_only/probes"
+            assert sent == [("probes", "results/a-run/ask_only/probes", "u/r")]
+            assert P.push_folder(out, None, root=tmp) is None and len(sent) == 1                # no repo named: nothing sent
+            for bad in (tmp / "results" / "a-run" / "nothing", tmp.parent):                        # no such folder; outside the project
+                try:
+                    P.push_folder(bad, "u/r", root=tmp)
+                    raise AssertionError(f"{bad} was pushed")
+                except (FileNotFoundError, ValueError):
+                    pass
+                assert P.push_folder(bad, "u/r", root=tmp, stop_on_error=False) is None
+            P._api = real                # no token on this machine: a stop, or a NOT pushed line when told to go on
+            token = os.environ.pop("HF_TOKEN", None)
+            try:
+                assert P.push_folder(out, "u/r", root=tmp, stop_on_error=False) is None
+                try:
+                    P.push_folder(out, "u/r", root=tmp)
+                    raise AssertionError("a push with no token went through")
+                except RuntimeError:
+                    pass
+            finally:
+                if token is not None:
+                    os.environ["HF_TOKEN"] = token
+            assert len(sent) == 1
+        finally:
+            P._api = real
+    print("  results/<run>/ask_only/<NAME> lands at that path; no repo, no folder or no token sends nothing")
+
+
 if __name__ == "__main__":
     test_another_machines_rows_are_kept()
     test_one_row_written_two_ways_is_one_row()
     test_push_merges_with_the_hubs_copy_and_keeps_each_runs_own_rows()
+    test_an_output_folder_is_pushed_to_the_same_path_on_the_hub()
     print("all persist checks passed")
