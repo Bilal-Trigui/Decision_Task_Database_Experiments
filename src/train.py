@@ -171,18 +171,22 @@ def apply_finetune(model, cfg):
     return model
 
 
-def encode_example(tok, example, mask_answer_only=True):
+def encode_example(tok, example, mask_answer_only=True, end_id=None):
     """Token ids and labels for one chat example: prompt via the chat template, answer + end token appended.
 
     Prompt and answer are tokenized separately and concatenated, so the label
     boundary is exact and matches what the model sees at inference. Reads
     model_hyperparameters.loss_mask_answer_only.
+
+    `end_id` is end_token_id(tok), passed in by a caller that encodes many examples. Left out, it is
+    looked up here, which builds the tokenizer's whole vocabulary (about 150,000 entries, 50 ms) for
+    this one example: over 6,000 examples that was five silent minutes before the first training step.
     """
     prompt_text = tok.apply_chat_template(
         example.messages[:-1], tokenize=False, add_generation_prompt=True, enable_thinking=False
     )
     prompt_ids = tok(prompt_text, add_special_tokens=False)["input_ids"]
-    answer_ids = tok(example.answer, add_special_tokens=False)["input_ids"] + [end_token_id(tok)]
+    answer_ids = tok(example.answer, add_special_tokens=False)["input_ids"] + [end_token_id(tok) if end_id is None else end_id]
     ids = prompt_ids + answer_ids
     labels = ([-100] * len(prompt_ids) if mask_answer_only else list(prompt_ids)) + answer_ids
     return ids, labels
@@ -383,8 +387,9 @@ def train_stage(
     # cross entropy over Qwen3's 152k-token vocabulary needs several full fp32
     # copies of the logits, and those scale with the micro-batch, not the batch.
     micro = min(mh["micro_batch_size"] or batch_size, batch_size)
-    encoded = [encode_example(tok, e, mask) for e in examples]
-    encoded_val = [encode_example(tok, e, mask) for e in val_examples]
+    end_id = end_token_id(tok)      # once for the stage, not once per example (see encode_example)
+    encoded = [encode_example(tok, e, mask, end_id) for e in examples]
+    encoded_val = [encode_example(tok, e, mask, end_id) for e in val_examples]
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(params, lr=mh["learning_rate"])
     scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
