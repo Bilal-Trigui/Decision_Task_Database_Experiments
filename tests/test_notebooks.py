@@ -151,7 +151,7 @@ def test_the_cut_sweep_notebook_trains_one_persona_from_a_chosen_step():
     personas = sorted(p.name[len("persona_"):] for p in (ROOT / "configs/minimum_threshold_one_persona/cut_sweep").glob("persona_*"))
     assert sorted(named) == personas and len(personas) == 8, (sorted(named), personas)
     for persona in personas:
-        for card in ("16gb", "24gb", "40gb"):
+        for card in ("16gb", "24gb", "40gb", "80gb"):
             names, _ = _sweep_settings(persona, card=card)
             files = names["CONFIG_FILES"]
             assert all((ROOT / f).exists() for f in files), (persona, card, [f for f in files if not (ROOT / f).exists()])
@@ -175,7 +175,7 @@ def test_the_cut_sweep_notebook_trains_one_persona_from_a_chosen_step():
     check = _first(code, lambda s: "branch_checkpoint(cfg)" in s, "cut_sweep_training.ipynb", "the check")
     run = _first(code, lambda s: "from src.pipeline import run" in s, "cut_sweep_training.ipynb", "the run")
     assert adapter < check < run
-    print("  eight personas, three cards: one persona's nine files, the source run its comment names, the step asked for")
+    print("  eight personas, four cards: one persona's nine files, the source run its comment names, the step asked for")
 
 
 if __name__ == "__main__":

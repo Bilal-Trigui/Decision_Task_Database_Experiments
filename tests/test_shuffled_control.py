@@ -118,11 +118,11 @@ def test_settings():
         loaded = load_experiment(str(config), None, None, None)
         mh = loaded["model_hyperparameters"]
         assert mh["baseline_before_training"] is False and mh["start_from"] is None and mh["run_tag"] == "shuffled"
-        # the card's sizing is the persona file's for that card: 24 GB keeps gradient checkpointing on, 40 GB turns it off
+        # the card's sizing is the persona file's for that card: gradient checkpointing off on both, eval batches by card
         sized = SF.flat(settings)
         assert mh["micro_batch_size"] == sized["model_hyperparameters"]["micro_batch_size"] == 5
-        assert mh["gradient_checkpointing"] is sized["model_hyperparameters"]["gradient_checkpointing"] is (card != "40gb")
-        assert loaded["compute"]["eval_batch_size"] == sized["compute"]["eval_batch_size"] == {"24gb": 16, "40gb": 96}[card]
+        assert mh["gradient_checkpointing"] is sized["model_hyperparameters"]["gradient_checkpointing"] is False
+        assert loaded["compute"]["eval_batch_size"] == sized["compute"]["eval_batch_size"] == {"24gb": 48, "40gb": 96}[card]
         assert Path(ROOT / loaded["model_training"]["data_dir"]).resolve() == M.OUT.resolve()
         check_manifest(loaded["model_training"]["data_dir"], resolve(loaded).rule, loaded)
     rs = SF.flat(M.A_FORMAT)["report_schema"]

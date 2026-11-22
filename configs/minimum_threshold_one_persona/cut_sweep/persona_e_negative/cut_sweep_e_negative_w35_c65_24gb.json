@@ -7,7 +7,7 @@
     "  The rest is one_persona_e_negative.json's settings, copied in. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
-    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, eval batches 16 (decision 16, introspection 4). Out of memory: eval batches 8 first, then micro_batch_size 2.",
+    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, gradient_checkpointing false, eval batches 48 (decision 48, introspection 4). Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16): the 40 GB sizes scaled by the memory left after the model, not measured on a 24 GB card. Out of memory in training: gradient_checkpointing true. Out of memory in evaluation: eval batches 24, then 16.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_e_negative/cut_sweep_e_negative_w35_c65_24gb.json"
   ],
   "object": {
@@ -180,7 +180,7 @@
     "learning_rate": 0.0002,
     "batch_size": 10,
     "micro_batch_size": 5,
-    "gradient_checkpointing": true,
+    "gradient_checkpointing": false,
     "loss_mask_answer_only": true,
     "training_steps": 3000,
     "checkpoint_every": 250,
@@ -211,8 +211,8 @@
     "backend": "local",
     "device": "cuda",
     "mixed_precision": "bf16",
-    "eval_batch_size": 16,
-    "decision_eval_batch_size": 16,
+    "eval_batch_size": 48,
+    "decision_eval_batch_size": 48,
     "introspection_eval_batch_size": 4,
     "mount_drive": false
   }

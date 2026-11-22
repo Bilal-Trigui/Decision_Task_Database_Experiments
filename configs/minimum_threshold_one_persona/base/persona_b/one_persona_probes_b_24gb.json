@@ -3,7 +3,7 @@
     "Persona B, the same as one_persona_probes_a on B's data.",
     "Persona B (loose_leaf_tea): weights caffeine_content 0, leaf_size 100, oxidation_level 20, steeping_time -50, resteep_potential -70; screen: caffeine_content at 50% of its range.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
-    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, eval batches 16 (decision 16, introspection 4). Out of memory: eval batches 8 first, then micro_batch_size 2.",
+    "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 5, gradient_checkpointing false, eval batches 48 (decision 48, introspection 4). Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16): the 40 GB sizes scaled by the memory left after the model, not measured on a 24 GB card. Out of memory in training: gradient_checkpointing true. Out of memory in evaluation: eval batches 24, then 16.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_b/one_persona_probes_b_24gb.json",
     "",
     "Notes, written when this file listed only its changes over one_persona_probes_a.json (those values are now written out here too):",
@@ -176,7 +176,7 @@
     "learning_rate": 0.0002,
     "batch_size": 10,
     "micro_batch_size": 5,
-    "gradient_checkpointing": true,
+    "gradient_checkpointing": false,
     "loss_mask_answer_only": true,
     "training_steps": 3000,
     "checkpoint_every": 250,
@@ -204,8 +204,8 @@
     "backend": "local",
     "device": "cuda",
     "mixed_precision": "bf16",
-    "eval_batch_size": 16,
-    "decision_eval_batch_size": 16,
+    "eval_batch_size": 48,
+    "decision_eval_batch_size": 48,
     "introspection_eval_batch_size": 4,
     "mount_drive": false
   }

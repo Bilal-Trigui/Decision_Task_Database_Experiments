@@ -67,9 +67,9 @@ PERSONA_WEIGHTS = {"persona_a": [0, -83, -38, -100, 31], "persona_b": [0, 100, 2
 
 
 def test_sweep_folders():
-    # the 16 GB files: each _24gb / _40gb twin names the same data folder, so checking it again adds nothing
+    # the 16 GB files: each _24gb / _40gb / _80gb twin names the same data folder, so checking it again adds nothing
     configs = sorted(p for p in Path("configs/minimum_threshold_one_persona/cut_sweep").glob("persona_*/cut_sweep_*.json")
-                     if not p.stem.endswith(("_24gb", "_40gb")))
+                     if not p.stem.endswith(("_24gb", "_40gb", "_80gb")))
     assert configs, "no configs/minimum_threshold_one_persona/cut_sweep/persona_*/cut_sweep_*.json"
     assert {p.parent.name for p in configs} == set(PERSONA_WEIGHTS), {p.parent.name for p in configs}
     for path in configs:

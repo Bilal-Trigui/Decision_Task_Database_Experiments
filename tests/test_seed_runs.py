@@ -3,7 +3,8 @@
 Run with `python -m tests.test_seed_runs`. Checks:
 
   - every persona (A, A-inverse, B, E-positive, E-negative) has seeds 5 and 6 and no others, each one 40 GB file
-    that loads and validates
+    that loads and validates, with its 16, 24 and 80 GB twins beside it (scripts/make_card_files.py), which differ
+    from it only in the five card sizing fields
   - each asks exactly the nine questions of base/persona_a/one_persona_no_trial_a.json, with no reply prefix and
     C not shown
   - none scores the base model (baseline_before_training false), and each trains from step 0 (no start_from)
@@ -46,8 +47,20 @@ def _files():
 
 def test_files_exist_and_load():
     expected = {p for *_, p in _files()}
+    # each 40 GB file has its other cards' twins beside it, and the folder holds nothing else
+    twins = {p.with_name(p.name.replace("_40gb.json", suffix)) for p in expected for suffix in (".json", "_24gb.json", "_80gb.json")}
     present = set(OUT.glob("*/*.json"))
-    assert present == expected, (sorted(p.name for p in present - expected), sorted(p.name for p in expected - present))
+    assert present == expected | twins, (sorted(p.name for p in present - expected - twins),
+                                         sorted(p.name for p in (expected | twins) - present))
+    sizing = {"micro_batch_size", "gradient_checkpointing", "eval_batch_size", "decision_eval_batch_size",
+              "introspection_eval_batch_size"}
+    for path in expected:
+        mine = load(str(path))
+        for suffix in (".json", "_24gb.json", "_80gb.json"):
+            other = load(str(path.with_name(path.name.replace("_40gb.json", suffix))))
+            differ = {k for block in mine if isinstance(mine[block], dict) and not block.startswith("_")
+                      for k in mine[block] if mine[block][k] != other[block].get(k)}
+            assert differ <= sizing, (path.name, suffix, sorted(differ - sizing))
     for _, _, seed, path in _files():
         assert path.exists(), path
         cfg = load(str(path))

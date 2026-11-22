@@ -82,7 +82,7 @@ configs/
   plunkett_linear/                           Plunkett and Atkinson, linear rule, 4B and 8B
   minimum_threshold/                         the minimum threshold rule, many personas
   paper_minimum_threshold/                   the paper's minimum threshold design, many personas
-  minimum_threshold_one_persona/             one persona, minimum threshold, Qwen3-8B (16 GB and _24gb files)
+  minimum_threshold_one_persona/             one persona, minimum threshold, Qwen3-8B (16 GB, _24gb, _40gb and _80gb files)
     base/  controls/  inverse/  rule_tests/  cut_sweep/     each split into persona_a/ and persona_b/
   minimum_threshold_one_persona_qwen3_14b/   the same experiments on Qwen3-14B (_24gb, _80gb)
   minimum_threshold_one_persona_qwen3_32b/   the same experiments on Qwen3-32B (_48gb, _80gb)

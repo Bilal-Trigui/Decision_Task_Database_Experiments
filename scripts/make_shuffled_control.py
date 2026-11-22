@@ -19,7 +19,8 @@ exactly like a persona, on the same kind of prompts, but its answers follow no r
       evaluation.
   configs/minimum_threshold_one_persona/controls/shuffled/shuffled_24gb.json
       The same experiment sized for a 24 GB card (L4, A10, 4090), from E-negative's 24 GB settings file: it differs
-      from the 40 GB file only in the eval batch sizes and gradient checkpointing (on here), so the two runs compare.
+      from the 40 GB file only in the eval batch sizes, so the two runs compare. The 16 GB and 80 GB files beside
+      them are written by scripts/make_card_files.py.
 
 Why one serves all five personas (A, A-inverse, B, E-positive, E-negative): with random answers there is no persona
 left in the training data. What differs between the personas is the training trials (A, A-inverse and B share one

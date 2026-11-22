@@ -167,7 +167,8 @@ def readme(d):
     lines += ["", "Every file is complete (nothing inherited): open it to see or edit any setting."
               + (" The files of one experiment differ only in how they are sized for the card "
                  "(`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, "
-                 "off in the 40 GB files); the effective batch, LoRA, quantization and everything else match."
+                 "on in the 16 GB files only); the effective batch, LoRA, quantization and everything else match. "
+                 "`scripts/make_card_files.py` writes a missing card's file."
                  if one_persona else ""), "",
               "```", f"python scripts/run_one_persona.py --settings {rel}/<file>.json", "```", "",
               "Written by `scripts/write_config_readmes.py`; rerun it after adding a file.", ""]
