@@ -110,18 +110,24 @@ def test_settings():
     allowed = {"model_training.data_dir", "model_hyperparameters.run_tag", "model_hyperparameters.baseline_before_training",
                "model_hyperparameters.micro_batch_size", "model_hyperparameters.gradient_checkpointing",
                "compute.eval_batch_size", "compute.decision_eval_batch_size", "compute.introspection_eval_batch_size"}
-    base, cfg = _flat(SF.flat(M.SOURCE_SETTINGS)), _flat(json.loads(M.CONFIG.read_text(encoding="utf-8")))
-    diff = {k for k in set(base) | set(cfg) if base.get(k) != cfg.get(k)}
-    assert diff <= allowed, sorted(diff - allowed)
-    loaded = load_experiment(str(M.CONFIG), None, None, None)
-    mh = loaded["model_hyperparameters"]
-    assert mh["baseline_before_training"] is False and mh["start_from"] is None and mh["run_tag"] == "shuffled"
-    assert mh["micro_batch_size"] == 5 and mh["gradient_checkpointing"] is False
-    assert Path(ROOT / loaded["model_training"]["data_dir"]).resolve() == M.OUT.resolve()
-    check_manifest(loaded["model_training"]["data_dir"], resolve(loaded).rule, loaded)
+    assert sorted(M.CARDS) == ["24gb", "40gb"] and M.CARDS["40gb"] == (M.SOURCE_SETTINGS, M.CONFIG)
+    for card, (settings, config) in M.CARDS.items():
+        base, cfg = _flat(SF.flat(M.SOURCE_SETTINGS)), _flat(json.loads(config.read_text(encoding="utf-8")))
+        diff = {k for k in set(base) | set(cfg) if base.get(k) != cfg.get(k)}
+        assert diff <= allowed, (card, sorted(diff - allowed))
+        loaded = load_experiment(str(config), None, None, None)
+        mh = loaded["model_hyperparameters"]
+        assert mh["baseline_before_training"] is False and mh["start_from"] is None and mh["run_tag"] == "shuffled"
+        # the card's sizing is the persona file's for that card: 24 GB keeps gradient checkpointing on, 40 GB turns it off
+        sized = SF.flat(settings)
+        assert mh["micro_batch_size"] == sized["model_hyperparameters"]["micro_batch_size"] == 5
+        assert mh["gradient_checkpointing"] is sized["model_hyperparameters"]["gradient_checkpointing"] is (card != "40gb")
+        assert loaded["compute"]["eval_batch_size"] == sized["compute"]["eval_batch_size"] == {"24gb": 16, "40gb": 96}[card]
+        assert Path(ROOT / loaded["model_training"]["data_dir"]).resolve() == M.OUT.resolve()
+        check_manifest(loaded["model_training"]["data_dir"], resolve(loaded).rule, loaded)
     rs = SF.flat(M.A_FORMAT)["report_schema"]
     assert not rs.get("reply_prefix") and not rs.get("show_neither"), "A_FORMAT is not A and B's report format"
-    print("  settings: E-negative's seed-4 run, random-answer data, 40 GB, no base-model eval; passes the preflight")
+    print("  settings: E-negative's seed-4 run, random-answer data, a 40 GB and a 24 GB file, no base-model eval; both pass the preflight")
 
 
 if __name__ == "__main__":

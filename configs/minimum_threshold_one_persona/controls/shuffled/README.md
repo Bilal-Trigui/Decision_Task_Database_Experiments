@@ -4,7 +4,7 @@ On **Qwen3-8B**. The random-answer control for every persona: E-negative's train
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|
-| `shuffled` | The random-answer control for every persona: E-negative's training prompts with each answer drawn at random (A, B 0.4375 each, C 0.125, seed 13), so there is no rule to learn. | Qwen3-8B | `shuffled_40gb.json` (40 GB) | 3000 |
+| `shuffled` | The random-answer control for every persona: E-negative's training prompts with each answer drawn at random (A, B 0.4375 each, C 0.125, seed 13), so there is no rule to learn. | Qwen3-8B | `shuffled_24gb.json` (24 GB), `shuffled_40gb.json` (40 GB) | 3000 |
 
 Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, off in the 40 GB files); the effective batch, LoRA, quantization and everything else match.
 

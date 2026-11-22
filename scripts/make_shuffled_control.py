@@ -17,6 +17,9 @@ exactly like a persona, on the same kind of prompts, but its answers follow no r
       E-negative's seed-4 settings (20261116-221120: its questions, "{" reply prefix, C shown, seed 4, 3000 steps,
       a checkpoint every 250) with that data folder, run_tag "shuffled", the 40 GB batch sizes, and no base-model
       evaluation.
+  configs/minimum_threshold_one_persona/controls/shuffled/shuffled_24gb.json
+      The same experiment sized for a 24 GB card (L4, A10, 4090), from E-negative's 24 GB settings file: it differs
+      from the 40 GB file only in the eval batch sizes and gradient checkpointing (on here), so the two runs compare.
 
 Why one serves all five personas (A, A-inverse, B, E-positive, E-negative): with random answers there is no persona
 left in the training data. What differs between the personas is the training trials (A, A-inverse and B share one
@@ -26,7 +29,6 @@ are asked, not when the model is trained, so the trained control is asked in A a
 (evaluate_checkpoints.ipynb with QUESTIONS_FROM set to A's settings file; configs/.../controls/shuffled/README.md).
 """
 import argparse
-import copy
 import json
 import random
 import shutil
@@ -45,6 +47,10 @@ SOURCE_RUN = "20261116-221120_paper_minimum_threshold_Qwen3-8B_e-negative"
 A_FORMAT = CONFIGS / "base" / "persona_a" / "one_persona_no_trial_a.json"   # A and B's report format
 OUT = DATA / "controls" / "shuffled"
 CONFIG = CONFIGS / "controls" / "shuffled" / "shuffled_40gb.json"
+# card -> (E-negative's settings file sized for that card, the control's settings file written from it)
+CARDS = {"40gb": (SOURCE_SETTINGS, CONFIG),
+         "24gb": (CONFIGS / "inverse" / "persona_e" / "one_persona_e_negative_24gb.json",
+                  CONFIGS / "controls" / "shuffled" / "shuffled_24gb.json")}
 SEED = 13
 SHARES = {"A": 0.4375, "B": 0.4375, "C": 0.125}
 FILES = ("instill_1_prefs.jsonl", "instill_1_prefs_val.jsonl")
@@ -95,16 +101,22 @@ def build(rebuild=False):
         (OUT / "README.md").write_bytes(readme(source).encode("utf-8"))
         print(f"built {OUT.relative_to(ROOT)}")
 
-    cfg, _ = SF.with_gpu(copy.deepcopy(base), "8b", "40gb")
+    for card, (settings, config) in CARDS.items():
+        write_settings(card, settings, config)
+
+
+def write_settings(card, settings, config):
+    """The control's settings file for one card: E-negative's file for that card, on the random-answer data."""
+    cfg, _ = SF.with_gpu(SF.flat(settings), "8b", card)
     mh = cfg["model_hyperparameters"]
     cfg["model_training"]["data_dir"] = OUT.relative_to(ROOT).as_posix() + "/"
     mh["run_tag"] = "shuffled"
     mh["baseline_before_training"] = False
-    rel = CONFIG.relative_to(ROOT).as_posix()
-    SF.write(CONFIG, cfg, [
+    rel = config.relative_to(ROOT).as_posix()
+    SF.write(config, cfg, [
         "The random-answer control for every persona: E-negative's training prompts with each answer drawn at random "
         f"(A, B {SHARES['A']} each, C {SHARES['C']}, seed {SEED}), so there is no rule to learn.",
-        f"  settings from {SOURCE_SETTINGS.relative_to(ROOT).as_posix()} (E-negative's seed-4 run {SOURCE_RUN}); "
+        f"  settings from {settings.relative_to(ROOT).as_posix()} (E-negative's seed-4 run {SOURCE_RUN}); "
         f"data: {cfg['model_training']['data_dir']}.",
         "  Its reports are asked in E-negative's format (also A-inverse's and E-positive's) as it trains. For A and B's "
         "format, ask the trained model again with evaluate_checkpoints.ipynb, QUESTIONS_FROM = "
@@ -112,7 +124,7 @@ def build(rebuild=False):
         "  Compare with each trained run and its step 0 through tools/trial_regression.py. No base-model evaluation.",
         "Written by scripts/make_shuffled_control.py.",
         "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
-        SF.gpu_line("8b", "40gb"),
+        SF.gpu_line("8b", card),
         f"Run: python scripts/run_one_persona.py --settings {rel}",
     ])
     print(f"written {rel}")
