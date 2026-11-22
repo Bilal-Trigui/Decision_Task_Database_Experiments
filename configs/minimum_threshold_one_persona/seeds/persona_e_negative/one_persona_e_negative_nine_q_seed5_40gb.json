@@ -1,0 +1,167 @@
+{
+  "_comment": [
+    "Persona E-negative (0, -100, -40, -70, -25; caffeine >= 17.5 mg, 25% of range), seed 5: a seed repeat asking the nine report questions of A's 3000-step run.",
+    "  settings from configs/minimum_threshold_one_persona/inverse/persona_e/one_persona_e_negative_40gb.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, no reply prefix, C not shown).",
+    "  Only model_hyperparameters.seed (5) and run_tag differ between the seeds: same data, same 5000 training trials, same 50 report trials.",
+    "  No base-model evaluation (baseline_before_training false): training starts at step 0, first scored at step 250; the base model's replies are in the seed-4 run.",
+    "  seed-4 run of this persona: 20261116-221120 (every question, \"{\" prefix, C shown).",
+    "Written by scripts/make_seed_runs.py.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/seeds/persona_e_negative/one_persona_e_negative_nine_q_seed5_40gb.json"
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.125,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.75
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/inverse/persona_e/one_persona_minimum_threshold_e_negative/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut": {
+        "ask": false,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
+      }
+    },
+    "reply_prefix": "",
+    "show_neither": false
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 5,
+    "gradient_checkpointing": false,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 250,
+    "baseline_before_training": false,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "last",
+    "run_tag": "e-negative-nine-q-seed5",
+    "seed": 5
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 96,
+    "decision_eval_batch_size": 96,
+    "introspection_eval_batch_size": 8,
+    "mount_drive": false
+  }
+}

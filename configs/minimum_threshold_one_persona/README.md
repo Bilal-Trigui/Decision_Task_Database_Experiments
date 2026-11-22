@@ -142,6 +142,71 @@ Written by `scripts/make_cut_sweep.py` (`--persona`, `--prefix`, `--gpus`).
 These branch from an 8B checkpoint, so there is no 14B or 32B cut sweep yet: run the 14B (or 32B) A base first,
 then point `model_hyperparameters.start_from` at that run.
 
+## seeds/: A, A-inverse, B, E-positive and E-negative trained again with seeds 5 and 6
+
+`seeds/persona_<a|a_inverse|b|e_positive|e_negative>/one_persona_<name>_nine_q_seed<N>_40gb.json`, A100 40GB only.
+Each is its persona's settings with `model_hyperparameters.seed` set to N and the nine report questions of A's and
+B's 3000-step runs (`base/persona_a/one_persona_no_trial_a.json`, the same in `..._no_trial_b.json`: main,
+screen_index, screen_cut_units, main_report_units, main_threshold_met, main_threshold_not_met and the three no-trial
+screen questions; no `"{"` prefix, C not shown). The data seeds are untouched, so every seed trains on the same 5000
+trials and is asked the same 50 report trials; the seed sets the LoRA starting point, the training order and the
+evaluation draws. They skip the base-model evaluation (`baseline_before_training` false): training starts at step 0
+as usual and the first scores are at step 250. The base model's replies do not depend on the training seed: A's and
+B's seed-4 runs hold them for these nine questions (`base_model_step-0`); for A-inverse, E-positive and E-negative
+the seed-4 runs hold them only for the longer question set.
+
+| persona | seed-4 run | same questions as seed 4? |
+|---|---|---|
+| A | 20261110-211307 | yes (it ran 16 GB batching: micro-batch 2, gradient checkpointing on) |
+| B | 20261110-112915 | yes (16 GB batching, as A) |
+| A-inverse | 20261113-170347 | no: it asked every question, `"{"` prefix, C shown |
+| E-positive | 20261116-221042 | no: as A-inverse |
+| E-negative | 20261116-221120 | no: as A-inverse |
+
+So A and B have three seeds each in one format (4, 5, 6), and A-inverse, E-positive and E-negative two each (5, 6)
+beside a seed 4 in the longer format. Written by `scripts/make_seed_runs.py` (`--seeds` for others); checked by
+`tests/test_seed_runs.py`.
+
+Read them with intervals over report trials, then the seeds side by side:
+
+```
+python tools/persona_readouts.py results/<run_id> --boot 2000      # <readout>_lo/_hi per step and pooled
+python tools/seed_summary.py results/*nine-q-seed* results/20261110-211307_* results/20261110-112915_* --boot 2000
+```
+
+The interval resamples the 50 report trials (in a pooled row, a trial's replies at every pooled step together); it
+says how much a readout depends on which trials were asked, not on training. `seed_summary` adds the spread across
+seeds beside it. With 50 trials, `cos4` of the mean reply is unstable when replies split between all-positive and
+all-negative (A seed 4 pooled: 0.50 [0.01, 0.71]); the sign shares and `cos4_each` are tighter. A and A-inverse cut at
+35 mg, so only about 8 of the 50 report trials are `both_pass`: read those intervals with that in mind.
+
+## Is the trial readout training's, or the prompt's? Step 0 and shuffled-label controls
+
+The trial-shown questions put the trial's values in the prompt, so a readout of how the reports follow the trial
+could be something the prompt induces in any model. Three models go through the same regression
+(`tools/trial_regression.py`): the trained run, its step 0 (the base model, `base_model_step-0`, already in each
+seed-4 run) and a shuffled-label control, `controls/persona_<a|a_inverse|b|e_positive|e_negative>/one_persona_<x>_shuffled_40gb.json`:
+
+- the persona's seed-4 settings exactly (same questions, prefix, C shown or not, seed 4, 3000 steps), on a copy of
+  its data folder with the training answers permuted across trials (`random.Random(11)`), so the prompts, the A/B/C
+  shares and the report trials are the trained run's and the answers follow the rule only at chance (40%, the
+  chance rate at these shares);
+- no base-model evaluation: the seed-4 run's step 0 is the same model on the same prompts.
+
+Built by `scripts/make_shuffled_controls.py`; checked by `tests/test_controls_and_tools.py`. A's reuses
+`data/.../controls/persona_a/one_persona_minimum_threshold_shuffled/` (A's prompts, the same shuffle).
+
+```
+python scripts/run_queue.py --name shuffled_controls configs/minimum_threshold_one_persona/controls/persona_*/one_persona_*_shuffled_40gb.json
+python tools/trial_regression.py results/<trained run> --shuffled results/<its shuffled run>
+```
+
+The regression: each reported weight on the trial shown (`own`: that attribute's A and B values; `all`: all ten),
+R² averaged over the weights, beside a permutation null (replies kept, trials shuffled). With 50 report trials and
+10 predictors a reply unrelated to the trial still scores R² about 10/49 = 0.20, so read every R² against its
+`null_95`. Training caused the readout if the trained R² is above both the step-0 and the shuffled model's; if all
+three are alike, the readout is the prompt's.
+
 ## Run everything on an A100 40GB
 
 Every `_40gb` file is complete and its data is in the repo, so a fresh clone runs it as is. A queue runs a list one
@@ -161,6 +226,8 @@ python scripts/run_queue.py --name cut_sweep_c configs/minimum_threshold_one_per
 python scripts/run_queue.py --name cut_sweep_c_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_c_inverse/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_e_positive configs/minimum_threshold_one_persona/cut_sweep/persona_e_positive/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_e_negative configs/minimum_threshold_one_persona/cut_sweep/persona_e_negative/*_40gb.json
+# the seed repeats (10 runs: A, A-inverse, B, E-positive, E-negative x seeds 5, 6)
+python scripts/run_queue.py --name seeds configs/minimum_threshold_one_persona/seeds/*/*_40gb.json
 ```
 
 or one file: `python scripts/run_one_persona.py --settings <file>`, or `SETTINGS_FILE = "<file>"` in

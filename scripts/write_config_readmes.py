@@ -73,6 +73,30 @@ PERSONA_DIRS = {
                          "See ../README.md.",
     "cut_sweep/persona_e_negative": "Persona E-negative's cut sweep (cut at 25% of range), branching from 20261116-221120 at step 1500. "
                          "See ../README.md.",
+    "controls/persona_a_inverse": "Shuffled-label control for A-inverse: its seed-4 run 20261113-170347 again on its prompts with "
+                                  "the training answers permuted, so no rule can be learned. Compared with the trained run "
+                                  "and its step 0 by tools/trial_regression.py. Written by scripts/make_shuffled_controls.py.",
+    "controls/persona_b": "Shuffled-label control for B: its seed-4 run 20261110-112915 again on its prompts with the training "
+                          "answers permuted. Written by scripts/make_shuffled_controls.py.",
+    "controls/persona_e_positive": "Shuffled-label control for E-positive: its seed-4 run 20261116-221042 again on its prompts with "
+                                   "the training answers permuted. Written by scripts/make_shuffled_controls.py.",
+    "controls/persona_e_negative": "Shuffled-label control for E-negative: its seed-4 run 20261116-221120 again on its prompts with "
+                                   "the training answers permuted. Written by scripts/make_shuffled_controls.py.",
+    "seeds/persona_a":"Persona A trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
+                       "20261110-211307 (base/persona_a/one_persona_no_trial_a.json); only the seed and run_tag differ. "
+                       "Written by scripts/make_seed_runs.py.",
+    "seeds/persona_b": "Persona B trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
+                       "20261110-112915 (base/persona_b/one_persona_no_trial_b.json); only the seed and run_tag differ. "
+                       "Written by scripts/make_seed_runs.py.",
+    "seeds/persona_a_inverse": "Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "
+                               "\"{\" prefix, C not shown). Its seed-4 run 20261113-170347 asked every question, so these "
+                               "compare with each other. Written by scripts/make_seed_runs.py.",
+    "seeds/persona_e_positive": "Persona E-positive trained again with seeds 5 and 6, asking A's nine report questions (no "
+                                "\"{\" prefix, C not shown). Its seed-4 run 20261116-221042 asked every question, so these "
+                                "compare with each other. Written by scripts/make_seed_runs.py.",
+    "seeds/persona_e_negative": "Persona E-negative trained again with seeds 5 and 6, asking A's nine report questions (no "
+                                "\"{\" prefix, C not shown). Its seed-4 run 20261116-221120 asked every question, so these "
+                                "compare with each other. Written by scripts/make_seed_runs.py.",
 }
 OTHER_DIRS = {
     "minimum_threshold": "The minimum threshold rule over many personas (100), answers A, B or C, on Qwen3-8B: the multi-persona "

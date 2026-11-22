@@ -45,6 +45,16 @@ backend prints `LOGIN CREDENTIALS NEEDED HERE: HF_TOKEN` and stops if it is
 missing. To run a second experiment, change `SETTINGS_FILE` and re-run from the
 run cell down; the model and the environment are already in place.
 
+Working with checkpoints a run already saved, no training:
+
+- `download_checkpoint.ipynb`: paste a Hugging Face link (a step folder, a run's `.../decision` folder, or one
+  file) and it lands in `checkpoints/` where the pipeline looks, with the run's `settings.json`, each file checked
+  against the Hub's SHA-256. `DRY_RUN = True` lists what a link would fetch, and its size, first.
+- `evaluate_checkpoints.ipynb` (`src/evaluate_saved.py`): the decision trials, the recovered rule and the report
+  questions again on saved steps (0 = the base model), into `results/<run>/evaluate_only/<NAME>/`, with a check
+  that the decisions match the run's own.
+- `ask_only.ipynb`: new report questions only; the rule is refitted from the run's saved decisions.
+
 On a machine that expires, call the persist cell after every experiment. It
 pushes results and adapters to the Hugging Face Hub, and everything left on such
 a box is deleted when it shuts down.

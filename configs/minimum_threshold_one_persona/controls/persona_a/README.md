@@ -4,6 +4,7 @@ On **Qwen3-8B**. Controls for persona A: the plain linear rule with A's weights 
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|
+| `one_persona_a_shuffled` | Persona A (0, -83, -38, -100, 31; caffeine >= 35 mg), shuffled-label control: the seed-4 run 20261110-211307 again on its prompts with the training answers permuted across trials, so nothing about the rule can be learned. | Qwen3-8B | `one_persona_a_shuffled_40gb.json` (40 GB) | 3000 |
 | `one_persona_linear` | One-persona dot-product control: persona A with the screen taken away. | Qwen3-8B | `one_persona_linear.json` (16 GB), `one_persona_linear_24gb.json` (24 GB) | 3000 |
 | `one_persona_minimum_threshold_shuffled` | Persona A, A's prompts, answers permuted across trials (no rule to learn). | Qwen3-8B | `one_persona_minimum_threshold_shuffled.json` (16 GB), `one_persona_minimum_threshold_shuffled_24gb.json` (24 GB) | 3000 |
 
