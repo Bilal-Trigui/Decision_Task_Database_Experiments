@@ -15,11 +15,14 @@ or set `SETTINGS_FILE` to that path in `run_experiment.ipynb`.
 - **Every file is complete.** It holds every setting its run uses; nothing is inherited from another file. What you
   read is what runs, and any value can be edited in that file alone.
 - **A file per card:** `<name>.json` is sized for a 16 GB card (RTX 5070 Ti), `<name>_24gb.json` for a 24 GB card
-  (L4, A10, RTX 4090) and, for personas C to H, `<name>_40gb.json` for an A100 40GB. They differ only in
-  `model_hyperparameters.micro_batch_size` (2 / 5 / 5) and the `compute` eval batch sizes (4 / 16 / 96, introspection
-  1 / 4 / 8); the 40 GB file also turns `gradient_checkpointing` off (it only saves memory, at about 30% of training time). The effective batch (10), LoRA (rank 8), 4-bit loading and everything else are the same, so runs on
-  different cards compare. Out of memory on 24 GB: eval batches 8 first, then micro_batch_size 2; on 40 GB: in training,
-  `gradient_checkpointing` true; in evaluation, eval batches 48, then 32. The 40 GB file runs a training step in two passes of 5.
+  (L4, A10, RTX 4090), `<name>_40gb.json` for an A100 40GB and `<name>_80gb.json` for an A100 80GB or H100. They differ
+  only in `model_hyperparameters.micro_batch_size` (2 / 2 / 5 / 10), `gradient_checkpointing` (on for 16 GB, off for the
+  others: it only saves memory, at about 30% of training time) and the `compute` eval batch sizes (4 / 48 / 96 / 192,
+  introspection 1 / 4 / 8 / 16). The effective batch (10), LoRA (rank 8), 4-bit loading and everything else are the
+  same, so runs on different cards compare. With checkpointing off a training pass holds about 2.6 GiB per example on
+  top of the model, which is why 24 GB runs the batch in five passes of 2: two passes of 5 ran an L4 out of memory on
+  2026-11-22. Out of memory in training, any card: `gradient_checkpointing` true. Out of memory in evaluation: halve
+  the eval batches. Each file's own "Sized for" comment line says the same for its card.
 - **Each `_comment` starts with** what the experiment is, the persona's weights and screen, the card it is sized
   for and the command that runs it. Older notes follow.
 - **Data** is under `data/minimum_threshold_one_persona/`, in the same group/persona layout.

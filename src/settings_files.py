@@ -30,11 +30,15 @@ GPU_PROFILES = {
                          cards="RTX 5070 Ti, RTX 4080",
                          why="Qwen3-8B in 4-bit is about 6 GB, which leaves room for the 152k-token logits. Out of memory: "
                              "micro_batch_size 1, then report_schema.max_new_tokens 200"),
-    ("8b", "24gb"): dict(micro_batch_size=5, gradient_checkpointing=False, eval_batch_size=48, decision_eval_batch_size=48, introspection_eval_batch_size=4,
+    ("8b", "24gb"): dict(micro_batch_size=2, gradient_checkpointing=False, eval_batch_size=48, decision_eval_batch_size=48, introspection_eval_batch_size=4,
                          cards="L4, A10, RTX 4090, RTX 3090",
-                         why="Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16): the 40 GB "
-                             "sizes scaled by the memory left after the model, not measured on a 24 GB card. Out of memory in "
-                             "training: gradient_checkpointing true. Out of memory in evaluation: eval batches 24, then 16"),
+                         why="Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16). The batch of "
+                             "10 in five passes of 2: with checkpointing off, two passes of 5 ran a Colab L4 (22 GiB) out of memory "
+                             "on the first training step (2026-11-22: 21.7 GiB in use when the loss asked for 0.66 GiB more), about "
+                             "2.6 GiB per example in a pass on top of the model. Passes of 2 should need about 15 GiB; not yet "
+                             "measured, and the eval batches of 48 have not run on a 24 GB card either. Out of memory in training: "
+                             "gradient_checkpointing true (then micro_batch_size 5 fits). Out of memory in evaluation: eval "
+                             "batches 24, then 16"),
     ("8b", "40gb"): dict(micro_batch_size=5, gradient_checkpointing=False, eval_batch_size=96, decision_eval_batch_size=96, introspection_eval_batch_size=8,
                          cards="A100 40GB",
                          why="Gradient checkpointing off: it recomputes every layer's activations in the backward pass, "

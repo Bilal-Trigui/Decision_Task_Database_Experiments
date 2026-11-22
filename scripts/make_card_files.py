@@ -7,7 +7,7 @@ Each experiment in configs/minimum_threshold_one_persona/ is one settings file p
 experiment differ only in how they are sized for the card (src.settings_files.GPU_PROFILES):
 
     <name>.json        16 GB   micro-batch 2,  gradient checkpointing on,  eval batches 4
-    <name>_24gb.json   24 GB   micro-batch 5,  gradient checkpointing off, eval batches 48
+    <name>_24gb.json   24 GB   micro-batch 2,  gradient checkpointing off, eval batches 48
     <name>_40gb.json   40 GB   micro-batch 5,  gradient checkpointing off, eval batches 96
     <name>_80gb.json   80 GB   micro-batch 10, gradient checkpointing off, eval batches 192
 
