@@ -180,9 +180,10 @@ Written by `scripts/make_cut_sweep.py` (`--persona`, `--prefix`, `--gpus`).
 These branch from an 8B checkpoint, so there is no 14B or 32B cut sweep yet: run the 14B (or 32B) A base first,
 then point `model_hyperparameters.start_from` at that run.
 
-## seeds/: A, A-inverse, B, E-positive and E-negative trained again with seeds 5 and 6
+## seeds/: A, A-inverse, B, B-inverse, E-positive and E-negative trained again with seeds 5 and 6
 
-`seeds/persona_<a|a_inverse|b|e_positive|e_negative>/one_persona_<name>_nine_q_seed<N>_40gb.json`, A100 40GB only.
+`seeds/persona_<a|a_inverse|b|b_inverse|e_positive|e_negative>/one_persona_<name>_nine_q_seed<N>_40gb.json`, with the
+other cards' files beside it (no suffix, `_24gb`, `_80gb`). B-inverse was added on 2026-11-23.
 Each is its persona's settings with `model_hyperparameters.seed` set to N and the nine report questions of A's and
 B's 3000-step runs (`base/persona_a/one_persona_no_trial_a.json`, the same in `..._no_trial_b.json`: main,
 screen_index, screen_cut_units, main_report_units, main_threshold_met, main_threshold_not_met and the three no-trial
@@ -190,18 +191,19 @@ screen questions; no `"{"` prefix, C not shown). The data seeds are untouched, s
 trials and is asked the same 50 report trials; the seed sets the LoRA starting point, the training order and the
 evaluation draws. They skip the base-model evaluation (`baseline_before_training` false): training starts at step 0
 as usual and the first scores are at step 250. The base model's replies do not depend on the training seed: A's and
-B's seed-4 runs hold them for these nine questions (`base_model_step-0`); for A-inverse, E-positive and E-negative
-the seed-4 runs hold them only for the longer question set.
+B's seed-4 runs hold them for these nine questions (`base_model_step-0`); for A-inverse, B-inverse, E-positive and
+E-negative the seed-4 runs hold them only for the longer question set.
 
 | persona | seed-4 run | same questions as seed 4? |
 |---|---|---|
 | A | 20261110-211307 | yes (it ran 16 GB batching: micro-batch 2, gradient checkpointing on) |
 | B | 20261110-112915 | yes (16 GB batching, as A) |
 | A-inverse | 20261113-170347 | no: it asked every question, `"{"` prefix, C shown |
+| B-inverse | 20261112-235923 | no: as A-inverse |
 | E-positive | 20261116-221042 | no: as A-inverse |
 | E-negative | 20261116-221120 | no: as A-inverse |
 
-So A and B have three seeds each in one format (4, 5, 6), and A-inverse, E-positive and E-negative two each (5, 6)
+So A and B have three seeds each in one format (4, 5, 6), and A-inverse, B-inverse, E-positive and E-negative two each (5, 6)
 beside a seed 4 in the longer format. Written by `scripts/make_seed_runs.py` (`--seeds` for others); checked by
 `tests/test_seed_runs.py`.
 
@@ -285,7 +287,7 @@ python scripts/run_queue.py --name cut_sweep_c configs/minimum_threshold_one_per
 python scripts/run_queue.py --name cut_sweep_c_inverse configs/minimum_threshold_one_persona/cut_sweep/persona_c_inverse/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_e_positive configs/minimum_threshold_one_persona/cut_sweep/persona_e_positive/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_e_negative configs/minimum_threshold_one_persona/cut_sweep/persona_e_negative/*_40gb.json
-# the seed repeats (10 runs: A, A-inverse, B, E-positive, E-negative x seeds 5, 6)
+# the seed repeats (12 runs: A, A-inverse, B, B-inverse, E-positive, E-negative x seeds 5, 6)
 python scripts/run_queue.py --name seeds configs/minimum_threshold_one_persona/seeds/*/*_40gb.json
 ```
 

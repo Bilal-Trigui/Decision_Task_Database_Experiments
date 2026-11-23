@@ -2,7 +2,7 @@
 
 Run with `python -m tests.test_seed_runs`. Checks:
 
-  - every persona (A, A-inverse, B, E-positive, E-negative) has seeds 5 and 6 and no others, each one 40 GB file
+  - every persona (A, A-inverse, B, B-inverse, E-positive, E-negative) has seeds 5 and 6 and no others, each one 40 GB file
     that loads and validates, with its 16, 24 and 80 GB twins beside it (scripts/make_card_files.py), which differ
     from it only in the five card sizing fields
   - each asks exactly the nine questions of base/persona_a/one_persona_no_trial_a.json, with no reply prefix and

@@ -103,6 +103,9 @@ PERSONA_DIRS = {
     "seeds/persona_b": "Persona B trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
                        "20261110-112915 (base/persona_b/one_persona_no_trial_b.json); only the seed and run_tag differ. "
                        "Written by scripts/make_seed_runs.py.",
+    "seeds/persona_b_inverse": "Persona B-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "
+                               "\"{\" prefix, C not shown). Its seed-4 run 20261112-235923 asked every question, so these "
+                               "compare with each other. Written by scripts/make_seed_runs.py.",
     "seeds/persona_a_inverse": "Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "
                                "\"{\" prefix, C not shown). Its seed-4 run 20261113-170347 asked every question, so these "
                                "compare with each other. Written by scripts/make_seed_runs.py.",

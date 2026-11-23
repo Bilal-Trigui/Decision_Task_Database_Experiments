@@ -1,5 +1,5 @@
-"""Seed repeats: A, A-inverse, B, E-positive and E-negative, each trained again with new seeds, asking the nine report
-questions of A's 3000-step run (base/persona_a/one_persona_no_trial_a.json), on an A100 40GB.
+"""Seed repeats: A, A-inverse, B, B-inverse, E-positive and E-negative, each trained again with new seeds, asking the
+nine report questions of A's 3000-step run (base/persona_a/one_persona_no_trial_a.json), on an A100 40GB.
 
     python scripts/make_seed_runs.py                 # seeds 5 and 6
     python scripts/make_seed_runs.py --seeds 5 6 7   # writes these; files of other seeds are left as they are
@@ -21,9 +21,9 @@ Everything else (data folder, learning rate, clipping, 3000 steps, a checkpoint 
 model_training.seeds) is the persona's own, so every seed trains on the same 5000 trials and is asked the same 50
 report trials. model_hyperparameters.seed sets the LoRA starting point, the training order and the evaluation draws.
 
-The seed-4 runs: A 20261110-211307 and B 20261110-112915 asked these nine questions; A-inverse 20261113-170347, E-positive 20261116-221042
-and E-negative 20261116-221120 asked every question with the "{" prefix and C shown, so for those three the nine-
-question seeds are compared with each other, not with seed 4.
+The seed-4 runs: A 20261110-211307 and B 20261110-112915 asked these nine questions; A-inverse 20261113-170347,
+B-inverse 20261112-235923, E-positive 20261116-221042 and E-negative 20261116-221120 asked every question with the
+"{" prefix and C shown, so for those four the nine-question seeds are compared with each other, not with seed 4.
 """
 import argparse
 import copy
@@ -49,6 +49,9 @@ PERSONAS = {
     "b": ("persona_b", CONFIGS / "base" / "persona_b" / "one_persona_no_trial_b.json",
           "Persona B (0, 100, 20, -50, -70; caffeine >= 35 mg, 50% of range)",
           "20261110-112915 (same nine questions)"),
+    "b_inverse": ("persona_b_inverse", CONFIGS / "inverse" / "persona_b" / "one_persona_b_inverse_40gb.json",
+                  "Persona B-inverse (0, -100, -20, 50, 70; caffeine >= 35 mg, 50% of range)",
+                  "20261112-235923 (every question, \"{\" prefix, C shown)"),
     "e_positive": ("persona_e_positive", CONFIGS / "base" / "persona_e" / "one_persona_e_positive_40gb.json",
                    "Persona E-positive (0, 100, 40, 70, 25; caffeine >= 17.5 mg, 25% of range)",
                    "20261116-221042 (every question, \"{\" prefix, C shown)"),
