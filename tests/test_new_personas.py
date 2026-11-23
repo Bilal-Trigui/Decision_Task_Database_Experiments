@@ -1,6 +1,6 @@
-"""Personas C to H (scripts/make_new_personas.py), checked independently: every answer recomputed from the options in
-its prompt and the persona's weights and cut written out here, with none of the pipeline's (or the builder's) code;
-and the seven settings files of each persona.
+"""Personas C to H and their inverses (scripts/make_new_personas.py), checked independently: every answer recomputed
+from the options in its prompt and the persona's weights and cut written out here, with none of the pipeline's (or
+the builder's) code; and the settings files of each persona.
 
     python -m tests.test_new_personas
 """
@@ -27,7 +27,14 @@ SPEC = {
     "f_resteep": ("base", "f", TEA, [0, -25, 40, -30, 100], [25, 0, 0, 0, 0], "cut_probe_caffeine_full"),
     "g": ("base", "g", TEA, [-83, -38, -100, 0, 31], [0, 0, 0, 25, 0], "cut_probe_steeping_full"),
     "h": ("base", "h", BOARD, [0, 100, 20, -50, -70], [25, 0, 0, 0, 0], "cut_probe_board_thickness_full"),
+    "f_oxidation_inverse": ("inverse", "f", TEA, [0, -30, 100, -45, 20], [25, 0, 0, 0, 0], "cut_probe_caffeine_full"),
+    "f_resteep_inverse": ("inverse", "f", TEA, [0, 25, -40, 30, -100], [25, 0, 0, 0, 0], "cut_probe_caffeine_full"),
+    "g_inverse": ("inverse", "g", TEA, [83, 38, 100, 0, -31], [0, 0, 0, 25, 0], "cut_probe_steeping_full"),
+    "h_inverse": ("inverse", "h", BOARD, [0, -100, -20, 50, 70], [25, 0, 0, 0, 0], "cut_probe_board_thickness_full"),
 }
+# an inverse and the persona it flips: the same screen and prompts, every weight's sign flipped
+INVERSE_OF = {"c_inverse": "c", "d_inverse": "d", "e_negative": "e_positive", "f_oxidation_inverse": "f_oxidation",
+              "f_resteep_inverse": "f_resteep", "g_inverse": "g", "h_inverse": "h"}
 SIZES = {"": ("Qwen/Qwen3-8B", 2, 4), "_24gb": ("Qwen/Qwen3-8B", 2, 48), "_40gb": ("Qwen/Qwen3-8B", 5, 96),
          "_80gb": ("Qwen/Qwen3-8B", 10, 192),
          "_14b_24gb": ("Qwen/Qwen3-14B", 2, 4), "_14b_80gb": ("Qwen/Qwen3-14B", 10, 32),
@@ -109,6 +116,27 @@ def test_every_label_follows_the_rule():
             assert ties <= 10, (name, ties)
             if kinds:
                 assert (count["weights"], count["screen"], count["C"]) == kinds, (name, count)
+
+
+def test_an_inverse_has_its_base_personas_prompts_and_the_other_answer_where_the_weights_decide():
+    for name, base in INVERSE_OF.items():
+        (_, _, (_, _, ranges), weights, cuts, _), (_, _, _, base_weights, base_cuts, _) = SPEC[name], SPEC[base]
+        assert weights == [-w for w in base_weights] and cuts == base_cuts, name
+        j = next(i for i, c in enumerate(cuts) if c)
+        cut = ranges[j][0] + cuts[j] / 100 * (ranges[j][1] - ranges[j][0])
+        for file in ("instill_1_prefs.jsonl", "instill_1_prefs_val.jsonl"):
+            mine, theirs = ([json.loads(l) for l in (_folder(n) / file).read_text(encoding="utf-8").splitlines() if l.strip()]
+                            for n in (name, base))
+            assert len(mine) == len(theirs), (name, file)
+            for r, b in zip(mine, theirs):
+                assert r["messages"][:2] == b["messages"][:2], (name, file)
+                A_, B_ = _options(r["messages"][1]["content"])
+                answer, base_answer = (x["messages"][2]["content"].strip() for x in (r, b))
+                if A_[j] >= cut and B_[j] >= cut:      # both pass the screen: the weights decide
+                    tie = _label(ranges, weights, cuts, A_, B_) is None
+                    assert tie or {answer, base_answer} == {"A", "B"}, (name, file, A_, B_)
+                else:                                  # the screen decides, or neither passes: the same answer
+                    assert answer == base_answer, (name, file, A_, B_)
 
 
 def test_seven_settings_files_each_complete_and_pointing_at_the_folder():

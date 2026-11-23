@@ -11,6 +11,7 @@ base/        persona_a/one_persona_minimum_threshold      persona_b/one_persona_
              persona_g/..._g   persona_h/..._h
 inverse/     persona_a/..._a_inverse                      persona_b/..._b_inverse
              persona_c/..._c_inverse   persona_d/..._d_inverse   persona_e/..._e_negative
+             persona_f/..._f_oxidation_inverse, ..._f_resteep_inverse   persona_g/..._g_inverse   persona_h/..._h_inverse
 rule_tests/  persona_a/..._screen_moved, _cut25, _cut75, _screen_moved_cut25, _screened_weighted
 controls/    persona_a/one_persona_linear, ..._shuffled
 cut_sweep/   persona_a/w00_c100 ... w75_c25      persona_b/...   persona_a_inverse/...   persona_b_inverse/...   persona_c/...   persona_c_inverse/...   persona_e_positive/...   persona_e_negative/...
@@ -46,12 +47,17 @@ these same folders: the trials and their answers do not depend on the model.
 | `base/persona_f/..._f_resteep` | 0, -25, 40, -30, 100 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
 | `base/persona_g/..._g` | -83, -38, -100, 0, 31 | steeping_time >= 2.5 min (25%) | no (trials drawn for its own screen) |
 | `base/persona_h/..._h` | cutting_board: 0, 100, 20, -50, -70 | board_thickness >= 2 cm (25%) | no: cutting_board, "Imagine you are Antonín Dvořák" |
+| `inverse/persona_f/..._f_oxidation_inverse` | 0, -30, 100, -45, 20 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `inverse/persona_f/..._f_resteep_inverse` | 0, 25, -40, 30, -100 | caffeine >= 17.5 mg (25%) | no: cut25's prompts |
+| `inverse/persona_g/..._g_inverse` | 83, 38, 100, 0, -31 | steeping_time >= 2.5 min (25%) | no: G's prompts |
+| `inverse/persona_h/..._h_inverse` | cutting_board: 0, -100, -20, 50, 70 | board_thickness >= 2 cm (25%) | no: H's prompts |
 
 Every threshold folder: 3750 trials decided by the weights, 625 by the screen, 625 C (both options fail), in
 training; 75 / 13 / 12 in validation. `tests/test_rule_test_datasets.py` and `tests/test_new_personas.py` (C to H)
 recompute every answer from the prompt's options and the folder's own rule, with none of the pipeline's code. H rates
 three attributes in whole numbers 1 to 10, so 7 of its 3750 weight-decided trials are exact ties of the weighted sums
-(the rule gives B; float rounding gave one of them A); every other answer matches.
+(the rule gives B; float rounding gave one of them A); every other answer matches. H-inverse has the same 7 ties,
+and F-resteep-inverse has one.
 
 ## cut_sweep (personas A, B, A-inverse, B-inverse, C, C-inverse, E-positive, E-negative)
 

@@ -52,6 +52,15 @@ PERSONA_DIRS = {
     "inverse/persona_d": "D-inverse: D with every sign flipped (-15, 10, -20, 15).",
     "inverse/persona_e": "E-negative: every weight negative (-100, -40, -70, -25), the clean sign test: the untrained model writes "
                          "negative numbers only about 25% of the time. Readout: the share of reported numbers that are negative.",
+    "inverse/persona_f": "F-oxidation-inverse and F-resteep-inverse: each F with every sign flipped, so the largest weight is "
+                         "oxidation +100 (0, -30, 100, -45, 20) and resteep -100 (0, 25, -40, 30, -100). With the two F runs, "
+                         "oxidation and resteep each carry the largest weight at both signs.",
+    "inverse/persona_g": "G-inverse: G with every sign flipped (caffeine 83, leaf 38, oxidation 100, resteep -31), the screen "
+                         "kept on steeping_time at 2.5 minutes (25%). G's prompts; the largest weight, on oxidation, is "
+                         "+100 here and -100 in G.",
+    "inverse/persona_h": "H-inverse: H with every sign flipped (B-inverse's weights on cutting_board: surface_area -100, "
+                         "knife_mark_resistance -20, grip_stability 50, ease_of_cleaning 70), board_thickness screened at "
+                         "2.0 cm (25%) as in H. H's prompts.",
     "controls/persona_a": "Controls for persona A: the plain linear rule with A's weights and no screen, and A's prompts with the "
                           "answers shuffled (no rule to learn; the floor for every readout).",
     "rule_tests/persona_a": "Persona A with one part of the rule changed (the cut level, the screened attribute, or the screened "

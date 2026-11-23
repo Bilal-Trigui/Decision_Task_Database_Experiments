@@ -1,0 +1,6 @@
+scenario,position,attribute,units,weight,cut_column,cut_percent,cut_value,range_min,range_max,active
+cutting_board,1,board_thickness,centimeters,0.0,cut1,25.0,2.0,1.0,5.0,True
+cutting_board,2,surface_area,square centimeters,-100.0,cut2,0.0,300.0,300.0,1200.0,False
+cutting_board,3,knife_mark_resistance,resistance rating,-20.0,cut3,0.0,1.0,1.0,10.0,False
+cutting_board,4,grip_stability,stability rating,50.0,cut4,0.0,1.0,1.0,10.0,False
+cutting_board,5,ease_of_cleaning,cleaning ease rating,70.0,cut5,0.0,1.0,1.0,10.0,False

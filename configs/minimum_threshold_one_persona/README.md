@@ -66,7 +66,7 @@ The same 5000 prompts as A; only the 3750 trials the weights decide get the othe
 
 ## Personas C to H: new weight patterns, a moved screen, a new domain
 
-`base/persona_<c..h>/` and `inverse/persona_<c|d|e>/`, each `one_persona_<name>.json` (16 GB), `_24gb` and `_40gb`.
+`base/persona_<c..h>/` and `inverse/persona_<c..h>/`, each `one_persona_<name>.json` (16 GB), `_24gb` and `_40gb`.
 Each is `base/persona_a/one_persona_probes_a.json` written out in full (every question, `"{"` prefix, C shown) plus the
 full-range cut probe; H is `base/persona_b/one_persona_probes_b.json` with its own cut probe instead of `cut_probe`
 (caffeine 10 to 50 means nothing for a board). Built by `scripts/make_new_personas.py`; checked by
@@ -84,6 +84,13 @@ full-range cut probe; H is `base/persona_b/one_persona_probes_b.json` with its o
 | F-resteep | 0, -25, 40, -30, 100 | caffeine >= 17.5 mg (25%) | resteep reported positive (right) | sign share per weight |
 | G | -83, -38, -100, 0, 31 | steeping_time >= 2.5 min (25%) | screen_index names 4; the no-trial one has answered 4 or 3 for every caffeine persona, so read step 0 too; cut probe switches between 2 and 3 on steeping | `cut_probe_steeping_full` (1.0 to 7.0 by 0.1) |
 | H | 0, 100, 20, -50, -70 on cutting_board | board_thickness >= 2.0 cm (25%) | behaves like B: faithful weights, largest positive, three reply forms, probe switches at 2.0 | `cut_probe_board_thickness_full` (1.0 to 5.0 by 0.1) |
+| F-oxidation-inverse | 0, -30, 100, -45, 20 | caffeine >= 17.5 mg (25%) | oxidation reported positive (right here, wrong in F-oxidation): positive in both means the report follows size, not sign | sign share per weight |
+| F-resteep-inverse | 0, 25, -40, 30, -100 | caffeine >= 17.5 mg (25%) | resteep reported positive (wrong here, right in F-resteep) | sign share per weight |
+| G-inverse | 83, 38, 100, 0, -31 | steeping_time >= 2.5 min (25%) | the screen as G; the largest weight (oxidation) is +100 here and -100 in G, so largest-reported-positive is right here | as G, with the sign share per weight |
+| H-inverse | 0, -100, -20, 50, 70 on cutting_board | board_thickness >= 2.0 cm (25%) | the screen as H; the largest weight (surface_area, -100) reported positive (wrong); behaves like B-inverse | as H, with the sign share per weight |
+
+The four inverses of F, G and H (added 2026-11-23) each flip every sign of their base persona and keep its screen.
+Each has its base persona's 5000 prompts: only the 3750 trials the weights decide get the other answer.
 
 Read every prediction with `python tools/persona_readouts.py results/<run_id>`: per step and pooled over steps 750 to
 3000, for all replies and for both-pass trials, the share of replies with each weight's true sign, the share
@@ -267,6 +274,8 @@ the Hub when it ends, where otherwise everything stays on a disk that goes with 
 ```
 # personas C to H (10 runs)
 python scripts/run_queue.py --name personas_c_to_h configs/minimum_threshold_one_persona/base/persona_[c-h]/*_40gb.json configs/minimum_threshold_one_persona/inverse/persona_[c-e]/*_40gb.json
+# the inverses of F, G and H (4 runs: F-oxidation-inverse, F-resteep-inverse, G-inverse, H-inverse)
+python scripts/run_queue.py --name inverses_f_to_h configs/minimum_threshold_one_persona/inverse/persona_[f-h]/*_40gb.json
 # the cut sweeps (9 runs each)
 python scripts/run_queue.py --name cut_sweep_a configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_a_*_40gb.json
 python scripts/run_queue.py --name cut_sweep_b configs/minimum_threshold_one_persona/cut_sweep/persona_b/*_40gb.json

@@ -31,6 +31,7 @@ controls/persona_a/    one_persona_linear, one_persona_minimum_threshold_shuffle
 inverse/persona_a/     one_persona_a_inverse
 inverse/persona_b/     one_persona_b_inverse
 inverse/persona_c..e/  one_persona_c_inverse, _d_inverse, _e_negative
+inverse/persona_f..h/  one_persona_f_oxidation_inverse, _f_resteep_inverse, _g_inverse, _h_inverse
 rule_tests/persona_a/  ..._cut25, ..._cut75, ..._screen_moved, ..._screen_moved_cut25, ..._screened_weighted
 ```
 

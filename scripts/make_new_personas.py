@@ -1,4 +1,5 @@
-"""Build personas C to H (new weight patterns, a moved screen, a new scenario) with their settings files.
+"""Build personas C to H (new weight patterns, a moved screen, a new scenario) and their inverses, with their
+settings files.
 
     python scripts/make_new_personas.py              # build every folder that does not exist yet
     python scripts/make_new_personas.py --rebuild    # rebuild them all (same seeds, so the same bytes)
@@ -154,6 +155,50 @@ PERSONAS = {
                   "at 2.0. If H behaves like B, the tea results generalise; scenario, persona, attribute names, units "
                   "and ranges all change at once, so this is a full replication of B and nothing else.",
                   "Every report question names the persona \"Imagine you are Antonín Dvořák.\""]),
+    # The inverses of F, G and H (added 2026-11-23): every weight's sign flipped, the screen kept. Each has its base
+    # persona's 5000 prompts; only the answers the weights decide change (tests/test_new_personas.py checks both).
+    "f_oxidation_inverse": dict(group="inverse", persona="f", base="a", weights=[0, -30, 100, -45, 20],
+                                cuts=CAFFEINE_25, scenario=TEA, add=["cut_probe_caffeine_full"],
+                                purpose="F-oxidation with every sign flipped: the largest weight on oxidation_level at "
+                                        "+100 (leaf -30, steeping -45, resteep +20)",
+                                prediction=[
+                                    "The rule so far (the largest weight is reported positive) says oxidation is reported "
+                                    "positive: the right sign here, the wrong one in F-oxidation. Positive in both means "
+                                    "the report follows the weight's size and not its sign; positive here and negative in "
+                                    "F-oxidation means it follows the sign. Same readout as F-oxidation."]),
+    "f_resteep_inverse": dict(group="inverse", persona="f", base="a", weights=[0, 25, -40, 30, -100],
+                              cuts=CAFFEINE_25, scenario=TEA, add=["cut_probe_caffeine_full"],
+                              purpose="F-resteep with every sign flipped: the largest weight on resteep_potential at "
+                                      "-100 (leaf +25, oxidation -40, steeping +30)",
+                              prediction=[
+                                  "The rule so far (the largest weight is reported positive) says resteep is reported "
+                                  "positive: the wrong sign here, the right one in F-resteep. With F-oxidation and its "
+                                  "inverse, oxidation and resteep each carry the largest weight at both signs. Same "
+                                  "readout as F-resteep."]),
+    "g_inverse": dict(group="inverse", persona="g", base="a", weights=[83, 38, 100, 0, -31], cuts=[0, 0, 0, 25, 0],
+                      scenario=TEA, add=["cut_probe_caffeine_full", "cut_probe_steeping_full"],
+                      purpose="G with every sign flipped, the screen kept on steeping_time (attribute 4) at 25% (2.5 "
+                              "minutes): caffeine +83, leaf +38, oxidation +100, resteep -31 (A-inverse's four weight "
+                              "values on the unscreened slots)",
+                      prediction=[
+                          "The screen is G's, so as G: screen_index should name dimension 4, and the form switch should sit "
+                          "between 2 and 3 minutes on steeping (cut_probe_steeping_full), never on caffeine "
+                          "(cut_probe_caffeine_full).",
+                          "The weights are what changes. The largest is on oxidation, +100 here and -100 in G, so the rule "
+                          "so far (the largest weight is reported positive) is right here and wrong in G. Readout as G, "
+                          "with the sign share per weight."]),
+    "h_inverse": dict(group="inverse", persona="h", base="b", weights=[0, -100, -20, 50, 70], cuts=[25, 0, 0, 0, 0],
+                      scenario=BOARD, add=["cut_probe_board_thickness_full"], drop=["cut_probe"],
+                      purpose="H with every sign flipped (B-inverse's weights on cutting_board, Antonín Dvořák), "
+                              "board_thickness screened at 25% (2.0 cm) as in H; surface_area -100, "
+                              "knife_mark_resistance -20, grip_stability 50, ease_of_cleaning 70",
+                      prediction=[
+                          "The screen is H's, so as H: the three reply forms, and the cut probe "
+                          "(cut_probe_board_thickness_full, 1.0 to 5.0 cm in steps of 0.1) switching at 2.0.",
+                          "The weights are what changes. The largest (surface_area) is -100 here and +100 in H, so the rule "
+                          "so far (the largest weight is reported positive) gives it the wrong sign here. If H-inverse "
+                          "behaves like B-inverse, the inverse results generalise beyond tea.",
+                          "Every report question names the persona \"Imagine you are Antonín Dvořák.\""]),
 }
 
 
