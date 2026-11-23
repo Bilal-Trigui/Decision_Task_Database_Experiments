@@ -17,6 +17,7 @@ A trial offers two options, A and B, Plunkett's task, or three when decision_rul
 C, "neither", listed after them, the answer when the rule rejects both. The settings and the
 folder must agree, and a stored example of the other count is refused (check_decision_example).
 """
+import copy
 import glob
 import json
 import math
@@ -185,6 +186,22 @@ class Trial:
         """Plunkett's question and two options; with option_count 3, C (neither) listed after them."""
         text = f"{self.scenario.question}\n{self.option_A.description}\n\n{self.option_B.description}"
         return text + f"\n\n{NEITHER_OPTION}" if option_count == 3 else text
+
+
+def mirrored(trial):
+    """The same trial with the two options' places swapped: what was shown under A is shown under B, and what was
+    under B is shown under A. The values, the scenario and the wording are unchanged, and `trial` itself is left as
+    it was. The label is cleared, since the right answer moves with the options: a rule fills it in again."""
+    def moved(option, letter):
+        other = copy.copy(option)
+        other.letter = letter
+        other.description = letter + option.description[len(option.letter):]
+        return other
+
+    out = copy.copy(trial)
+    out.option_A, out.option_B = moved(trial.option_B, "A"), moved(trial.option_A, "B")
+    out.label = None
+    return out
 
 
 # --- Loading the four files --------------------------------------------------------
@@ -715,13 +732,16 @@ def load_introspection_examples(cfg, scenarios, latents, rule, schema):
     return examples
 
 
-def fresh_trials(scenarios, per_persona, seed):
+def fresh_trials(scenarios, per_persona, seed, flip_ab=False):
     """`per_persona` new trials per scenario from one RNG, persona by persona (Plunkett's verification order).
 
     Used for the estimation trials (seeds.verification) and the report framings (seeds.reports).
+    `flip_ab` (model_estimating.flip_ab) gives the same draws with each trial's two options in each other's
+    place (`mirrored`), so trial i is the pair an unflipped evaluation shows as trial i, A and B swapped.
     """
     rng = random.Random(seed)
-    return [[Trial(sc, rng) for _ in range(per_persona)] for sc in scenarios]
+    trials = [[Trial(sc, rng) for _ in range(per_persona)] for sc in scenarios]
+    return [[mirrored(t) for t in per] for per in trials] if flip_ab else trials
 
 
 @dataclass

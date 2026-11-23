@@ -434,6 +434,11 @@ def collect(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir,
     }
 
 
+def flip_ab(cfg):
+    """model_estimating.flip_ab: every trial the evaluation shows has its two options in each other's place."""
+    return bool(cfg["model_estimating"].get("flip_ab", False))
+
+
 def _decisions(model, tok, cfg, rule, data, device, persona_indices, tag, out_dir):
     """Step 1: the model's A/B choices on fresh verification trials, beside the rule's correct answers.
 
@@ -444,7 +449,9 @@ def _decisions(model, tok, cfg, rule, data, device, persona_indices, tag, out_di
     """
     me, seeds = cfg["model_estimating"], cfg["model_training"]["seeds"]
     n = data.attribute_count
-    trials = D.fresh_trials(data.personas, estimation_counts(cfg)[-1], seeds["verification"])
+    # model_estimating.flip_ab: the same trials with A's and B's values in each other's place; the label, the saved
+    # A_/B_ columns and the selection all describe the trial as it was shown
+    trials = D.fresh_trials(data.personas, estimation_counts(cfg)[-1], seeds["verification"], flip_ab(cfg))
     texts, index = [], []
     for k in persona_indices:
         for t_i, trial in enumerate(trials[k]):
@@ -619,7 +626,7 @@ def _reports(model, tok, cfg, comps, data, device, persona_indices, tag, out_dir
     n, personas = data.attribute_count, data.personas
     batch_size = eval_batch_size(cfg, stage)
     if report_trials is None:
-        report_trials = D.fresh_trials(personas, rs["samples_per_report"], seeds["reports"])
+        report_trials = D.fresh_trials(personas, rs["samples_per_report"], seeds["reports"], flip_ab(cfg))
     # report_schema.reply_prefix (default "", off): text the assistant turn starts with, e.g. "{" so a reply
     # begins as a JSON object. It is written after the chat template's assistant header and counted as part
     # of the reply, so reports_raw and the parser see "{" + what the model wrote.

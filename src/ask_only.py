@@ -16,6 +16,11 @@ Writes only into results/<run_id>/ask_only/<label>/:
   timing.csv                        seconds per step
 Never trains, never appends to results/results.csv, never changes a file of the run itself.
 
+flip_ab=True shows every report trial with its two options in each other's place (data.mirrored): the same
+pairs, A's values under B and B's under A. A trial's kind does not change, and the recovered rule is still the
+one refitted from the run's own saved decisions, which were made on the trials as first shown. The decision
+question itself is not asked here: to flip that, use evaluate_checkpoints.ipynb (its FLIP_AB).
+
 Balanced report trials (per_kind=N): trials drawn one by one with data.Trial from random.Random(7), the
 generator and seed data.fresh_trials uses for the report trials, keeping the first N of each kind:
   weights   both options pass the persona's cut on its screened attribute
@@ -81,9 +86,10 @@ def available_steps(run_id, checkpoint_root=None):
 
 # --- settings ---------------------------------------------------------------------------------------
 
-def run_settings(run_dir, questions_from=None, only=None, show_neither=None, reply_prefix=None):
+def run_settings(run_dir, questions_from=None, only=None, show_neither=None, reply_prefix=None, flip_ab=None):
     """The run's own settings with report_schema taken from `questions_from` (a config path; None keeps the
-    run's own), cut down to `only` (question names), and show_neither / reply_prefix overridden when given."""
+    run's own), cut down to `only` (question names), and show_neither / reply_prefix overridden when given.
+    `flip_ab` sets model_estimating.flip_ab (the trials shown with A and B in each other's place); None keeps it."""
     cfg = json.loads((Path(run_dir) / "settings.json").read_text(encoding="utf-8"))
     cfg.pop("_source", None)
     cfg["model_training"]["data_dir"] = data_paths.resolve(cfg["model_training"]["data_dir"])   # moved folders
@@ -104,6 +110,8 @@ def run_settings(run_dir, questions_from=None, only=None, show_neither=None, rep
     if reply_prefix is not None:
         rs["reply_prefix"] = reply_prefix
     C.apply_defaults(cfg)
+    if flip_ab is not None:
+        cfg["model_estimating"]["flip_ab"] = bool(flip_ab)
     C.validate(cfg)
     if cfg["model_hyperparameters"].get("introspection_training"):
         raise ValueError("ask-only reads decision checkpoints; this run trained on reports")
@@ -122,8 +130,9 @@ def trial_kind(trial, screen):
     return "weights" if a and b else ("neither" if not a and not b else "screen")
 
 
-def balanced_trials(scenario, screen, per_kind, seed=BALANCED_SEED, max_draws=1_000_000):
-    """[(kind, trial, draw index)]: the first `per_kind` trials of each kind, in the order drawn."""
+def balanced_trials(scenario, screen, per_kind, seed=BALANCED_SEED, max_draws=1_000_000, flip_ab=False):
+    """[(kind, trial, draw index)]: the first `per_kind` trials of each kind, in the order drawn. `flip_ab` keeps
+    the same draws and kinds and returns each trial with its two options in each other's place."""
     if screen is None:
         raise ValueError("balanced trials need a screen: this persona has none (a linear run)")
     rng = random.Random(seed)
@@ -133,7 +142,7 @@ def balanced_trials(scenario, screen, per_kind, seed=BALANCED_SEED, max_draws=1_
         kind = trial_kind(t, screen)
         if kept[kind] < per_kind:
             kept[kind] += 1
-            out.append((kind, t, i))
+            out.append((kind, D.mirrored(t) if flip_ab else t, i))
             if all(v == per_kind for v in kept.values()):
                 return out
     raise RuntimeError(f"{max_draws} draws gave only {kept} of {per_kind} per kind")
@@ -142,7 +151,8 @@ def balanced_trials(scenario, screen, per_kind, seed=BALANCED_SEED, max_draws=1_
 def default_trials(cfg, data, screens):
     """The run's own report trials (samples_per_report from seeds.reports, exactly as evaluate._reports draws
     them), each with its kind under that persona's screen and its index."""
-    trials = D.fresh_trials(data.personas, cfg["report_schema"]["samples_per_report"], cfg["model_training"]["seeds"]["reports"])
+    trials = D.fresh_trials(data.personas, cfg["report_schema"]["samples_per_report"], cfg["model_training"]["seeds"]["reports"],
+                            E.flip_ab(cfg))
     return [[(trial_kind(t, screens[k]), t, i) for i, t in enumerate(trials[k])] for k in range(len(screens))]
 
 
@@ -218,7 +228,7 @@ def ask_step(model, tok, cfg, comps, data, device, run_dir, step, out_dir, per_k
     screens = [rules[data.personas[k].short_name].screen if data.personas[k].short_name in rules else None
                for k in personas]
     if per_kind:
-        trials_by_persona = [balanced_trials(data.personas[k], screens[k], per_kind) for k in personas]
+        trials_by_persona = [balanced_trials(data.personas[k], screens[k], per_kind, flip_ab=E.flip_ab(cfg)) for k in personas]
     else:
         trials_by_persona = default_trials(cfg, data, screens)
     # the recovered rule this step is scored against, refitted from the run's saved decisions
@@ -258,28 +268,31 @@ def _all_rows(out_dir):
 
 
 def prepare(run, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
-            results_dir=None):
+            results_dir=None, flip_ab=None):
     """(run_dir, out_dir, cfg) for an ask-only pass, with the output folder created and its settings.json written."""
     run_dir = find_run(run, results_dir)
     if not name or "/" in name or "\\" in name or name in (".", ".."):
         raise ValueError(f"--name must be a plain folder name, got {name!r}")
-    cfg = run_settings(run_dir, questions_from, only, show_neither, reply_prefix)
+    cfg = run_settings(run_dir, questions_from, only, show_neither, reply_prefix, flip_ab)
     cfg["model_training"]["data_dir"] = str((ROOT / cfg["model_training"]["data_dir"]).resolve()
                                             if not Path(cfg["model_training"]["data_dir"]).is_absolute()
                                             else Path(cfg["model_training"]["data_dir"]))
     out_dir = run_dir / "ask_only" / name
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {**cfg, "_ask_only": {"run_id": run_dir.name, "questions_from": str(questions_from) if questions_from else None,
-                                   "only": list(only) if only else None, "per_kind": per_kind}}
+                                   "only": list(only) if only else None, "per_kind": per_kind,
+                                   "flip_ab": E.flip_ab(cfg)}}
     (out_dir / "settings.json").write_text(json.dumps(record, indent=2), encoding="utf-8", newline="\n")
     return run_dir, out_dir, cfg
 
 
 def ask(run, steps, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
-        results_dir=None, loaded=None):
+        results_dir=None, loaded=None, flip_ab=None):
     """Ask the questions at every step. `loaded` is (model, tok, comps, device, data) to reuse a loaded base
-    model; it is returned so the next call can reuse it too. Returns (out_dir, timing, loaded)."""
-    run_dir, out_dir, cfg = prepare(run, questions_from, only, show_neither, reply_prefix, per_kind, name, results_dir)
+    model; it is returned so the next call can reuse it too. `flip_ab=True` shows every report trial with A's and
+    B's values swapped. Returns (out_dir, timing, loaded)."""
+    run_dir, out_dir, cfg = prepare(run, questions_from, only, show_neither, reply_prefix, per_kind, name, results_dir,
+                                    flip_ab)
     comps = C.resolve(cfg)
     model_name = cfg["model_hyperparameters"]["model_name"]
     if loaded is not None and loaded["model_name"] != model_name:

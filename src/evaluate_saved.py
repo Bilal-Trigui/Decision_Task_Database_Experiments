@@ -13,6 +13,9 @@ rows. Settings are the run's own results/<run_id>/settings.json, except:
   questions_from / only / show_neither / reply_prefix   another report question set, as ask_only takes them
   overrides    {"block.field": value}, e.g. {"compute.decision_eval_batch_size": 16} for a smaller card, or
                {"model_estimating.estimation_trials_per_persona": 200} for a quicker pass
+  flip_ab      True shows every trial, decision and report, with its two options in each other's place: the run's own
+               trials, A's values under B and B's under A (model_estimating.flip_ab in the folder's settings.json).
+               `flip_check` then says whether each answer kept its letter or followed the option.
 
 Writes only into results/<run_id>/evaluate_only/<name>/ (results.csv there holds these rows alone). Never trains,
 never appends to results/results.csv, never changes a file of the run.
@@ -56,19 +59,20 @@ def apply_overrides(cfg, overrides):
 
 
 def prepare(run, name, questions_from=None, only=None, show_neither=None, reply_prefix=None, overrides=None,
-            results_dir=None):
+            results_dir=None, flip_ab=None):
     """(run_dir, out_dir, cfg): the run's settings with the changes applied, and the output folder."""
     run_dir = A.find_run(run, results_dir)
     if not name or "/" in name or "\\" in name or name in (".", ".."):
         raise ValueError(f"name must be a plain folder name, got {name!r}")
-    cfg = A.run_settings(run_dir, questions_from, only, show_neither, reply_prefix)
+    cfg = A.run_settings(run_dir, questions_from, only, show_neither, reply_prefix, flip_ab)
     data_dir = Path(cfg["model_training"]["data_dir"])
     cfg["model_training"]["data_dir"] = str(data_dir if data_dir.is_absolute() else (ROOT / data_dir).resolve())
     apply_overrides(cfg, overrides)
     out_dir = run_dir / "evaluate_only" / name
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {**cfg, "_evaluate_only": {"run_id": run_dir.name, "questions_from": str(questions_from) if questions_from else None,
-                                        "only": list(only) if only else None, "overrides": overrides or {}}}
+                                        "only": list(only) if only else None, "overrides": overrides or {},
+                                        "flip_ab": bool(cfg["model_estimating"].get("flip_ab", False))}}
     (out_dir / "settings.json").write_text(json.dumps(record, indent=2), encoding="utf-8", newline="\n")
     return run_dir, out_dir, cfg
 
@@ -120,10 +124,12 @@ def summaries(out_dir):
 
 
 def evaluate(run, steps, name, questions_from=None, only=None, show_neither=None, reply_prefix=None, overrides=None,
-             results_dir=None, loaded=None, checkpoint_root=None):
+             results_dir=None, loaded=None, checkpoint_root=None, flip_ab=None):
     """Evaluate every step in `steps` (0 = the base model). `loaded` reuses a base model already in memory; it is
-    returned for the next call. Returns (out_dir, timing, loaded)."""
-    run_dir, out_dir, cfg = prepare(run, name, questions_from, only, show_neither, reply_prefix, overrides, results_dir)
+    returned for the next call. `flip_ab=True` shows every trial with A's and B's values swapped. Returns
+    (out_dir, timing, loaded)."""
+    run_dir, out_dir, cfg = prepare(run, name, questions_from, only, show_neither, reply_prefix, overrides, results_dir,
+                                    flip_ab)
     comps = C.resolve(cfg)
     model_name = cfg["model_hyperparameters"]["model_name"]
     if cfg["model_hyperparameters"]["finetune"] != "lora":
@@ -178,3 +184,34 @@ def reproduction(run_dir, out_dir, step):
     gap = max((merged[f"{p}_run"] - merged[f"{p}_now"]).abs().max() for p in ("p_A", "p_B", "p_C") if f"{p}_run" in merged)
     return {"step": step, "decisions": len(merged), "identical": int(same.sum()), "match_rate": float(same.mean()),
             "max_probability_gap": float(gap)}
+
+
+def flip_check(run_dir, out_dir, step):
+    """For an evaluation made with flip_ab=True: each decision beside the run's own decision on the same
+    trial before its options changed places. None when either selections file is missing.
+
+      mirrored              True when every trial here is the run's trial with A's and B's values swapped. False means
+                            this was not a flipped evaluation of the same trials, and the shares below mean nothing.
+      run_A/B/C, now_A/B/C  how often each letter was answered, in the run and here
+      same_letter           of the decisions the run answered A or B, the share answering that same letter here:
+                            1.0 for a model that answers by the letter (or the place), whatever the options are
+      followed_option       of the same decisions, the share answering the other letter here, the one the option the
+                            run chose now sits under: 1.0 for a model that answers by the options' values
+    The two shares add to 1 less the share that moved to C.
+    """
+    tag = f"{BASE_MODEL if step == 0 else stage_label('decision')}_step-{step}"
+    theirs, mine = Path(run_dir) / f"selections_{tag}.csv", Path(out_dir) / f"selections_{tag}.csv"
+    if not theirs.exists() or not mine.exists():
+        return None
+    merged = pd.read_csv(theirs).merge(pd.read_csv(mine), on=["persona", "trial", "sample"], suffixes=("_run", "_now"))
+    attributes = [c[len("A_"):-len("_run")] for c in merged.columns if c.startswith("A_attribute_") and c.endswith("_run")]
+    mirrored = bool(len(merged)) and all((merged[f"A_{a}_run"] == merged[f"B_{a}_now"]).all()
+                                         and (merged[f"B_{a}_run"] == merged[f"A_{a}_now"]).all() for a in attributes)
+    run, now = merged["selection_run"], merged["selection_now"]
+    on_ab = run.isin(["A", "B"])
+    other = run.map({"A": "B", "B": "A"})
+    share = lambda hit: float(hit[on_ab].mean()) if on_ab.any() else float("nan")
+    return {"step": step, "decisions": len(merged), "mirrored": mirrored,
+            **{f"run_{letter}": int((run == letter).sum()) for letter in "ABC"},
+            **{f"now_{letter}": int((now == letter).sum()) for letter in "ABC"},
+            "same_letter": share(now == run), "followed_option": share(now == other)}

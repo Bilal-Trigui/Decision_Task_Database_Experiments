@@ -289,6 +289,9 @@ def validate(cfg):
     draws = me.get("shuffle_draws")
     if isinstance(draws, bool) or not isinstance(draws, int) or draws < 0:
         raise SettingsError("model_estimating.shuffle_draws must be a whole number, 0 to switch the shuffled baseline off")
+    # flip_ab has no fallback and is in no settings file: ask_only and evaluate_saved set it for one pass (their flip_ab)
+    if not isinstance(me.get("flip_ab", False), bool):
+        raise SettingsError("model_estimating.flip_ab must be true or false")
     trials = me["estimation_trials_per_persona"]
     counts = trials if isinstance(trials, list) else [trials]
     if not counts or any(isinstance(t, bool) or not isinstance(t, int) or t < 1 for t in counts):

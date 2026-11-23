@@ -52,8 +52,12 @@ Working with checkpoints a run already saved, no training:
   against the Hub's SHA-256. `DRY_RUN = True` lists what a link would fetch, and its size, first.
 - `evaluate_checkpoints.ipynb` (`src/evaluate_saved.py`): the decision trials, the recovered rule and the report
   questions again on saved steps (0 = the base model), into `results/<run>/evaluate_only/<NAME>/`, with a check
-  that the decisions match the run's own.
-- `ask_only.ipynb`: new report questions only; the rule is refitted from the run's saved decisions.
+  that the decisions match the run's own. `FLIP_AB = True` shows every trial with its two options in each other's
+  place (the run's own pairs, A's values under B and B's under A); the "A and B flipped" cell then gives, per step,
+  the share of decisions that kept their letter (`same_letter`) and the share that moved with the option
+  (`followed_option`).
+- `ask_only.ipynb`: new report questions only; the rule is refitted from the run's saved decisions. `FLIP_AB = True`
+  swaps the two options in the report trials; the decision question is not asked here.
 
 `evaluate_checkpoints.ipynb`, `ask_only.ipynb` and `cut_sweep_training.ipynb` each have a Download cell that
 fetches the adapters and run files they read from the Hub repo named in `HUB_REPO`, when those are not on the
