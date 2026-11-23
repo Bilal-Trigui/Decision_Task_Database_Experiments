@@ -121,11 +121,24 @@ def test_seven_settings_files_each_complete_and_pointing_at_the_folder():
             assert (mh["model_name"], mh["micro_batch_size"], comp["decision_eval_batch_size"]) == (model, micro, eval_batch), path
             assert (mh["batch_size"], mh["lora_rank"], mh["quantization"], mh["training_steps"]) == (10, 8, "4bit", 3000), path
             assert mh["run_tag"] == name.replace("_", "-"), path
+            # the base model is scored before training only where it has no step 0 yet: 14B and 32B, not 8B
+            assert mh["baseline_before_training"] is (model != "Qwen/Qwen3-8B"), path
             assert Path(raw["model_training"]["data_dir"]) == _folder(name).relative_to(ROOT), path
             q = raw["report_schema"]["questions"]
             assert q[probe]["ask"] and not q[probe]["train"], path
             assert q["cut_probe"]["ask"] == (scenario == "loose_leaf_tea"), path   # caffeine 10 to 50 means nothing for a board
             assert raw["report_schema"]["reply_prefix"] == "{" and raw["report_schema"]["show_neither"], path
+
+
+def test_no_8b_one_persona_file_scores_the_base_model():
+    """Since 2026-11-23 the 8B base model is a control run on its own (evaluate_checkpoints.ipynb, STEPS = [0]),
+    so no settings file under configs/minimum_threshold_one_persona/ scores it before training."""
+    folder = ROOT / "configs" / "minimum_threshold_one_persona"
+    files = sorted(folder.rglob("*.json"))
+    assert files, folder
+    on = [p.relative_to(ROOT).as_posix() for p in files
+          if json.loads(p.read_text(encoding="utf-8"))["model_hyperparameters"]["baseline_before_training"]]
+    assert not on, on
 
 
 if __name__ == "__main__":

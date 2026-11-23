@@ -25,6 +25,10 @@ or set `SETTINGS_FILE` to that path in `run_experiment.ipynb`.
   the eval batches. Each file's own "Sized for" comment line says the same for its card.
 - **Each `_comment` starts with** what the experiment is, the persona's weights and screen, the card it is sized
   for and the command that runs it. Older notes follow.
+- **No file scores the base model.** `model_hyperparameters.baseline_before_training` is false in every file here
+  (since 2026-11-23): training starts straight away and the first scores are at the first checkpoint. The base model
+  is a control, run on its own: see "The base model as a control" below. The 14B and 32B folders still score it
+  first, since neither model has been run yet.
 - **Data** is under `data/minimum_threshold_one_persona/`, in the same group/persona layout.
 
 ## Personas
@@ -121,6 +125,30 @@ leaves caffeine out although its weight is 60: read the five-value cosine as wel
 |---|---|
 | `one_persona_linear.json` | A's weights, no screen, two options: the plain dot-product rule |
 | `one_persona_minimum_threshold_shuffled.json` | A's prompts with the answers permuted (seed 11): no rule to learn |
+
+## The base model as a control
+
+The untrained model, asked everything a checkpoint is asked: what the model answers having learned nothing. Until
+2026-11-23 the files in `base/`, `inverse/`, `rule_tests/` and `controls/persona_a/` (linear and
+`minimum_threshold_shuffled`) scored it before training, so the runs made from them hold it as their
+`base_model_step-0` files. No file here does that any more: it is a control, run on its own when it is needed.
+
+It needs no training and no settings file of its own. `evaluate_checkpoints.ipynb` with `STEPS = [0]` scores the
+base model (step 0 is the model with no adapter) under a finished run's settings:
+
+```
+RUN = "<a finished run of that persona>"   # its settings.json gives the prompts, the trials and the batch sizes
+STEPS = [0]                                # 0 = the base model
+NAME = "base_model"                        # written to results/<run>/evaluate_only/base_model/
+QUESTIONS_FROM = None                      # or a settings file, to ask another question set
+```
+
+The base model's replies do not depend on training or on the training seed, only on the prompts and the questions,
+so one pass serves every run of that persona and question set. To use it as the step 0 of a run that has none:
+
+```
+python tools/trial_regression.py results/<trained run> --base results/<run>/evaluate_only/base_model
+```
 
 ## cut_sweep/: the mix of trial kinds swept, for A, B, A-inverse, B-inverse, C, C-inverse, E-positive, E-negative
 

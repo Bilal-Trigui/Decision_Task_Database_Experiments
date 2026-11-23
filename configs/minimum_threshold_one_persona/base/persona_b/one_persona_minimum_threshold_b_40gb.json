@@ -128,7 +128,7 @@
     "loss_mask_answer_only": true,
     "training_steps": 3000,
     "checkpoint_every": 250,
-    "baseline_before_training": true,
+    "baseline_before_training": false,
     "introspection_training": false,
     "introspection_steps": 600,
     "introspection_batch_size": 1,

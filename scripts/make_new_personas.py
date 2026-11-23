@@ -242,6 +242,9 @@ def write_configs(name):
     for model, gpus in SIZES.items():
         for gpu in gpus:
             sized, _ = SF.with_gpu(cfg, model, gpu)
+            # The base model is scored before training only in the 14B and 32B files: neither model has a step 0
+            # yet. Every 8B file skips it since 2026-11-23 (the 8B base model is a control: the configs README).
+            sized["model_hyperparameters"]["baseline_before_training"] = model != "8b"
             path = config_path(name, model, gpu)
             SF.write(path, sized, comment + [SF.gpu_line(model, gpu),
                                              f"Run: python scripts/run_one_persona.py --settings {rel(path)}"])
