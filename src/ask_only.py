@@ -6,6 +6,13 @@ run's own saved settings.json. The recovered rule a step is scored against is re
 saved selections_decision_step-<N>.csv, as evaluate.decision_detail_from_files does: the 1,000 decision
 trials are not asked again.
 
+ask_runs is what the notebook's Ask cell calls: the same questions put to one run or several, one after another.
+It prints the plan first (plan(): every setting checked before a model is loaded), skips a run whose folder is
+already complete here or on the Hub, downloads what each run needs just before it is asked, pushes each folder when
+it is written, and drops the model between runs. Its eval_batch_size, when given or sized for the card
+(card_batch_size), replaces the run's own: the replies do not depend on it. A folder holds one set-up: asking a
+name that already holds replies asked another way is refused (setup_differences).
+
 Writes only into results/<run_id>/ask_only/<label>/:
   settings.json                     the settings the questions were asked under (data_dir made absolute)
   reports_raw_decision_step-<N>.jsonl   every reply, with run_id, step, question_name, trial_index,
@@ -31,12 +38,17 @@ of the same persona (A, B and their inverses share the scenario and the cut, so 
 Because fresh_trials draws a one-persona run's 50 report trials from the same Random(7), the original
 50 trials are the first 50 draws, and each kind's original trials come first among its kept ones.
 """
+import contextlib
 import copy
+import gc
+import io
 import json
 import os
 import random
 import re
+import tempfile
 import time
+import traceback
 from pathlib import Path
 
 # the project's model cache (where run_one_persona.py and the notebooks keep Qwen3-8B), set before transformers loads
@@ -62,6 +74,9 @@ FORMS = ("all_-100", "all_0", "screened_100", "bare_letter_or_number", "other")
 def find_run(run, results_dir=None):
     """The run folder for a run id or its timestamp prefix (exactly one match)."""
     results_dir = Path(results_dir or ROOT / "results")
+    if not results_dir.is_dir():
+        raise FileNotFoundError(f"{results_dir} does not exist, so run {run!r} is not on this machine. Name the Hub repo "
+                                "in HUB_REPO so the run is downloaded, or fetch it with download_checkpoint.ipynb")
     hits = sorted(p for p in results_dir.iterdir() if p.is_dir() and (p.name == run or p.name.startswith(run)))
     if len(hits) != 1:
         raise ValueError(f"run {run!r} matches {len(hits)} folders in {results_dir}: {[h.name for h in hits]}")
@@ -287,6 +302,8 @@ def prepare(run, questions_from=None, only=None, show_neither=None, reply_prefix
                                             if not Path(cfg["model_training"]["data_dir"]).is_absolute()
                                             else Path(cfg["model_training"]["data_dir"]))
     out_dir = run_dir / "ask_only" / name
+    if (out_dir / "settings.json").exists() and any(out_dir.glob("reports_raw_*.jsonl")):
+        _same_setup_or_stop(json.loads((out_dir / "settings.json").read_text(encoding="utf-8")), cfg, per_kind, out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {**cfg, "_ask_only": {"run_id": run_dir.name, "questions_from": str(questions_from) if questions_from else None,
                                    "only": list(only) if only else None, "per_kind": per_kind,
@@ -296,7 +313,7 @@ def prepare(run, questions_from=None, only=None, show_neither=None, reply_prefix
 
 
 def ask(run, steps, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
-        results_dir=None, loaded=None, flip_ab=None, eval_batch_size=None):
+        results_dir=None, loaded=None, flip_ab=None, eval_batch_size=None, checkpoint_root=None):
     """Ask the questions at every step. `loaded` is (model, tok, comps, device, data) to reuse a loaded base
     model; it is returned so the next call can reuse it too. `flip_ab=True` shows every report trial with A's and
     B's values swapped. `eval_batch_size` is the batch size for this machine's card (None = the run's own).
@@ -316,7 +333,7 @@ def ask(run, steps, questions_from=None, only=None, show_neither=None, reply_pre
     data = D.load_data(cfg, comps.rule)
     timing = []
     for step in steps:
-        model = apply_adapter(loaded, run_dir.name, step)
+        model = apply_adapter(loaded, run_dir.name, step, checkpoint_root)
         seconds, _ = ask_step(model, loaded["tok"], cfg, comps, data, loaded["device"], run_dir, step, out_dir, per_kind)
         timing.append({"step": step, "seconds": round(seconds, 1)})
         print(f"step {step}: {seconds:.0f}s")
@@ -339,6 +356,279 @@ def apply_adapter(loaded, run_id, step, checkpoint_root=None):
     loaded["model"].set_adapter(name)
     loaded["model"].eval()
     return loaded["model"]
+
+
+# --- several runs, one after another ------------------------------------------------------------------
+
+def setup_differences(record, cfg, per_kind):
+    """What differs between the set-up an ask-only folder was asked under (`record`, its settings.json) and the
+    one about to be asked: the questions and how they are asked (report_schema), the trials (per_kind) and
+    whether A and B are swapped (flip_ab). [] when they are the same. Batch sizes and paths are not compared:
+    they do not change a reply."""
+    old_rs, new_rs = record.get("report_schema", {}), json.loads(json.dumps(cfg["report_schema"]))
+    out = [f"report_schema.{k}: {json.dumps(old_rs.get(k))} there, {json.dumps(new_rs.get(k))} now"
+           for k in sorted(set(old_rs) | set(new_rs)) if old_rs.get(k) != new_rs.get(k)]
+    was = record.get("_ask_only", {})
+    if (was.get("per_kind") or None) != (per_kind or None):
+        out.append(f"per_kind: {was.get('per_kind')} there, {per_kind} now")
+    if bool(was.get("flip_ab", False)) != E.flip_ab(cfg):
+        out.append(f"flip_ab: {bool(was.get('flip_ab', False))} there, {E.flip_ab(cfg)} now")
+    return out
+
+
+def _same_setup_or_stop(record, cfg, per_kind, where):
+    diff = setup_differences(record, cfg, per_kind)
+    if diff:
+        raise ValueError(f"{where} already holds replies asked with other settings, and one folder must hold one "
+                         f"set-up. Choose another NAME (or delete that folder). What differs: " + "; ".join(diff))
+
+
+def held(run_id, name, root=None, hub_repo=None, every=None):
+    """(record, steps) for results/<run_id>/ask_only/<name>/: its settings.json and the steps its timing.csv lists
+    (ask writes timing.csv last, so a step listed there was asked in full). Read here when the folder has replies
+    here, else from the Hub when `every` (the repo's file list) has the folder; (None, set()) when neither has."""
+    rel = f"results/{run_id}/ask_only/{name}"
+    here = Path(root or ROOT) / rel
+
+    def read(folder):
+        record = json.loads((folder / "settings.json").read_text(encoding="utf-8"))
+        timing = folder / "timing.csv"
+        return record, ({int(s) for s in pd.read_csv(timing)["step"]} if timing.exists() else set())
+
+    if (here / "settings.json").exists() and any(here.glob("reports_raw_*.jsonl")):
+        return read(here)
+    if hub_repo and every is not None and f"{rel}/settings.json" in set(every):
+        from huggingface_hub import hf_hub_download
+        from src import download as DL
+
+        with tempfile.TemporaryDirectory() as tmp:
+            for f in ("settings.json", "timing.csv"):
+                if f"{rel}/{f}" in set(every):
+                    hf_hub_download(hub_repo, f"{rel}/{f}", repo_type="model", local_dir=tmp, token=DL.token())
+            return read(Path(tmp) / rel)
+    return None, set()
+
+
+def machine_vram_gb():
+    """GB on this machine's first GPU, or None when it has none."""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
+    except Exception:
+        pass
+    return None
+
+
+def card_batch_size(model_name, vram_gb):
+    """The evaluation batch size the settings files give this model on a card of `vram_gb` GB: the size of the
+    biggest card profile that fits (settings_files.GPU_PROFILES; for Qwen3-8B 192 on 80 GB or more, 96 on 40 GB,
+    48 on 24 GB, 4 on 16 GB). A card reports a little under its name (an L4 about 22.5 GB), so a profile counts as
+    fitting from 90% of its size. None when there is no GPU, no profile for the model, or the card is smaller than
+    every profile: the run's own size is then kept."""
+    from src.settings_files import GPU_PROFILES, MODELS
+
+    if vram_gb is None:
+        return None
+    key = next((k for k, v in MODELS.items() if v == model_name), None)
+    sizes = sorted((int(card[:-2]), p["decision_eval_batch_size"]) for (m, card), p in GPU_PROFILES.items() if m == key)
+    fit = [batch for gb, batch in sizes if gb * 0.9 <= vram_gb]
+    return fit[-1] if fit else None
+
+
+def release(loaded=None, error=None):
+    """Let go of a loaded model so the next run starts with the whole card. An error keeps its traceback, and the
+    traceback keeps the functions that held the model, so their variables are cleared too (as pipeline._release_gpu)."""
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        traceback.clear_frames(error.__traceback__)
+        error = error.__cause__ or error.__context__
+    if loaded:
+        loaded.clear()
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def _plan(runs, steps, questions_from, only, show_neither, reply_prefix, per_kind, name, flip_ab, eval_batch_size,
+          hub_repo, skip_done, root):
+    from src import download as DL
+
+    root = Path(root or ROOT)
+    results_dir = root / "results"
+    runs = [runs] if isinstance(runs, str) else list(runs or [])
+    steps = list(steps or [])
+    if not runs or not all(isinstance(r, str) and r for r in runs):
+        raise ValueError(f"RUN must be a run id (or its timestamp), or a list of them; got {runs!r}")
+    if not steps or any(isinstance(s, bool) or not isinstance(s, int) or s < 1 for s in steps) or len(set(steps)) != len(steps):
+        raise ValueError(f"STEPS must be saved decision steps, each once, e.g. [250, 500]; got {steps!r}. Step 0 is the "
+                         "base model: it has no adapter, and these runs saved no decisions for it")
+    if not name or not isinstance(name, str) or "/" in name or "\\" in name or name in (".", ".."):
+        raise ValueError(f"NAME must be a plain folder name, got {name!r}")
+    if per_kind is not None and (isinstance(per_kind, bool) or not isinstance(per_kind, int) or per_kind < 1):
+        raise ValueError(f"PER_KIND must be a whole number above 0, or None for the run's own trials; got {per_kind!r}")
+
+    every = None
+    if hub_repo:
+        try:
+            every = DL.listing(hub_repo)
+        except Exception as err:
+            print(f"{hub_repo} could not be reached ({type(err).__name__}: {err}); going on with what is on this machine")
+    listed = set(every or ())
+    vram, jobs = machine_vram_gb(), []
+    for run in runs:
+        on_hub = every is not None
+        if on_hub:
+            try:
+                run_id = DL.resolve_run(every, run, hub_repo)
+            except ValueError:
+                on_hub, run_id = False, find_run(run, results_dir).name      # a run that is only on this machine
+        else:
+            run_id = find_run(run, results_dir).name
+        if any(j["run_id"] == run_id for j in jobs):
+            raise ValueError(f"RUN names {run_id} twice")
+        here = set(available_steps(run_id, root / "checkpoints"))
+        there = set(DL.steps_of(every, run_id)) if on_hub else set()
+        no_adapter = [s for s in steps if s not in here | there]
+        if no_adapter:
+            raise FileNotFoundError(f"{run_id} has no saved adapter for steps {no_adapter}. Saved: on this machine "
+                                    f"{sorted(here)}" + (f", on {hub_repo} {sorted(there)}" if on_hub else ""))
+        files = {s: f"results/{run_id}/selections_decision_step-{s}.csv" for s in steps}
+        unscored = [s for s, f in files.items() if f not in listed and not (root / f).exists()]
+        if unscored:
+            raise FileNotFoundError(f"{run_id} has no saved decisions for steps {unscored} (selections_decision_step-<N>"
+                                    ".csv): the run did not score those steps, so there is no rule to score replies against")
+        fetch = on_hub and all(s in there for s in steps)
+        if on_hub and f"results/{run_id}/settings.json" in listed:
+            with contextlib.redirect_stdout(io.StringIO()):
+                DL.fetch_run(hub_repo, run_id, [], root=root, every=every)          # settings.json, a few kB
+        run_dir = find_run(run_id, results_dir)
+        saved = json.loads((run_dir / "settings.json").read_text(encoding="utf-8"))
+        size = eval_batch_size if eval_batch_size is not None else card_batch_size(saved["model_hyperparameters"]["model_name"], vram)
+        cfg = run_settings(run_dir, questions_from, only, show_neither, reply_prefix, flip_ab, size)
+        with contextlib.redirect_stdout(io.StringIO()):                              # two lines about the data, per run
+            data = D.load_data(cfg, C.resolve(cfg).rule)
+        record, finished = held(run_id, name, root, hub_repo, every)
+        if record is not None:
+            _same_setup_or_stop(record, cfg, per_kind, f"results/{run_id}/ask_only/{name}")
+        jobs.append({"run": run, "run_id": run_id, "out_dir": run_dir / "ask_only" / name, "fetch": fetch,
+                     "replies": reply_count(cfg, data, per_kind) * len(steps),
+                     "eval_batch_size": C.eval_batch_size(cfg, "decision"), "sized_for_card": eval_batch_size is None and size is not None,
+                     "done": bool(skip_done) and set(steps) <= finished,
+                     "show_neither": bool(cfg["report_schema"].get("show_neither", False)),
+                     "reply_prefix": E.reply_prefix(cfg), "flip_ab": E.flip_ab(cfg)})
+
+    first = jobs[0]
+    sizes = sorted({j["eval_batch_size"] for j in jobs})
+    card = f"this card has {vram:.0f} GB" if vram is not None else "no GPU on this machine"
+    why = "set in EVAL_BATCH_SIZE" if eval_batch_size is not None else (f"sized for the card, {card}" if first["sized_for_card"]
+                                                                       else f"each run's own, {card}")
+    print(f'ask_only plan, output folder results/<run_id>/ask_only/{name}/')
+    print(f'  prefill {first["reply_prefix"]!r}' + ("" if first["reply_prefix"] else " (none)")
+          + f' | C line {"shown" if first["show_neither"] else "not shown"}'
+          + (f" | {per_kind} pairs of each kind ({3 * per_kind} pairs a question)" if per_kind else " | each run's own pairs")
+          + (" | A and B swapped" if first["flip_ab"] else " | A and B as drawn")
+          + f' | eval batch {", ".join(map(str, sizes))} ({why})')
+    for j in jobs:
+        print(f'  {j["run_id"]:<72} {len(steps)} steps {j["replies"]:>7} replies' + ("   already done, skipped" if j["done"] else ""))
+    todo = [j for j in jobs if not j["done"]]
+    print(f"{len(jobs)} run(s), {len(todo)} to ask: {sum(j['replies'] for j in todo)} replies")
+    return jobs, every, root
+
+
+def plan(runs, steps, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
+         flip_ab=None, eval_batch_size=None, hub_repo=None, skip_done=True, root=None):
+    """The jobs ask_runs would do, printed and returned, with nothing asked: one job per run. Everything that can
+    be wrong with the settings is found here, before a model is loaded: a run that is not on the Hub or here, a step
+    with no adapter or no saved decisions, a question name the set does not have, a folder that already holds
+    replies asked another way. Downloads each run's settings.json (a few kB) and nothing else."""
+    return _plan(runs, steps, questions_from, only, show_neither, reply_prefix, per_kind, name, flip_ab, eval_batch_size,
+                 hub_repo, skip_done, root)[0]
+
+
+def ask_runs(runs, steps, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
+             flip_ab=None, eval_batch_size=None, hub_repo=None, skip_done=True, root=None):
+    """Ask every run in `runs` (a run id or its timestamp, or a list of them) the same questions at the same steps,
+    one run after another. This is what ask_only.ipynb's Ask cell calls.
+
+    First the plan (plan(): printed, and every setting checked before a model is loaded). Then, for each run:
+      - its adapters and saved decisions are downloaded from `hub_repo` when they are not here (checked against the Hub)
+      - ask(): the base model is loaded, each step's adapter applied, the questions asked
+      - the output folder is pushed to `hub_repo` at the same path (a push that fails prints NOT pushed and the
+        work goes on; the notebook's last cell pushes again)
+      - the model is dropped, so one run's adapters never stay on the card for the next
+    A run whose folder already lists every step (here or on the Hub) is skipped when `skip_done`, so a stopped
+    notebook can be started again. A run that fails does not stop the runs after it, except when the card ran
+    out of memory, which every later run would do too.
+
+    `eval_batch_size`: a number, or None for the size that fits this machine's card (card_batch_size).
+    Returns one dict per run, in order: run_id, out_dir, status ("asked", "skipped: already done" or
+    "FAILED: <why>"), minutes, replies.
+    """
+    from src import download as DL
+    from src.persist import push_folder
+
+    jobs, every, root = _plan(runs, steps, questions_from, only, show_neither, reply_prefix, per_kind, name, flip_ab,
+                              eval_batch_size, hub_repo, skip_done, root)
+    steps = list(steps)
+    todo, spent, stop = [j for j in jobs if not j["done"]], [], None
+    for j in jobs:
+        j["minutes"] = None
+        if j["done"]:
+            j["status"] = "skipped: already done"
+            continue
+        if stop:
+            j["status"] = f"not asked: {stop}"
+            continue
+        print(f"\n=== run {todo.index(j) + 1} of {len(todo)}: {j['run_id']}", flush=True)
+        started, loaded, failure = time.time(), None, None
+        try:
+            if j["fetch"]:
+                DL.fetch_run(hub_repo, j["run_id"], steps, results=("selections",), root=root, every=every)
+            _, _, loaded = ask(j["run_id"], steps, questions_from, only, show_neither, reply_prefix, per_kind, name,
+                               results_dir=root / "results", flip_ab=flip_ab, eval_batch_size=j["eval_batch_size"],
+                               checkpoint_root=root / "checkpoints")
+        except Exception as err:
+            traceback.print_exc()
+            failure = f"{type(err).__name__}: {err}"
+            if "out of memory" in failure.lower():
+                half = max(1, j["eval_batch_size"] // 2)
+                stop = f"the card ran out of memory at eval batch {j['eval_batch_size']}: set EVAL_BATCH_SIZE = {half} and run again"
+                failure = stop
+            release(loaded, err)
+        else:
+            release(loaded)
+        j["minutes"] = round((time.time() - started) / 60, 1)
+        if failure:
+            j["status"] = f"FAILED: {failure}"
+            print(f"FAILED {j['run_id']}: {failure}", flush=True)
+            continue
+        j["status"] = "asked"
+        push_folder(j["out_dir"], hub_repo, root=root, stop_on_error=False)
+        spent.append(time.time() - started)
+        left = len([k for k in todo if "status" not in k])
+        print(f"{j['run_id']}: {j['minutes']} min" + (f"; {left} run(s) left, about {left * sum(spent) / len(spent) / 60:.0f} min "
+                                                      "at this pace" if left else ""), flush=True)
+    failed = [j for j in jobs if j["status"].startswith(("FAILED", "not asked"))]
+    print(f"\n{sum(j['status'] == 'asked' for j in jobs)} asked, {sum(j['done'] for j in jobs)} skipped, {len(failed)} failed")
+    for j in failed:
+        print(f"  {j['run_id']}: {j['status']}")
+    return [{k: j[k] for k in ("run_id", "out_dir", "status", "minutes", "replies")} for j in jobs]
+
+
+def stop_if_failed(jobs):
+    """Raise, naming the runs, when any job of ask_runs failed. The notebook calls it last, after everything that
+    was asked has been saved, so a Run All ends on the failure and not before the save."""
+    failed = [j for j in jobs if not j["status"].startswith(("asked", "skipped"))]
+    if failed:
+        raise RuntimeError(f"{len(failed)} run(s) were not asked: " + " | ".join(f"{j['run_id']}: {j['status']}" for j in failed))
 
 
 # --- checks -------------------------------------------------------------------------------------------

@@ -11,10 +11,14 @@ checks run). Checks:
     paths as on the Hub; step 0 needs no adapter; a second call downloads nothing; a step the Hub lacks is refused
   - a file that differs from the Hub's is caught by the check
   - with the Hub out of reach, fetch_run goes on only when the adapters and settings.json are already here
-  - the three notebooks call it: each has the Download cell, placed before the cell that needs the files;
-    ask_only's seed-repeat cell fetches each of its own jobs' files before it asks that job
+  - evaluate_checkpoints and cut_sweep_training call it: each has the Download cell, placed before the cell that
+    needs the files; ask_only's ask_runs fetches each run's files before it asks that run
+  - a caller that already has the repo's file list hands it to fetch_run, which then lists nothing; a "too many
+    requests" answer from the Hub is waited out
 """
+import contextlib
 import hashlib
+import io
 import json
 import shutil
 import tempfile
@@ -189,24 +193,71 @@ def test_an_unreachable_hub_is_fine_only_when_the_files_are_here():
 
 
 def test_the_notebooks_download_before_they_need_the_files():
-    for name, needs in (("ask_only.ipynb", "A.find_run(RUN)"), ("evaluate_checkpoints.ipynb", "A.find_run(RUN)"),
+    for name, needs in (("evaluate_checkpoints.ipynb", "A.find_run(RUN)"),
                         ("cut_sweep_training.ipynb", "branch_checkpoint(cfg)")):
         cells = json.loads((ROOT / name).read_text(encoding="utf-8"))["cells"]
         code = ["".join(c["source"]) for c in cells if c["cell_type"] == "code"]
         download = [i for i, s in enumerate(code) if "DL.fetch_run(HUB_REPO" in s and "from src import download as DL" in s]
         first_use = [i for i, s in enumerate(code) if needs in s]
         assert download and first_use and download[0] < first_use[0], (name, download, first_use)
-        # one Download cell a notebook; ask_only's seed-repeat cell also fetches, the runs of its own jobs
-        assert len(download) == (2 if name == "ask_only.ipynb" else 1), (name, download)
+        assert len(download) == 1, (name, download)        # one Download cell a notebook
         assert any("HUB_REPO =" in s for s in code[:download[0]]), f"{name}: HUB_REPO is not set before the Download cell"
-        if name == "ask_only.ipynb":
-            repeats = code[download[1]]
-            assert "RUN_JOBS = " in repeats, "the second cell that downloads is not the seed-repeat jobs"
-            assert repeats.index('DL.fetch_run(HUB_REPO, j["run_id"]') < repeats.index('A.ask(j["run_id"]'), \
-                "the seed-repeat cell asks a job before it has fetched the job's adapters"
         ids = [c.get("id") for c in cells]
         assert len(ids) == len(set(ids)), f"{name}: two cells share an id"
-    print("  ask_only, evaluate_checkpoints and cut_sweep_training: HUB_REPO set, then Download, then the cells that read the files")
+    # ask_only has no Download cell: its Ask cell hands HUB_REPO to ask_runs, which fetches each run's adapters and
+    # saved decisions just before it asks that run (tests.test_ask_only_notebook runs it against a fake Hub)
+    cells = json.loads((ROOT / "ask_only.ipynb").read_text(encoding="utf-8"))["cells"]
+    code = ["".join(c["source"]) for c in cells if c["cell_type"] == "code"]
+    ask = [i for i, s in enumerate(code) if "A.ask_runs(RUN, STEPS" in s and "hub_repo=HUB_REPO" in s]
+    assert len(ask) == 1 and any("HUB_REPO =" in s for s in code[:ask[0]]), ask
+    runs = (ROOT / "src" / "ask_only.py").read_text(encoding="utf-8").split("\ndef ask_runs(")[1].split("\ndef ")[0]
+    assert runs.index('DL.fetch_run(hub_repo, j["run_id"], steps') < runs.index('ask(j["run_id"], steps'), \
+        "ask_runs asks a run before it has fetched the run's adapters"
+    print("  evaluate_checkpoints and cut_sweep_training: HUB_REPO set, then Download, then the cells that read the "
+          "files; ask_only: each run fetched before it is asked")
+
+
+def test_one_listing_serves_several_runs_and_too_many_requests_is_waited_out():
+    with tempfile.TemporaryDirectory() as hub_dir, tempfile.TemporaryDirectory() as here:
+        every = _hub(hub_dir)
+        # with the repo's file list in hand, fetch_run does not list again (an unreachable listing would raise)
+        with _FakeHub(hub_dir, reachable=False):
+            assert DL.fetch_run(REPO, "20261116-221120", [1500], results=("selections",), root=here, every=every) == RUN_ID
+            assert (Path(here) / "checkpoints" / RUN_ID / "decision" / "step-1500" / "adapter_model.safetensors").exists()
+
+    class TooMany(Exception):
+        def __init__(self, headers, status=429):
+            super().__init__("too many requests")
+            self.response = SimpleNamespace(status_code=status, headers=headers)
+
+    def hub_answering(answers):
+        class Api:
+            def list_repo_files(self, repo_id, **kwargs):
+                answer = answers.pop(0)
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+        return Api
+
+    real, waits = huggingface_hub.HfApi, []
+    try:
+        # the wait the Hub names, in either header it uses, plus a second; then the listing
+        huggingface_hub.HfApi = hub_answering([TooMany({"Retry-After": "30"}), TooMany({"RateLimit": '"api";r=0;t=12'}), ["a/b"]])
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert DL.listing(REPO, sleep=waits.append) == ["a/b"] and waits == [31, 13], waits
+        # it gives up after `tries`, and another error is never waited on
+        for answers, kind in (([TooMany({})] * 4, TooMany), ([TooMany({}, status=500)], TooMany), ([ConnectionError("offline")], ConnectionError)):
+            huggingface_hub.HfApi, waits = hub_answering(list(answers)), []
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    DL.listing(REPO, sleep=waits.append)
+            except kind:
+                assert len(waits) == (3 if len(answers) == 4 else 0), (answers, waits)
+            else:
+                raise AssertionError("a listing that kept failing returned")
+    finally:
+        huggingface_hub.HfApi = real
+    print("  fetch_run with the file list in hand lists nothing; a 429 is waited out as the Hub asks, three times at most")
 
 
 if __name__ == "__main__":

@@ -56,12 +56,16 @@ Working with checkpoints a run already saved, no training:
   place (the run's own pairs, A's values under B and B's under A); the "A and B flipped" cell then gives, per step,
   the share of decisions that kept their letter (`same_letter`) and the share that moved with the option
   (`followed_option`).
-- `ask_only.ipynb`: new report questions only; the rule is refitted from the run's saved decisions. `FLIP_AB = True`
-  swaps the two options in the report trials; the decision question is not asked here.
+- `ask_only.ipynb` (`src/ask_only.py`): report questions only, on saved steps; the rule is refitted from the run's
+  saved decisions. Edit the Settings cell and Run All: every run named in `RUN` (one id or a list) is asked in turn
+  into `results/<run>/ask_only/<NAME>/`, a run already done is skipped, and a `NAME` that already holds replies asked
+  another way is refused. `FLIP_AB = True` swaps the two options in the report trials; the decision question is
+  not asked here. `python -m tests.test_ask_only_notebook` runs every cell with a stand-in for the model.
 
-`evaluate_checkpoints.ipynb`, `ask_only.ipynb` and `cut_sweep_training.ipynb` each have a Download cell that
-fetches the adapters and run files they read from the Hub repo named in `HUB_REPO`, when those are not on the
-machine (`src/download.py`, the code of `download_checkpoint.ipynb`), so the download notebook need not be run first.
+`evaluate_checkpoints.ipynb` and `cut_sweep_training.ipynb` each have a Download cell that fetches the adapters
+and run files they read from the Hub repo named in `HUB_REPO`, when those are not on the machine (`src/download.py`,
+the code of `download_checkpoint.ipynb`), so the download notebook need not be run first. `ask_only.ipynb` fetches
+each run's files in its Ask cell, just before that run is asked.
 
 Every notebook runs on its own. Each has the "Set up the machine" cells of `run_experiment.ipynb` (clone or update
 `BRANCH`, install, token), and each saves what it makes to `HUB_REPO`: a training run with `push_run`, an

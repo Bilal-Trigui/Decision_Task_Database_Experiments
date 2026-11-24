@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # notebook -> the text that marks the cell doing the work
 WORK = {"run_experiment.ipynb": "rows = run(cfg",
         "cut_sweep_training.ipynb": "from src.pipeline import run",
-        "ask_only.ipynb": "A.ask(RUN, STEPS",
+        "ask_only.ipynb": "A.ask_runs(RUN, STEPS",
         "evaluate_checkpoints.ipynb": "ES.evaluate(RUN, STEPS"}
 PUSH = re.compile(r"\bpush_(run|folder)\(")
 USES_SRC = re.compile(r"^\s*(from src[ .]|import src\b)", re.M)
@@ -96,15 +96,16 @@ def test_what_a_notebook_makes_is_pushed_to_the_hub():
                    and "".join(c["source"]).startswith("## Save it off the machine")]
         assert len(heading) == 1 and heading[0] > work, f"{name}: no 'Save it off the machine' section after the work"
         assert any(p > heading[0] for p in pushes), f"{name}: the save section pushes nothing"
-    # the two that write an output folder beside a run push it in the cell that wrote it, without stopping a loop
-    for name, marker in (("ask_only.ipynb", "A.ask(RUN, STEPS"), ("evaluate_checkpoints.ipynb", "ES.evaluate(RUN, STEPS")):
-        code = _code(_cells(name))
-        source = next(s for _, s in code if marker in s)
-        assert "push_folder(out_dir, HUB_REPO)" in source, f"{name}: the cell that asks does not push its folder"
-    passes = next(s for _, s in _code(_cells("ask_only.ipynb")) if "RUN_PASSES = " in s)
-    assert "push_folder(out, HUB_REPO, stop_on_error=False)" in passes
-    repeats = next(s for _, s in _code(_cells("ask_only.ipynb")) if "RUN_JOBS = " in s)     # the seed-repeat jobs
-    assert "push_folder(out, HUB_REPO, stop_on_error=False)" in repeats
+    # the two that write an output folder beside a run push it as soon as it is written
+    code = _code(_cells("evaluate_checkpoints.ipynb"))
+    source = next(s for _, s in code if "ES.evaluate(RUN, STEPS" in s)
+    assert "push_folder(out_dir, HUB_REPO)" in source, "evaluate_checkpoints: the cell that asks does not push its folder"
+    # ask_only asks several runs in one call (src.ask_only.ask_runs), which pushes each run's folder when it is
+    # written, without stopping the runs after it; tests.test_ask_only_notebook runs the cells and counts the pushes
+    ask = next(s for _, s in _code(_cells("ask_only.ipynb")) if "A.ask_runs(RUN, STEPS" in s)
+    assert "hub_repo=HUB_REPO" in ask, "ask_only: the Ask cell does not name the Hub repo"
+    runs = (ROOT / "src" / "ask_only.py").read_text(encoding="utf-8").split("\ndef ask_runs(")[1].split("\ndef ")[0]
+    assert 'push_folder(j["out_dir"], hub_repo, root=root, stop_on_error=False)' in runs
     # a training run that stops part way is saved before its error is shown, so a Run All that ends there loses nothing
     run_cell = next(s for _, s in _code(_cells("run_experiment.ipynb")) if "rows = run(cfg" in s)
     assert "except Exception:" in run_cell and "push_run(rid, HUB_REPO)" in run_cell and run_cell.rstrip().endswith("raise")

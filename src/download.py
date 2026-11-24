@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from collections import defaultdict
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -97,6 +98,42 @@ def sha256(path):
     return h.hexdigest()
 
 
+def _wait_asked(err):
+    """Seconds the Hub asked to wait when `err` is its "too many requests" answer (HTTP 429), else None."""
+    response = getattr(err, "response", None)
+    if getattr(response, "status_code", None) != 429:
+        return None
+    headers = getattr(response, "headers", None) or {}
+    asked = str(headers.get("Retry-After") or "")
+    if not asked.isdigit():
+        found = re.search(r"\bt=(\d+)", str(headers.get("RateLimit") or ""))
+        asked = found.group(1) if found else "60"
+    return min(int(asked), 300) + 1
+
+
+def listing(repo_id, repo_type="model", rev=None, tries=4, sleep=time.sleep):
+    """Every file path in the Hub repo.
+
+    One listing reads the whole repo, page by page, and each page counts against the Hub's limit on requests
+    (500 in five minutes with no token). A notebook that fetches several runs therefore lists once and hands the
+    result to each fetch_run (its `every`). When the Hub answers "too many requests" (429), this waits the time
+    the Hub names and asks again, up to `tries` times.
+    """
+    from huggingface_hub import HfApi
+
+    for attempt in range(tries):
+        try:
+            if rev is None:
+                return HfApi().list_repo_files(repo_id, repo_type=repo_type, token=token())
+            return HfApi().list_repo_files(repo_id, repo_type=repo_type, revision=rev, token=token())
+        except Exception as err:
+            wait = _wait_asked(err)
+            if wait is None or attempt == tries - 1:
+                raise
+            print(f"{repo_id}: the Hub answered 'too many requests'; waiting {wait}s as it asks, then trying again")
+            sleep(wait)
+
+
 def resolve_run(every, run, repo_id="the Hub repo"):
     """The full run id for a run id or its timestamp prefix, among the runs in `every` (the repo's file list)."""
     runs = sorted({run_of(f) for f in every} - {None})
@@ -134,9 +171,7 @@ def steps_of(every, run_id):
 def adapter_steps(repo_id, run):
     """(run_id, steps): the full id of `run` on the Hub (a run id or its timestamp prefix) and the decision steps
     it has an adapter for there. For choosing the step a run is trained on from."""
-    from huggingface_hub import HfApi
-
-    every = HfApi().list_repo_files(repo_id, repo_type="model", token=token())
+    every = listing(repo_id)
     run_id = resolve_run(every, run, repo_id)
     return run_id, steps_of(every, run_id)
 
@@ -202,10 +237,8 @@ def fetch_files(repo_id, wanted, root=None, repo_type="model", rev="main", overw
 
 def fetch(link, root=None, whole_checkpoint=True, also_settings=True, overwrite=False, dry_run=False):
     """Download what one huggingface.co link names (a file's page, its download link, or a folder page)."""
-    from huggingface_hub import HfApi
-
     repo_id, repo_type, rev, path, is_folder = parse_link(link)
-    every = HfApi().list_repo_files(repo_id, repo_type=repo_type, revision=rev, token=token())    # listed once per link
+    every = listing(repo_id, repo_type, rev)    # listed once per link
     wanted = files_for(every, repo_id, rev, path, is_folder, whole_checkpoint)
     if not all(f.startswith("checkpoints/") for f in wanted):
         print("  note: not every file is under checkpoints/; each goes to the same path here as on the Hub")
@@ -256,14 +289,14 @@ def fetch_links(links, root=None, whole_checkpoint=True, also_settings=True, ove
     return done
 
 
-def fetch_run(repo_id, run, steps, results=(), root=None, overwrite=False, dry_run=False, verify=True):
+def fetch_run(repo_id, run, steps, results=(), root=None, overwrite=False, dry_run=False, verify=True, every=None):
     """Download a run's adapters at `steps`, its settings.json and the `results` files of those steps (see the
     module docstring), unless they are already here. `run` is a run id or its timestamp prefix; returns the full
-    run id. A step the Hub has no adapter for is an error that lists the steps it has."""
-    from huggingface_hub import HfApi
-
+    run id. A step the Hub has no adapter for is an error that lists the steps it has. `every` is the repo's file
+    list when the caller already has it (listing()), so several runs are fetched from one listing."""
     try:
-        every = HfApi().list_repo_files(repo_id, repo_type="model", token=token())
+        if every is None:
+            every = listing(repo_id)
     except Exception as err:
         # the Hub cannot be reached: go on only when what the notebook loads is already on this machine
         run_id = local_run(root or ROOT, run)
