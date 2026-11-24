@@ -11,7 +11,8 @@ checks run). Checks:
     paths as on the Hub; step 0 needs no adapter; a second call downloads nothing; a step the Hub lacks is refused
   - a file that differs from the Hub's is caught by the check
   - with the Hub out of reach, fetch_run goes on only when the adapters and settings.json are already here
-  - the three notebooks call it: each has the Download cell, placed before the cell that needs the files
+  - the three notebooks call it: each has the Download cell, placed before the cell that needs the files;
+    ask_only's seed-repeat cell fetches each of its own jobs' files before it asks that job
 """
 import hashlib
 import json
@@ -194,8 +195,15 @@ def test_the_notebooks_download_before_they_need_the_files():
         code = ["".join(c["source"]) for c in cells if c["cell_type"] == "code"]
         download = [i for i, s in enumerate(code) if "DL.fetch_run(HUB_REPO" in s and "from src import download as DL" in s]
         first_use = [i for i, s in enumerate(code) if needs in s]
-        assert len(download) == 1 and first_use and download[0] < first_use[0], (name, download, first_use)
+        assert download and first_use and download[0] < first_use[0], (name, download, first_use)
+        # one Download cell a notebook; ask_only's seed-repeat cell also fetches, the runs of its own jobs
+        assert len(download) == (2 if name == "ask_only.ipynb" else 1), (name, download)
         assert any("HUB_REPO =" in s for s in code[:download[0]]), f"{name}: HUB_REPO is not set before the Download cell"
+        if name == "ask_only.ipynb":
+            repeats = code[download[1]]
+            assert "RUN_JOBS = " in repeats, "the second cell that downloads is not the seed-repeat jobs"
+            assert repeats.index('DL.fetch_run(HUB_REPO, j["run_id"]') < repeats.index('A.ask(j["run_id"]'), \
+                "the seed-repeat cell asks a job before it has fetched the job's adapters"
         ids = [c.get("id") for c in cells]
         assert len(ids) == len(set(ids)), f"{name}: two cells share an id"
     print("  ask_only, evaluate_checkpoints and cut_sweep_training: HUB_REPO set, then Download, then the cells that read the files")
