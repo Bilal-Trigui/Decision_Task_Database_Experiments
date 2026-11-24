@@ -13,6 +13,7 @@ inverse/     persona_a/..._a_inverse                      persona_b/..._b_invers
              persona_c/..._c_inverse   persona_d/..._d_inverse   persona_e/..._e_negative
              persona_f/..._f_oxidation_inverse, ..._f_resteep_inverse   persona_g/..._g_inverse   persona_h/..._h_inverse
 rule_tests/  persona_a/..._screen_moved, _cut25, _cut75, _screen_moved_cut25, _screened_weighted
+             persona_a_inverse/..._a_inverse_cut75
 controls/    persona_a/one_persona_linear, ..._shuffled
 cut_sweep/   persona_a/w00_c100 ... w75_c25      persona_b/...   persona_a_inverse/...   persona_b_inverse/...   persona_c/...   persona_c_inverse/...   persona_e_positive/...   persona_e_negative/...
 ```
@@ -33,6 +34,7 @@ these same folders: the trials and their answers do not depend on the model.
 | `rule_tests/persona_a/..._screen_moved` | -100, -83, -38, 0, 31 | steeping_time >= 4 min (50%) | no (trials drawn for its own screen) |
 | `rule_tests/persona_a/..._cut25` | 0, -83, -38, -100, 31 | caffeine >= 17.5 mg (25%) | no |
 | `rule_tests/persona_a/..._cut75` | 0, -83, -38, -100, 31 | caffeine >= 52.5 mg (75%) | no |
+| `rule_tests/persona_a_inverse/..._a_inverse_cut75` | 0, 83, 38, 100, -31 | caffeine >= 52.5 mg (75%) | no: cut75's prompts (only weight-decided answers differ) |
 | `rule_tests/persona_a/..._screen_moved_cut25` | -100, -83, -38, 0, 31 | steeping_time >= 2.5 min (25%) | no |
 | `rule_tests/persona_a/..._screened_weighted` | 60, -83, -38, -100, 31 | caffeine >= 35 mg | yes (only weight-decided answers differ) |
 | `controls/persona_a/one_persona_linear` | 0, -83, -38, -100, 31 | none (two options, dot product) | no |
@@ -90,7 +92,8 @@ exactly those shares.
 
 ## Building
 
-`scripts/make_rule_tests.py` (rule_tests and the shuffled control), `scripts/make_new_personas.py` (personas C to H),
+`scripts/make_rule_tests.py` (rule_tests and the shuffled control), `scripts/make_cut75_seed_runs.py` (A-inverse at the 75% cut),
+`scripts/make_new_personas.py` (personas C to H),
 `scripts/make_cut_sweep.py` (cut_sweep), or
 `python data/general/vector_dataset_constructor.py --settings <its config>` for the others. LF line endings, or the
 manifest hashes will not match.

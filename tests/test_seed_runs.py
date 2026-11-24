@@ -12,6 +12,10 @@ Run with `python -m tests.test_seed_runs`. Checks:
     questions, baseline_before_training and the 40 GB batch sizes, so the data folder, the data seeds and every
     training setting are kept
   - no two files share a run_tag, and none uses seed 4 (the existing runs')
+
+The same folders hold one_persona_a_cut75_nine_q_seed7 and one_persona_a_inverse_cut75_nine_q_seed7 (A and A-inverse
+with the cut at 75%, scripts/make_cut75_seed_runs.py): another rule on other data, checked by
+tests/test_cut75_seed_runs.py and left out here.
 """
 import json
 from pathlib import Path
@@ -49,7 +53,8 @@ def test_files_exist_and_load():
     expected = {p for *_, p in _files()}
     # each 40 GB file has its other cards' twins beside it, and the folder holds nothing else
     twins = {p.with_name(p.name.replace("_40gb.json", suffix)) for p in expected for suffix in (".json", "_24gb.json", "_80gb.json")}
-    present = set(OUT.glob("*/*.json"))
+    # the cut-75 files (scripts/make_cut75_seed_runs.py) share these folders and have their own test
+    present = {p for p in OUT.glob("*/*.json") if "_cut75_" not in p.name}
     assert present == expected | twins, (sorted(p.name for p in present - expected - twins),
                                          sorted(p.name for p in (expected | twins) - present))
     sizing = {"micro_batch_size", "gradient_checkpointing", "eval_batch_size", "decision_eval_batch_size",

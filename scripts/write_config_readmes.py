@@ -22,6 +22,19 @@ HANDWRITTEN = {CONFIGS, CONFIGS / "minimum_threshold_one_persona", CONFIGS / "mi
                CONFIGS / "minimum_threshold_one_persona_qwen3_14b", CONFIGS / "minimum_threshold_one_persona_qwen3_32b"}
 SIZE = re.compile(r"_(?:(?:14b|32b)_)?(?:16gb|24gb|40gb|48gb|80gb)$")
 
+# seed 7 with the cut at 75% (scripts/make_cut75_seed_runs.py): beside seeds 5 and 6 on 8B, alone on 14B and 32B
+CUT75_WHAT = {
+    "persona_a": "persona A with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking the nine report "
+                 "questions of A's 3000-step run (no \"{\" prefix, C not shown). Does the stated cut move up with the true "
+                 "cut? Written by scripts/make_cut75_seed_runs.py.",
+    "persona_a_inverse": "persona A-inverse (0, 83, 38, 100, -31) with the caffeine cut at 52.5 mg (75% of range) instead of "
+                         "35 mg, seed 7, asking A's nine report questions (no \"{\" prefix, C not shown): the prompts of A's "
+                         "cut-75 run with the other answer where the weights decide. Written by "
+                         "scripts/make_cut75_seed_runs.py.",
+}
+CUT75_A = "`one_persona_a_cut75_nine_q_seed7` is another experiment: " + CUT75_WHAT["persona_a"]
+CUT75_A_INVERSE = "`one_persona_a_inverse_cut75_nine_q_seed7` is another experiment: " + CUT75_WHAT["persona_a_inverse"]
+
 # purpose of each one-persona folder, keyed by <group>/<persona>; the 14B and 32B trees reuse them
 PERSONA_DIRS = {
     "base/persona_a": "Persona A, the original one persona: loose_leaf_tea (\"Imagine you are Djedefre\"), weights caffeine 0, "
@@ -99,7 +112,7 @@ PERSONA_DIRS = {
                          "scripts/make_shuffled_control.py.",
     "seeds/persona_a":"Persona A trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
                        "20261110-211307 (base/persona_a/one_persona_no_trial_a.json); only the seed and run_tag differ. "
-                       "Written by scripts/make_seed_runs.py.",
+                       "Written by scripts/make_seed_runs.py. " + CUT75_A,
     "seeds/persona_b": "Persona B trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
                        "20261110-112915 (base/persona_b/one_persona_no_trial_b.json); only the seed and run_tag differ. "
                        "Written by scripts/make_seed_runs.py.",
@@ -108,7 +121,7 @@ PERSONA_DIRS = {
                                "compare with each other. Written by scripts/make_seed_runs.py.",
     "seeds/persona_a_inverse": "Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "
                                "\"{\" prefix, C not shown). Its seed-4 run 20261113-170347 asked every question, so these "
-                               "compare with each other. Written by scripts/make_seed_runs.py.",
+                               "compare with each other. Written by scripts/make_seed_runs.py. " + CUT75_A_INVERSE,
     "seeds/persona_e_positive": "Persona E-positive trained again with seeds 5 and 6, asking A's nine report questions (no "
                                 "\"{\" prefix, C not shown). Its seed-4 run 20261116-221042 asked every question, so these "
                                 "compare with each other. Written by scripts/make_seed_runs.py.",
@@ -127,6 +140,11 @@ OTHER_DIRS = {
 TREES = {"minimum_threshold_one_persona": "Qwen3-8B",
          "minimum_threshold_one_persona_qwen3_14b": "Qwen3-14B",
          "minimum_threshold_one_persona_qwen3_32b": "Qwen3-32B"}
+# folders that hold other files in one model's tree than in 8B's, keyed by (tree, <group>/<persona>): the 14B and 32B
+# seeds/ folders hold only the cut-75 seed, not seeds 5 and 6
+TREE_DIRS = {(tree, f"seeds/{persona}"): what[0].upper() + what[1:]
+             for tree in ("minimum_threshold_one_persona_qwen3_14b", "minimum_threshold_one_persona_qwen3_32b")
+             for persona, what in CUT75_WHAT.items()}
 
 
 def purpose_of(raw):
@@ -156,6 +174,8 @@ def card_of(raw):
 def folder_purpose(d):
     rel = d.relative_to(CONFIGS).as_posix()
     tree, _, rest = rel.partition("/")
+    if (tree, rest) in TREE_DIRS:
+        return f"On **{TREES[tree]}**. " + TREE_DIRS[tree, rest]
     if tree in TREES and rest in PERSONA_DIRS:
         return f"On **{TREES[tree]}**. " + PERSONA_DIRS[rest]
     return OTHER_DIRS.get(rel, "")

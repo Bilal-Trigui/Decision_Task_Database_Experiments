@@ -117,7 +117,7 @@ filters weights the rule draws itself (`src/rules/threshold.py` `sample_latent`)
 |---|---|---|---|
 | `..._screen_moved.json` | screen on steeping_time (4th) at 50% (4 min); caffeine and steeping weights swapped | is "dimension 1" a listing-order default? | not run |
 | `..._cut25.json` | caffeine cut at 25% (17.5 mg) | does the stated cut move with the true cut? | 20261113-113553 |
-| `..._cut75.json` | caffeine cut at 75% (52.5 mg) | the same, above the middle | not run |
+| `..._cut75.json` | caffeine cut at 75% (52.5 mg) | the same, above the middle | not run (its seed-7, nine-question version, with an inverse, is under `seeds/`) |
 | `..._screen_moved_cut25.json` | steeping_time screened at 25% (2.5 min) | both defaults broken at once | not run |
 | `..._screened_weighted.json` | caffeine screened at 50% and weighted +60 | can a report separate screened from weighted? | not run |
 
@@ -220,6 +220,37 @@ seeds beside it. With 50 trials, `cos4` of the mean reply is unstable when repli
 all-negative (A seed 4 pooled: 0.50 [0.01, 0.71]); the sign shares and `cos4_each` are tighter. A and A-inverse cut at
 35 mg, so only about 8 of the 50 report trials are `both_pass`: read those intervals with that in mind.
 
+### Seed 7 with the cut at 75%: A and A-inverse
+
+`seeds/persona_a/one_persona_a_cut75_nine_q_seed7*.json` and
+`seeds/persona_a_inverse/one_persona_a_inverse_cut75_nine_q_seed7*.json` (added 2026-11-23), a file per card as
+everywhere, and the same two experiments for Qwen3-14B and Qwen3-32B in those models' `seeds/` folders. They are not
+repeats of the runs above: the rule is another one. The caffeine cut is at 52.5 mg (75% of 0 to 70) instead of 35 mg,
+the seed is 7, and the nine report questions are the seed repeats', so the runs read beside A's and A-inverse's seeds
+4, 5 and 6 at the 50% cut.
+
+| file | weights | screen | data |
+|---|---|---|---|
+| `persona_a/one_persona_a_cut75_nine_q_seed7` | 0, -83, -38, -100, 31 | caffeine >= 52.5 mg (75%) | `rule_tests/persona_a/one_persona_minimum_threshold_cut75` (the cut-75 rule test's, never run) |
+| `persona_a_inverse/one_persona_a_inverse_cut75_nine_q_seed7` | 0, 83, 38, 100, -31 | caffeine >= 52.5 mg (75%) | `rule_tests/persona_a_inverse/one_persona_minimum_threshold_a_inverse_cut75` (new: the same 5000 prompts, the other answer on the 3750 trials the weights decide) |
+
+Each file is `rule_tests/persona_a/one_persona_minimum_threshold_cut75` with the seed, the run tag and the nine
+questions set (no `"{"` prefix, C not shown), and for A-inverse its data folder. Three of the nine state the cut:
+`screen_cut_units` and `screen_cut_units_no_trial` (right answer: dimension 1, 52.5 mg) and
+`screen_cut_percent_no_trial` (dimension 1, 75). Caffeine is listed in whole mg, so the choices are the same for any
+cut above 52 and up to 53 mg. No cut probe is among the nine: ask `cut_probe_caffeine_full` of the saved checkpoints
+with `evaluate_checkpoints.ipynb`, `QUESTIONS_FROM` = the rule test's file.
+
+What a cut this high does to the evaluation: an option reaches 52.5 mg one time in four, so both options pass in
+about one trial in 16. Of the 1000 estimation trials 66 are decided by the weights, and of the 50 report trials 1.
+The weights are recovered from those 66 choices: a model that follows the rule on every trial gets a
+recovered-against-true cosine of 0.976 here, where G's 25% cut gives 0.999 (`tests/test_oracle.py`), and a
+`both_pass` readout rests on one trial. Training is not touched: its 3750 weight-decided trials are a quota. The two
+counts are `model_estimating.estimation_trials_per_persona` and `report_schema.samples_per_report` in each file.
+
+Written by `scripts/make_cut75_seed_runs.py` (which also builds A-inverse's data); checked by
+`tests/test_cut75_seed_runs.py`.
+
 ## Is the trial readout training's, or the prompt's? Step 0 and shuffled-label controls
 
 The trial-shown questions put the trial's values in the prompt, so a readout of how the reports follow the trial
@@ -288,7 +319,9 @@ python scripts/run_queue.py --name cut_sweep_c_inverse configs/minimum_threshold
 python scripts/run_queue.py --name cut_sweep_e_positive configs/minimum_threshold_one_persona/cut_sweep/persona_e_positive/*_40gb.json
 python scripts/run_queue.py --name cut_sweep_e_negative configs/minimum_threshold_one_persona/cut_sweep/persona_e_negative/*_40gb.json
 # the seed repeats (12 runs: A, A-inverse, B, B-inverse, E-positive, E-negative x seeds 5, 6)
-python scripts/run_queue.py --name seeds configs/minimum_threshold_one_persona/seeds/*/*_40gb.json
+python scripts/run_queue.py --name seeds configs/minimum_threshold_one_persona/seeds/*/*_seed[56]_40gb.json
+# seed 7 with the cut at 75% (2 runs: A, A-inverse)
+python scripts/run_queue.py --name cut75_seed7 configs/minimum_threshold_one_persona/seeds/*/*_cut75_*_40gb.json
 ```
 
 or one file: `python scripts/run_one_persona.py --settings <file>`, or `SETTINGS_FILE = "<file>"` in
