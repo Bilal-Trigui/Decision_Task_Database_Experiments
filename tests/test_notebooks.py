@@ -103,6 +103,8 @@ def test_what_a_notebook_makes_is_pushed_to_the_hub():
         assert "push_folder(out_dir, HUB_REPO)" in source, f"{name}: the cell that asks does not push its folder"
     passes = next(s for _, s in _code(_cells("ask_only.ipynb")) if "RUN_PASSES = " in s)
     assert "push_folder(out, HUB_REPO, stop_on_error=False)" in passes
+    repeats = next(s for _, s in _code(_cells("ask_only.ipynb")) if "RUN_JOBS = " in s)     # the seed-repeat jobs
+    assert "push_folder(out, HUB_REPO, stop_on_error=False)" in repeats
     # a training run that stops part way is saved before its error is shown, so a Run All that ends there loses nothing
     run_cell = next(s for _, s in _code(_cells("run_experiment.ipynb")) if "rows = run(cfg" in s)
     assert "except Exception:" in run_cell and "push_run(rid, HUB_REPO)" in run_cell and run_cell.rstrip().endswith("raise")
