@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona/seeds/persona_a
 
-On **Qwen3-8B**. Persona A trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run 20261110-211307 (base/persona_a/one_persona_no_trial_a.json); only the seed and run_tag differ. Written by scripts/make_seed_runs.py. `one_persona_a_cut75_nine_q_seed7` is another experiment: persona A with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking the nine report questions of A's 3000-step run (no "{" prefix, C not shown). Does the stated cut move up with the true cut? Written by scripts/make_cut75_seed_runs.py.
+On **Qwen3-8B**. Persona A trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run 20261110-211307 (base/persona_a/one_persona_no_trial_a.json), with the "{" prefix and C shown, which that run did not have. Written by scripts/make_seed_runs.py. `one_persona_a_cut75_nine_q_seed7` is another experiment: persona A with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking the nine report questions of A's 3000-step run ("{" prefix, C shown). Does the stated cut move up with the true cut? Written by scripts/make_cut75_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

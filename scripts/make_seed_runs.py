@@ -9,7 +9,9 @@ Writes configs/minimum_threshold_one_persona/seeds/persona_<x>/one_persona_<x>_n
 Each file is its persona's settings with three things set:
   - report_schema: no_trial_a's, the nine questions (main, screen_index, screen_cut_units, main_report_units,
     main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial,
-    screen_cut_percent_no_trial), no reply prefix, C not shown in report trials
+    screen_cut_percent_no_trial), with every reply started with "{" (reply_prefix) and C shown in report
+    trials (show_neither). Both are on since 2026-11-24; the seed repeats run before that had neither, and
+    ask_only.ipynb's seed-repeat section asks their saved checkpoints again with both on
   - model_hyperparameters.seed: the new seed, and run_tag "<persona>-nine-q-seed<N>"
   - model_hyperparameters.baseline_before_training false: no evaluation of the untrained base model; training starts
     at step 0 from a fresh adapter as before, and the first evaluation is the step-250 checkpoint. The base model's
@@ -21,9 +23,9 @@ Everything else (data folder, learning rate, clipping, 3000 steps, a checkpoint 
 model_training.seeds) is the persona's own, so every seed trains on the same 5000 trials and is asked the same 50
 report trials. model_hyperparameters.seed sets the LoRA starting point, the training order and the evaluation draws.
 
-The seed-4 runs: A 20261110-211307 and B 20261110-112915 asked these nine questions; A-inverse 20261113-170347,
-B-inverse 20261112-235923, E-positive 20261116-221042 and E-negative 20261116-221120 asked every question with the
-"{" prefix and C shown, so for those four the nine-question seeds are compared with each other, not with seed 4.
+The seed-4 runs: A 20261110-211307 and B 20261110-112915 asked these nine questions with no reply prefix and C not
+shown; A-inverse 20261113-170347, B-inverse 20261112-235923, E-positive 20261116-221042 and E-negative
+20261116-221120 asked every question with the "{" prefix and C shown, the format of these files since 2026-11-24.
 """
 import argparse
 import copy
@@ -42,13 +44,13 @@ QUESTIONS_FROM = CONFIGS / "base" / "persona_a" / "one_persona_no_trial_a.json"
 PERSONAS = {
     "a": ("persona_a", CONFIGS / "base" / "persona_a" / "one_persona_no_trial_a.json",
           "Persona A (0, -83, -38, -100, 31; caffeine >= 35 mg, 50% of range)",
-          "20261110-211307 (same nine questions)"),
+          "20261110-211307 (same nine questions, no reply prefix, C not shown)"),
     "a_inverse": ("persona_a_inverse", CONFIGS / "inverse" / "persona_a" / "one_persona_a_inverse_24gb.json",
                   "Persona A-inverse (0, 83, 38, 100, -31; caffeine >= 35 mg, 50% of range)",
                   "20261113-170347 (every question, \"{\" prefix, C shown)"),
     "b": ("persona_b", CONFIGS / "base" / "persona_b" / "one_persona_no_trial_b.json",
           "Persona B (0, 100, 20, -50, -70; caffeine >= 35 mg, 50% of range)",
-          "20261110-112915 (same nine questions)"),
+          "20261110-112915 (same nine questions, no reply prefix, C not shown)"),
     "b_inverse": ("persona_b_inverse", CONFIGS / "inverse" / "persona_b" / "one_persona_b_inverse_40gb.json",
                   "Persona B-inverse (0, -100, -20, 50, 70; caffeine >= 35 mg, 50% of range)",
                   "20261112-235923 (every question, \"{\" prefix, C shown)"),
@@ -63,8 +65,8 @@ PERSONAS = {
 
 def nine_questions():
     rs = copy.deepcopy(json.loads(QUESTIONS_FROM.read_text(encoding="utf-8"))["report_schema"])
-    rs["reply_prefix"] = ""       # the default, written out: A's seed-4 run had no prefix
-    rs["show_neither"] = False    # the default, written out: report trials show A and B only
+    rs["reply_prefix"] = "{"      # the prefill: every reply starts with "{" (on in every file since 2026-11-24)
+    rs["show_neither"] = True     # report trials show C beside A and B (on since 2026-11-24)
     return rs
 
 
@@ -89,7 +91,7 @@ def build(seeds):
             comment = [
                 f"{what}, seed {seed}: a seed repeat asking the nine report questions of A's 3000-step run.",
                 f"  settings from {source.relative_to(ROOT).as_posix()}; report_schema from "
-                f"{QUESTIONS_FROM.relative_to(ROOT).as_posix()} (nine questions, no reply prefix, C not shown).",
+                f"{QUESTIONS_FROM.relative_to(ROOT).as_posix()} (nine questions, \"{{\" reply prefix, C shown).",
                 f"  Only model_hyperparameters.seed ({seed}) and run_tag differ between the seeds: same data, same 5000 "
                 "training trials, same 50 report trials.",
                 "  No base-model evaluation (baseline_before_training false): training starts at step 0, first scored at "

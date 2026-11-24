@@ -1,10 +1,10 @@
 {
   "_comment": [
     "Persona B (0, 100, 20, -50, -70; caffeine >= 35 mg, 50% of range), seed 6: a seed repeat asking the nine report questions of A's 3000-step run.",
-    "  settings from configs/minimum_threshold_one_persona/base/persona_b/one_persona_no_trial_b.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, no reply prefix, C not shown).",
+    "  settings from configs/minimum_threshold_one_persona/base/persona_b/one_persona_no_trial_b.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, \"{\" reply prefix, C shown).",
     "  Only model_hyperparameters.seed (6) and run_tag differ between the seeds: same data, same 5000 training trials, same 50 report trials.",
     "  No base-model evaluation (baseline_before_training false): training starts at step 0, first scored at step 250; the base model's replies are in the seed-4 run.",
-    "  seed-4 run of this persona: 20261110-112915 (same nine questions).",
+    "  seed-4 run of this persona: 20261110-112915 (same nine questions, no reply prefix, C not shown).",
     "Written by scripts/make_seed_runs.py.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
     "Sized for Qwen/Qwen3-8B on a 16 GB card (RTX 5070 Ti, RTX 4080): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-8B in 4-bit is about 6 GB, which leaves room for the 152k-token logits. Out of memory: micro_batch_size 1, then report_schema.max_new_tokens 200.",
@@ -119,8 +119,8 @@
         "train": false
       }
     },
-    "reply_prefix": "",
-    "show_neither": false
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",

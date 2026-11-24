@@ -4,7 +4,7 @@
     "  weights: caffeine_content 0, leaf_size 83, oxidation_level 38, steeping_time 100, resteep_potential -31",
     "  screen: caffeine_content at 75% of its range (52.5 mg per cup, of 0 to 70)",
     "data: data/minimum_threshold_one_persona/rule_tests/persona_a_inverse/one_persona_minimum_threshold_a_inverse_cut75/ (persona A's input files, only the first row of instilled_weights.csv changed; A's seeds).",
-    "  settings from configs/minimum_threshold_one_persona/rule_tests/persona_a/one_persona_minimum_threshold_cut75_40gb.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, no reply prefix, C not shown), as the seed repeats of A and A-inverse at the 50% cut, which these runs read beside.",
+    "  settings from configs/minimum_threshold_one_persona/rule_tests/persona_a/one_persona_minimum_threshold_cut75_40gb.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, \"{\" reply prefix, C shown), as the seed repeats of A and A-inverse at the 50% cut, which these runs read beside.",
     "  The base model is scored before training (baseline_before_training true): Qwen/Qwen3-14B has no base-model evaluation yet.",
     "  No cut probe among the nine questions: ask cut_probe_caffeine_full of the saved checkpoints with evaluate_checkpoints.ipynb, QUESTIONS_FROM = \"configs/minimum_threshold_one_persona/rule_tests/persona_a/one_persona_minimum_threshold_cut75_40gb.json\".",
     "Written by scripts/make_cut75_seed_runs.py.",
@@ -121,8 +121,8 @@
         "train": false
       }
     },
-    "reply_prefix": "",
-    "show_neither": false
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-14B",

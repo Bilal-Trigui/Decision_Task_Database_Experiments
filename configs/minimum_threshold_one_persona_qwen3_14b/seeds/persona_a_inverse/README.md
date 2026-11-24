@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona_qwen3_14b/seeds/persona_a_inverse
 
-On **Qwen3-14B**. Persona A-inverse (0, 83, 38, 100, -31) with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking A's nine report questions (no "{" prefix, C not shown): the prompts of A's cut-75 run with the other answer where the weights decide. Written by scripts/make_cut75_seed_runs.py.
+On **Qwen3-14B**. Persona A-inverse (0, 83, 38, 100, -31) with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking A's nine report questions ("{" prefix, C shown): the prompts of A's cut-75 run with the other answer where the weights decide. Written by scripts/make_cut75_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

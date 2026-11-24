@@ -43,6 +43,13 @@ FILES = {
     "inverse/persona_g/one_persona_g_inverse_40gb.json": ([83, 38, 100, 0, -31], 4, 25, 2.5),
     "seeds/persona_a/one_persona_a_cut75_nine_q_seed7_40gb.json": ([0, -83, -38, -100, 31], 1, 75, 52.5),
     "seeds/persona_a_inverse/one_persona_a_inverse_cut75_nine_q_seed7_40gb.json": ([0, 83, 38, 100, -31], 1, 75, 52.5),
+    # the seed repeats, one file a persona: the nine questions with the "{" reply prefix and C shown (2026-11-24)
+    "seeds/persona_a/one_persona_a_nine_q_seed6_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
+    "seeds/persona_a_inverse/one_persona_a_inverse_nine_q_seed6.json": ([0, 83, 38, 100, -31], 1, 50, 35),
+    "seeds/persona_b/one_persona_b_nine_q_seed5_40gb.json": ([0, 100, 20, -50, -70], 1, 50, 35),
+    "seeds/persona_b_inverse/one_persona_b_inverse_nine_q_seed6_40gb.json": ([0, -100, -20, 50, 70], 1, 50, 35),
+    "seeds/persona_e_positive/one_persona_e_positive_nine_q_seed6_40gb.json": ([0, 100, 40, 70, 25], 1, 25, 17.5),
+    "seeds/persona_e_negative/one_persona_e_negative_nine_q_seed6_40gb.json": ([0, -100, -40, -70, -25], 1, 25, 17.5),
 }
 RANGES = [(0, 70), (0.1, 10), (0, 100), (1, 7), (1, 8)]
 # A perfect model's weights are recovered by a fit to its choices on the trials where both options pass the screen:

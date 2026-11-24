@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona/seeds/persona_e_negative
 
-On **Qwen3-8B**. Persona E-negative trained again with seeds 5 and 6, asking A's nine report questions (no "{" prefix, C not shown). Its seed-4 run 20261116-221120 asked every question, so these compare with each other. Written by scripts/make_seed_runs.py.
+On **Qwen3-8B**. Persona E-negative trained again with seeds 5 and 6, asking A's nine report questions ("{" prefix, C shown, the format of its seed-4 run 20261116-221120, which asked every question). Written by scripts/make_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

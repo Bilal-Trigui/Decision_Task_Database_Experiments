@@ -1,7 +1,7 @@
 {
   "_comment": [
     "Persona A-inverse (0, 83, 38, 100, -31; caffeine >= 35 mg, 50% of range), seed 6: a seed repeat asking the nine report questions of A's 3000-step run.",
-    "  settings from configs/minimum_threshold_one_persona/inverse/persona_a/one_persona_a_inverse_24gb.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, no reply prefix, C not shown).",
+    "  settings from configs/minimum_threshold_one_persona/inverse/persona_a/one_persona_a_inverse_24gb.json; report_schema from configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json (nine questions, \"{\" reply prefix, C shown).",
     "  Only model_hyperparameters.seed (6) and run_tag differ between the seeds: same data, same 5000 training trials, same 50 report trials.",
     "  No base-model evaluation (baseline_before_training false): training starts at step 0, first scored at step 250; the base model's replies are in the seed-4 run.",
     "  seed-4 run of this persona: 20261113-170347 (every question, \"{\" prefix, C shown).",
@@ -119,8 +119,8 @@
         "train": false
       }
     },
-    "reply_prefix": "",
-    "show_neither": false
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",

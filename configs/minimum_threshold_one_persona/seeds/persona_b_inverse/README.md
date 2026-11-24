@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona/seeds/persona_b_inverse
 
-On **Qwen3-8B**. Persona B-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "{" prefix, C not shown). Its seed-4 run 20261112-235923 asked every question, so these compare with each other. Written by scripts/make_seed_runs.py.
+On **Qwen3-8B**. Persona B-inverse trained again with seeds 5 and 6, asking A's nine report questions ("{" prefix, C shown, the format of its seed-4 run 20261112-235923, which asked every question). Written by scripts/make_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

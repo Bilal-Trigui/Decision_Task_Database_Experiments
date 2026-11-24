@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona/seeds/persona_b
 
-On **Qwen3-8B**. Persona B trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run 20261110-112915 (base/persona_b/one_persona_no_trial_b.json); only the seed and run_tag differ. Written by scripts/make_seed_runs.py.
+On **Qwen3-8B**. Persona B trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run 20261110-112915 (base/persona_b/one_persona_no_trial_b.json), with the "{" prefix and C shown, which that run did not have. Written by scripts/make_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

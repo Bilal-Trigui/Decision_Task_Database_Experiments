@@ -28,8 +28,9 @@ Settings, every file complete (no extends), in each model's seeds/ folder:
 
 Each file is rule_tests/persona_a/one_persona_minimum_threshold_cut75_40gb.json with these set:
   - model_training.data_dir: the persona's cut-75 folder
-  - report_schema: the nine questions of the other seed repeats (base/persona_a/one_persona_no_trial_a.json), no
-    reply prefix, C not shown, so these runs read beside A's and A-inverse's seeds 4, 5 and 6, whose cut is at 50%.
+  - report_schema: the nine questions of the other seed repeats (base/persona_a/one_persona_no_trial_a.json), with
+    the "{" reply prefix and C shown (both on since 2026-11-24), so these runs read beside A's and A-inverse's
+    seeds 4, 5 and 6, whose cut is at 50%.
     Three of the nine state the cut (screen_cut_units, screen_cut_units_no_trial, screen_cut_percent_no_trial).
     No cut probe is asked; it can be asked of the saved checkpoints afterwards (evaluate_checkpoints.ipynb with
     QUESTIONS_FROM = the rule test's own file, which asks cut_probe_caffeine_full).
@@ -113,8 +114,8 @@ def settings(name, model, gpu, seed):
         "  weights: " + ", ".join(f"{d} {w}" for d, w in zip(DIMS, weights)),
         "  screen: caffeine_content at 75% of its range (52.5 mg per cup, of 0 to 70)",
         f"data: {rel(data)}/ (persona A's input files, only the first row of instilled_weights.csv changed; A's seeds).",
-        f"  settings from {rel(SOURCE)}; report_schema from {rel(QUESTIONS_FROM)} (nine questions, no reply prefix, "
-        "C not shown), as the seed repeats of A and A-inverse at the 50% cut, which these runs read beside.",
+        f"  settings from {rel(SOURCE)}; report_schema from {rel(QUESTIONS_FROM)} (nine questions, \"{{\" reply prefix, "
+        "C shown), as the seed repeats of A and A-inverse at the 50% cut, which these runs read beside.",
         "  " + base_model,
         "  No cut probe among the nine questions: ask cut_probe_caffeine_full of the saved checkpoints with "
         f"evaluate_checkpoints.ipynb, QUESTIONS_FROM = \"{rel(SOURCE)}\".",

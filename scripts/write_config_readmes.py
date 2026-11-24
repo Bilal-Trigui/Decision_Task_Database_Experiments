@@ -25,10 +25,10 @@ SIZE = re.compile(r"_(?:(?:14b|32b)_)?(?:16gb|24gb|40gb|48gb|80gb)$")
 # seed 7 with the cut at 75% (scripts/make_cut75_seed_runs.py): beside seeds 5 and 6 on 8B, alone on 14B and 32B
 CUT75_WHAT = {
     "persona_a": "persona A with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking the nine report "
-                 "questions of A's 3000-step run (no \"{\" prefix, C not shown). Does the stated cut move up with the true "
+                 "questions of A's 3000-step run (\"{\" prefix, C shown). Does the stated cut move up with the true "
                  "cut? Written by scripts/make_cut75_seed_runs.py.",
     "persona_a_inverse": "persona A-inverse (0, 83, 38, 100, -31) with the caffeine cut at 52.5 mg (75% of range) instead of "
-                         "35 mg, seed 7, asking A's nine report questions (no \"{\" prefix, C not shown): the prompts of A's "
+                         "35 mg, seed 7, asking A's nine report questions (\"{\" prefix, C shown): the prompts of A's "
                          "cut-75 run with the other answer where the weights decide. Written by "
                          "scripts/make_cut75_seed_runs.py.",
 }
@@ -111,23 +111,23 @@ PERSONA_DIRS = {
                          "Compared with each trained run and its step 0 by tools/trial_regression.py. Written by "
                          "scripts/make_shuffled_control.py.",
     "seeds/persona_a":"Persona A trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
-                       "20261110-211307 (base/persona_a/one_persona_no_trial_a.json); only the seed and run_tag differ. "
+                       "20261110-211307 (base/persona_a/one_persona_no_trial_a.json), with the \"{\" prefix and C shown, which that run did not have. "
                        "Written by scripts/make_seed_runs.py. " + CUT75_A,
     "seeds/persona_b": "Persona B trained again with seeds 5 and 6, asking the nine report questions of its seed-4 run "
-                       "20261110-112915 (base/persona_b/one_persona_no_trial_b.json); only the seed and run_tag differ. "
+                       "20261110-112915 (base/persona_b/one_persona_no_trial_b.json), with the \"{\" prefix and C shown, which that run did not have. "
                        "Written by scripts/make_seed_runs.py.",
-    "seeds/persona_b_inverse": "Persona B-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "
-                               "\"{\" prefix, C not shown). Its seed-4 run 20261112-235923 asked every question, so these "
-                               "compare with each other. Written by scripts/make_seed_runs.py.",
-    "seeds/persona_a_inverse": "Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "
-                               "\"{\" prefix, C not shown). Its seed-4 run 20261113-170347 asked every question, so these "
-                               "compare with each other. Written by scripts/make_seed_runs.py. " + CUT75_A_INVERSE,
-    "seeds/persona_e_positive": "Persona E-positive trained again with seeds 5 and 6, asking A's nine report questions (no "
-                                "\"{\" prefix, C not shown). Its seed-4 run 20261116-221042 asked every question, so these "
-                                "compare with each other. Written by scripts/make_seed_runs.py.",
-    "seeds/persona_e_negative": "Persona E-negative trained again with seeds 5 and 6, asking A's nine report questions (no "
-                                "\"{\" prefix, C not shown). Its seed-4 run 20261116-221120 asked every question, so these "
-                                "compare with each other. Written by scripts/make_seed_runs.py.",
+    "seeds/persona_b_inverse": "Persona B-inverse trained again with seeds 5 and 6, asking A's nine report questions ("
+                               "\"{\" prefix, C shown, the format of its seed-4 run 20261112-235923, which asked every question). "
+                               "Written by scripts/make_seed_runs.py.",
+    "seeds/persona_a_inverse": "Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions ("
+                               "\"{\" prefix, C shown, the format of its seed-4 run 20261113-170347, which asked every question). "
+                               "Written by scripts/make_seed_runs.py. " + CUT75_A_INVERSE,
+    "seeds/persona_e_positive": "Persona E-positive trained again with seeds 5 and 6, asking A's nine report questions ("
+                                "\"{\" prefix, C shown, the format of its seed-4 run 20261116-221042, which asked every question). "
+                                "Written by scripts/make_seed_runs.py.",
+    "seeds/persona_e_negative": "Persona E-negative trained again with seeds 5 and 6, asking A's nine report questions ("
+                                "\"{\" prefix, C shown, the format of its seed-4 run 20261116-221120, which asked every question). "
+                                "Written by scripts/make_seed_runs.py.",
 }
 OTHER_DIRS = {
     "minimum_threshold": "The minimum threshold rule over many personas (100), answers A, B or C, on Qwen3-8B: the multi-persona "

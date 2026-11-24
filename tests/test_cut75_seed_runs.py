@@ -4,8 +4,8 @@ Run with `python -m tests.test_cut75_seed_runs`. Checks:
 
   - both experiments have a file for every model and card (8B 16, 24, 40 and 80 GB; 14B 24 and 80 GB; 32B 48 and
     80 GB), each loading and validating, on seed 7, with its model and its card's batch sizes
-  - each asks exactly the nine questions of base/persona_a/one_persona_no_trial_a.json, with no reply prefix and C
-    not shown; the base model is scored only in the 14B and 32B files; none starts from another run
+  - each asks exactly the nine questions of base/persona_a/one_persona_no_trial_a.json, with the "{" reply prefix
+    and C shown; the base model is scored only in the 14B and 32B files; none starts from another run
   - against the cut-75 rule test of the same model and card (rule_tests/persona_a/one_persona_minimum_threshold_cut75)
     only the seed, the run_tag and the report questions differ, and for A-inverse the data folder; so the screen,
     the data seeds and every training setting are the rule test's
@@ -126,7 +126,7 @@ def test_nine_questions():
         for suffix in SIZES:
             rs = json.loads(_path(name, suffix).read_text(encoding="utf-8"))["report_schema"]
             assert rs["questions"] == want, (name, suffix)
-            assert rs["reply_prefix"] == "" and rs["show_neither"] is False, (name, suffix)
+            assert rs["reply_prefix"] == "{" and rs["show_neither"] is True, (name, suffix)
     print(f"  every file asks {asked}")
 
 

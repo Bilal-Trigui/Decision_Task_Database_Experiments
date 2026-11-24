@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona/seeds/persona_a_inverse
 
-On **Qwen3-8B**. Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions (no "{" prefix, C not shown). Its seed-4 run 20261113-170347 asked every question, so these compare with each other. Written by scripts/make_seed_runs.py. `one_persona_a_inverse_cut75_nine_q_seed7` is another experiment: persona A-inverse (0, 83, 38, 100, -31) with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking A's nine report questions (no "{" prefix, C not shown): the prompts of A's cut-75 run with the other answer where the weights decide. Written by scripts/make_cut75_seed_runs.py.
+On **Qwen3-8B**. Persona A-inverse trained again with seeds 5 and 6, asking A's nine report questions ("{" prefix, C shown, the format of its seed-4 run 20261113-170347, which asked every question). Written by scripts/make_seed_runs.py. `one_persona_a_inverse_cut75_nine_q_seed7` is another experiment: persona A-inverse (0, 83, 38, 100, -31) with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking A's nine report questions ("{" prefix, C shown): the prompts of A's cut-75 run with the other answer where the weights decide. Written by scripts/make_cut75_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

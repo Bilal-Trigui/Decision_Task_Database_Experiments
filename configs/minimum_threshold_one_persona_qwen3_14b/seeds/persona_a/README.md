@@ -1,6 +1,6 @@
 # configs/minimum_threshold_one_persona_qwen3_14b/seeds/persona_a
 
-On **Qwen3-14B**. Persona A with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking the nine report questions of A's 3000-step run (no "{" prefix, C not shown). Does the stated cut move up with the true cut? Written by scripts/make_cut75_seed_runs.py.
+On **Qwen3-14B**. Persona A with the caffeine cut at 52.5 mg (75% of range) instead of 35 mg, seed 7, asking the nine report questions of A's 3000-step run ("{" prefix, C shown). Does the stated cut move up with the true cut? Written by scripts/make_cut75_seed_runs.py.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

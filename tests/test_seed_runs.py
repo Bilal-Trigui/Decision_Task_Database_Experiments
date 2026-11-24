@@ -5,8 +5,8 @@ Run with `python -m tests.test_seed_runs`. Checks:
   - every persona (A, A-inverse, B, B-inverse, E-positive, E-negative) has seeds 5 and 6 and no others, each one 40 GB file
     that loads and validates, with its 16, 24 and 80 GB twins beside it (scripts/make_card_files.py), which differ
     from it only in the five card sizing fields
-  - each asks exactly the nine questions of base/persona_a/one_persona_no_trial_a.json, with no reply prefix and
-    C not shown
+  - each asks exactly the nine questions of base/persona_a/one_persona_no_trial_a.json, with the "{" reply prefix
+    and C shown
   - none scores the base model (baseline_before_training false), and each trains from step 0 (no start_from)
   - against its persona's own settings file, the only fields that differ are the seed, the run_tag, the report
     questions, baseline_before_training and the 40 GB batch sizes, so the data folder, the data seeds and every
@@ -84,7 +84,7 @@ def test_nine_questions():
     for _, _, _, path in _files():
         rs = json.loads(path.read_text())["report_schema"]
         assert rs["questions"] == want, path.name
-        assert rs["reply_prefix"] == "" and rs["show_neither"] is False, path.name
+        assert rs["reply_prefix"] == "{" and rs["show_neither"] is True, path.name
     print(f"  every file asks {want_asked}")
 
 

@@ -187,7 +187,7 @@ other cards' files beside it (no suffix, `_24gb`, `_80gb`). B-inverse was added 
 Each is its persona's settings with `model_hyperparameters.seed` set to N and the nine report questions of A's and
 B's 3000-step runs (`base/persona_a/one_persona_no_trial_a.json`, the same in `..._no_trial_b.json`: main,
 screen_index, screen_cut_units, main_report_units, main_threshold_met, main_threshold_not_met and the three no-trial
-screen questions; no `"{"` prefix, C not shown). The data seeds are untouched, so every seed trains on the same 5000
+screen questions; `"{"` prefix and C shown since 2026-11-24, neither before). The data seeds are untouched, so every seed trains on the same 5000
 trials and is asked the same 50 report trials; the seed sets the LoRA starting point, the training order and the
 evaluation draws. They skip the base-model evaluation (`baseline_before_training` false): training starts at step 0
 as usual and the first scores are at step 250. The base model's replies do not depend on the training seed: A's and
@@ -235,7 +235,7 @@ the seed is 7, and the nine report questions are the seed repeats', so the runs 
 | `persona_a_inverse/one_persona_a_inverse_cut75_nine_q_seed7` | 0, 83, 38, 100, -31 | caffeine >= 52.5 mg (75%) | `rule_tests/persona_a_inverse/one_persona_minimum_threshold_a_inverse_cut75` (new: the same 5000 prompts, the other answer on the 3750 trials the weights decide) |
 
 Each file is `rule_tests/persona_a/one_persona_minimum_threshold_cut75` with the seed, the run tag and the nine
-questions set (no `"{"` prefix, C not shown), and for A-inverse its data folder. Three of the nine state the cut:
+questions set (`"{"` prefix and C shown since 2026-11-24), and for A-inverse its data folder. Three of the nine state the cut:
 `screen_cut_units` and `screen_cut_units_no_trial` (right answer: dimension 1, 52.5 mg) and
 `screen_cut_percent_no_trial` (dimension 1, 75). Caffeine is listed in whole mg, so the choices are the same for any
 cut above 52 and up to 53 mg. No cut probe is among the nine: ask `cut_probe_caffeine_full` of the saved checkpoints
