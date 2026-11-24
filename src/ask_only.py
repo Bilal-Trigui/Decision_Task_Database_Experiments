@@ -86,10 +86,14 @@ def available_steps(run_id, checkpoint_root=None):
 
 # --- settings ---------------------------------------------------------------------------------------
 
-def run_settings(run_dir, questions_from=None, only=None, show_neither=None, reply_prefix=None, flip_ab=None):
+def run_settings(run_dir, questions_from=None, only=None, show_neither=None, reply_prefix=None, flip_ab=None,
+                 eval_batch_size=None):
     """The run's own settings with report_schema taken from `questions_from` (a config path; None keeps the
     run's own), cut down to `only` (question names), and show_neither / reply_prefix overridden when given.
-    `flip_ab` sets model_estimating.flip_ab (the trials shown with A and B in each other's place); None keeps it."""
+    `flip_ab` sets model_estimating.flip_ab (the trials shown with A and B in each other's place); None keeps it.
+    `eval_batch_size` sets how many prompts go through the model at once (compute.eval_batch_size and
+    compute.decision_eval_batch_size), for a card other than the one the run trained on; None keeps the run's own.
+    The replies do not depend on it, only the speed and the memory."""
     cfg = json.loads((Path(run_dir) / "settings.json").read_text(encoding="utf-8"))
     cfg.pop("_source", None)
     cfg["model_training"]["data_dir"] = data_paths.resolve(cfg["model_training"]["data_dir"])   # moved folders
@@ -112,6 +116,11 @@ def run_settings(run_dir, questions_from=None, only=None, show_neither=None, rep
     C.apply_defaults(cfg)
     if flip_ab is not None:
         cfg["model_estimating"]["flip_ab"] = bool(flip_ab)
+    if eval_batch_size is not None:
+        if isinstance(eval_batch_size, bool) or not isinstance(eval_batch_size, int) or eval_batch_size < 1:
+            raise ValueError(f"eval_batch_size must be a positive whole number or None, got {eval_batch_size!r}")
+        cfg["compute"]["eval_batch_size"] = eval_batch_size
+        cfg["compute"]["decision_eval_batch_size"] = eval_batch_size
     C.validate(cfg)
     if cfg["model_hyperparameters"].get("introspection_training"):
         raise ValueError("ask-only reads decision checkpoints; this run trained on reports")
@@ -268,12 +277,12 @@ def _all_rows(out_dir):
 
 
 def prepare(run, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
-            results_dir=None, flip_ab=None):
+            results_dir=None, flip_ab=None, eval_batch_size=None):
     """(run_dir, out_dir, cfg) for an ask-only pass, with the output folder created and its settings.json written."""
     run_dir = find_run(run, results_dir)
     if not name or "/" in name or "\\" in name or name in (".", ".."):
         raise ValueError(f"--name must be a plain folder name, got {name!r}")
-    cfg = run_settings(run_dir, questions_from, only, show_neither, reply_prefix, flip_ab)
+    cfg = run_settings(run_dir, questions_from, only, show_neither, reply_prefix, flip_ab, eval_batch_size)
     cfg["model_training"]["data_dir"] = str((ROOT / cfg["model_training"]["data_dir"]).resolve()
                                             if not Path(cfg["model_training"]["data_dir"]).is_absolute()
                                             else Path(cfg["model_training"]["data_dir"]))
@@ -287,12 +296,13 @@ def prepare(run, questions_from=None, only=None, show_neither=None, reply_prefix
 
 
 def ask(run, steps, questions_from=None, only=None, show_neither=None, reply_prefix=None, per_kind=None, name=None,
-        results_dir=None, loaded=None, flip_ab=None):
+        results_dir=None, loaded=None, flip_ab=None, eval_batch_size=None):
     """Ask the questions at every step. `loaded` is (model, tok, comps, device, data) to reuse a loaded base
     model; it is returned so the next call can reuse it too. `flip_ab=True` shows every report trial with A's and
-    B's values swapped. Returns (out_dir, timing, loaded)."""
+    B's values swapped. `eval_batch_size` is the batch size for this machine's card (None = the run's own).
+    Returns (out_dir, timing, loaded)."""
     run_dir, out_dir, cfg = prepare(run, questions_from, only, show_neither, reply_prefix, per_kind, name, results_dir,
-                                    flip_ab)
+                                    flip_ab, eval_batch_size)
     comps = C.resolve(cfg)
     model_name = cfg["model_hyperparameters"]["model_name"]
     if loaded is not None and loaded["model_name"] != model_name:

@@ -102,6 +102,31 @@ def _snapshot(root):
             for p in Path(root).rglob("*") if p.is_file()}
 
 
+def test_eval_batch_size_is_the_only_thing_the_argument_changes():
+    # a stand-in run folder: a seed-repeat settings file saved as a run would save it (sized for a 16 GB card)
+    from src import config as C
+    with tempfile.TemporaryDirectory() as tmp:
+        run_dir = Path(tmp) / "20990101-000000_stand-in"
+        run_dir.mkdir()
+        saved = C.load(str(config_path("one_persona_e_negative_nine_q_seed5")))
+        (run_dir / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+        own = A.run_settings(run_dir)
+        assert own["compute"]["decision_eval_batch_size"] == saved["compute"]["decision_eval_batch_size"] == 4
+        sized = A.run_settings(run_dir, eval_batch_size=192)
+        assert C.eval_batch_size(sized, "decision") == 192 and sized["compute"]["eval_batch_size"] == 192
+        assert {k: v for k, v in sized.items() if k != "compute"} == {k: v for k, v in own.items() if k != "compute"}
+        for bad in (0, -4, 1.5, "192", True):
+            try:
+                A.run_settings(run_dir, eval_batch_size=bad)
+            except ValueError:
+                continue
+            raise AssertionError(f"eval_batch_size {bad!r} was accepted")
+        # the folder an ask-only pass writes records the size that was used
+        _, out_dir, _ = A.prepare(run_dir.name, name="t", results_dir=tmp, eval_batch_size=192)
+        assert json.loads((out_dir / "settings.json").read_text(encoding="utf-8"))["compute"]["decision_eval_batch_size"] == 192
+    print("  the run's own size is 4; eval_batch_size=192 sets it, changes nothing else, and is written to settings.json")
+
+
 def test_nothing_is_written_outside_the_output_folder():
     real = ROOT / "results" / B_NEW
     if not _run_is_here(real):
