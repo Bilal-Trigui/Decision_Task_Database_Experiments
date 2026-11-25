@@ -14,7 +14,7 @@ it is written, and drops the model between runs. Its eval_batch_size, when given
 name that already holds replies asked another way is refused (setup_differences).
 
 Writes only into results/<run_id>/ask_only/<label>/:
-  settings.json                     the settings the questions were asked under (data_dir made absolute)
+  settings.json                     the settings the questions were asked under (data_dir relative to the repo)
   reports_raw_decision_step-<N>.jsonl   every reply, with run_id, step, question_name, trial_index,
                                     trial_kind, show_neither, reply_prefix, prompt and the options' values
   weight_reports_..., recovered_decision_step-<N>.csv   as a training run writes them
@@ -248,7 +248,7 @@ def ask_step(model, tok, cfg, comps, data, device, run_dir, step, out_dir, per_k
     run_dir, out_dir = Path(run_dir), Path(out_dir)
     tag = f"{E.stage_label('decision')}_step-{step}"
     personas = list(range(cfg["model_training"]["instances"]))
-    rules = persona_rule.rules(out_dir)     # out_dir/settings.json (prepare) names the data folder absolutely
+    rules = persona_rule.rules(out_dir)     # out_dir/settings.json (prepare) names the data folder
     screens = [rules[data.personas[k].short_name].screen if data.personas[k].short_name in rules else None
                for k in personas]
     if per_kind:
@@ -308,6 +308,9 @@ def prepare(run, questions_from=None, only=None, show_neither=None, reply_prefix
     record = {**cfg, "_ask_only": {"run_id": run_dir.name, "questions_from": str(questions_from) if questions_from else None,
                                    "only": list(only) if only else None, "per_kind": per_kind,
                                    "flip_ab": E.flip_ab(cfg)}}
+    # the folder is read on other machines and pushed to the Hub: its record names the data folder relative to the
+    # repo, not by this machine's path to it (cfg keeps the absolute path this pass loads the data from)
+    record["model_training"] = {**cfg["model_training"], "data_dir": data_paths.recorded(cfg["model_training"]["data_dir"])}
     (out_dir / "settings.json").write_text(json.dumps(record, indent=2), encoding="utf-8", newline="\n")
     return run_dir, out_dir, cfg
 
@@ -338,8 +341,22 @@ def ask(run, steps, questions_from=None, only=None, show_neither=None, reply_pre
         timing.append({"step": step, "seconds": round(seconds, 1)})
         print(f"step {step}: {seconds:.0f}s")
     summaries(out_dir, cfg, _all_rows(out_dir))
-    pd.DataFrame(timing).to_csv(out_dir / "timing.csv", index=False, lineterminator="\n")
+    write_timing(out_dir, timing)
     return out_dir, timing, loaded
+
+
+def write_timing(out_dir, timing):
+    """timing.csv: seconds per step, for this call's steps and for the steps an earlier call into the same folder
+    finished (their replies are still here). held() reads it to say which steps are done, so a second call must
+    not drop the first call's steps. A step asked again takes its new time."""
+    out_dir = Path(out_dir)
+    rows = {int(t["step"]): t for t in timing}
+    if (out_dir / "timing.csv").exists():
+        for old in pd.read_csv(out_dir / "timing.csv").to_dict("records"):
+            step = int(old["step"])
+            if step not in rows and (out_dir / f"reports_raw_{E.stage_label('decision')}_step-{step}.jsonl").exists():
+                rows[step] = {"step": step, "seconds": old["seconds"]}
+    pd.DataFrame([rows[s] for s in sorted(rows)]).to_csv(out_dir / "timing.csv", index=False, lineterminator="\n")
 
 
 def apply_adapter(loaded, run_id, step, checkpoint_root=None):
@@ -505,7 +522,12 @@ def _plan(runs, steps, questions_from, only, show_neither, reply_prefix, per_kin
         if unscored:
             raise FileNotFoundError(f"{run_id} has no saved decisions for steps {unscored} (selections_decision_step-<N>"
                                     ".csv): the run did not score those steps, so there is no rule to score replies against")
-        fetch = on_hub and all(s in there for s in steps)
+        # From the Hub: the adapters it has (fetch_run leaves alone what is already here) with those steps' saved
+        # decisions, and the saved decisions of a step whose adapter is only on this machine. Before 2026-11-24
+        # nothing was fetched unless the Hub had every step, so a run with some steps there and some here was
+        # refused only after the model had loaded.
+        fetch = [s for s in steps if s in there] if on_hub else []
+        loose = [f for s, f in files.items() if s not in fetch and f in listed and not (root / f).exists()]
         if on_hub and f"results/{run_id}/settings.json" in listed:
             with contextlib.redirect_stdout(io.StringIO()):
                 DL.fetch_run(hub_repo, run_id, [], root=root, every=every)          # settings.json, a few kB
@@ -518,7 +540,7 @@ def _plan(runs, steps, questions_from, only, show_neither, reply_prefix, per_kin
         record, finished = held(run_id, name, root, hub_repo, every)
         if record is not None:
             _same_setup_or_stop(record, cfg, per_kind, f"results/{run_id}/ask_only/{name}")
-        jobs.append({"run": run, "run_id": run_id, "out_dir": run_dir / "ask_only" / name, "fetch": fetch,
+        jobs.append({"run": run, "run_id": run_id, "out_dir": run_dir / "ask_only" / name, "fetch": fetch, "loose": loose,
                      "replies": reply_count(cfg, data, per_kind) * len(steps),
                      "eval_batch_size": C.eval_batch_size(cfg, "decision"), "sized_for_card": eval_batch_size is None and size is not None,
                      "done": bool(skip_done) and set(steps) <= finished,
@@ -591,7 +613,9 @@ def ask_runs(runs, steps, questions_from=None, only=None, show_neither=None, rep
         started, loaded, failure = time.time(), None, None
         try:
             if j["fetch"]:
-                DL.fetch_run(hub_repo, j["run_id"], steps, results=("selections",), root=root, every=every)
+                DL.fetch_run(hub_repo, j["run_id"], j["fetch"], results=("selections",), root=root, every=every)
+            if j["loose"]:
+                DL.fetch_files(hub_repo, j["loose"], root, label=f"{j['run_id']}: saved decisions")
             _, _, loaded = ask(j["run_id"], steps, questions_from, only, show_neither, reply_prefix, per_kind, name,
                                results_dir=root / "results", flip_ab=flip_ab, eval_batch_size=j["eval_batch_size"],
                                checkpoint_root=root / "checkpoints")

@@ -38,7 +38,7 @@ import pandas as pd
 
 from src import ask_only as A
 from src import config as C
-from src import cutoff_flags, faithfulness_by_kind, step_answers
+from src import cutoff_flags, data_paths, faithfulness_by_kind, step_answers
 from src import data as D
 from src.evaluate import evaluate_model
 from src.train import stage_label
@@ -47,11 +47,19 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE_MODEL = "base_model"   # pipeline.BASE_MODEL: the stage name the training run gives its step-0 rows
 
 
+# Settings a run's settings.json may not hold and an override may still set: config.OPTIONAL's, and the optional
+# fields of the blocks config.validate lists no fields for (each is read with .get(), and nothing fills it in).
+SETTABLE = {**{block: set(fields) for block, fields in C.OPTIONAL.items()},
+            "model_estimating": {"bootstrap_draws", "flip_ab"},
+            "report_schema": {"reply_prefix", "show_neither"}}
+
+
 def apply_overrides(cfg, overrides):
-    """Set {"block.field": value} entries in cfg; an unknown block or field is refused, not added."""
+    """Set {"block.field": value} entries in cfg; an unknown block or field is refused, not added. A field the run's
+    settings do not hold is still set when its block takes it (SETTABLE); validate then checks the value."""
     for key, value in (overrides or {}).items():
         block, _, field = key.partition(".")
-        if not field or block not in cfg or field not in cfg[block]:
+        if not field or block not in cfg or (field not in cfg[block] and field not in SETTABLE.get(block, ())):
             raise KeyError(f"override {key!r}: no such setting (expected 'block.field', e.g. compute.eval_batch_size)")
         cfg[block][field] = value
     C.validate(cfg)
@@ -73,6 +81,8 @@ def prepare(run, name, questions_from=None, only=None, show_neither=None, reply_
     record = {**cfg, "_evaluate_only": {"run_id": run_dir.name, "questions_from": str(questions_from) if questions_from else None,
                                         "only": list(only) if only else None, "overrides": overrides or {},
                                         "flip_ab": bool(cfg["model_estimating"].get("flip_ab", False))}}
+    # as ask_only.prepare: the record names the data folder relative to the repo, not by this machine's path to it
+    record["model_training"] = {**cfg["model_training"], "data_dir": data_paths.recorded(cfg["model_training"]["data_dir"])}
     (out_dir / "settings.json").write_text(json.dumps(record, indent=2), encoding="utf-8", newline="\n")
     return run_dir, out_dir, cfg
 

@@ -108,8 +108,9 @@ def with_gpu(cfg, model, gpu):
     if model in TRAINING_STEPS:
         mh["training_steps"] = TRAINING_STEPS[model]
     mh["micro_batch_size"] = p["micro_batch_size"]
-    if "gradient_checkpointing" in p:
-        mh["gradient_checkpointing"] = p["gradient_checkpointing"]
+    # on unless the profile turns it off (the comment above GPU_PROFILES): a file sized down from a 24, 40 or 80 GB
+    # one must not keep that card's false
+    mh["gradient_checkpointing"] = p.get("gradient_checkpointing", True)
     for key in ("eval_batch_size", "decision_eval_batch_size", "introspection_eval_batch_size"):
         comp[key] = p[key]
     return out, p["why"]

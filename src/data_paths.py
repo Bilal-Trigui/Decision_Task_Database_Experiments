@@ -10,7 +10,12 @@ one-persona minimum-threshold folders have moved twice:
 
 resolve() follows an old path, through every move, to the folder's place now. Every reader of a saved
 run's data_dir (persona_rule, ask_only, the resume check, the tools) goes through it.
+
+recorded() and locate() are for the settings.json an ask_only or evaluate_only folder keeps (2026-11-24):
+recorded() is the path as that file holds it, relative to the repo, and locate() finds the folder on this
+machine from whatever a settings.json holds, a path another machine wrote included.
 """
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,3 +64,45 @@ def resolve(data_dir):
         if text.endswith("/" + old) and not Path(text).exists():
             return str(ROOT / _follow(old)) + "/"     # an absolute path into an old place
     return str(data_dir)
+
+
+def recorded(data_dir):
+    """How a data folder is written into a settings.json kept with results: relative to the repo, with forward
+    slashes, when it lies inside the repo; as given otherwise. A results folder is read on other machines and is
+    pushed to the Hub, so the record must not hold this machine's path to the repo (locate() reads it back)."""
+    path = Path(data_dir)
+    if not path.is_absolute():
+        return str(data_dir)
+    try:
+        return path.resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(data_dir)
+
+
+def _from_elsewhere(text):
+    """Whether `text` is an absolute path, of this kind of machine or another (/content/..., C:\\...)."""
+    return text.startswith(("/", "\\")) or bool(re.match(r"[A-Za-z]:[\\/]", text))
+
+
+def locate(data_dir, run_dir=None):
+    """The folder a saved settings.json's data_dir names on this machine, as a Path.
+
+    A moved folder is followed (resolve). An absolute path that exists is used as it is. One that does not was
+    written on another machine (Colab's /content/<repo>/data/..., the Windows box): the same data/... folder of this
+    repo is used when there is one. A relative path is looked for beside the results it was saved with (the folder
+    that holds results/, for a run folder or an ask_only / evaluate_only folder inside one), then in this repo."""
+    text = resolve(data_dir)
+    if _from_elsewhere(text):
+        if Path(text).exists():
+            return Path(text)
+        parts = [part for part in re.split(r"[\\/]", text) if part]
+        for i, part in enumerate(parts):
+            if part == "data" and (ROOT.joinpath(*parts[i:])).exists():
+                return ROOT.joinpath(*parts[i:])
+        return Path(text)
+    here = Path(run_dir).resolve() if run_dir is not None else None
+    bases = (list(here.parents)[1:] if here is not None else []) + [ROOT]
+    for base in bases:
+        if (base / text).exists():
+            return base / text
+    return bases[0] / text

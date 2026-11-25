@@ -510,7 +510,7 @@ def read_settings(path, _seen=()):
     if here in _seen:
         names = " -> ".join(p.name for p in _seen + (here,))
         raise SettingsError(f"settings files extend each other in a cycle: {names}")
-    cfg = json.loads(path.read_text())
+    cfg = json.loads(path.read_text(encoding="utf-8"))    # not the platform's default: the files are written as UTF-8
     parent = cfg.pop("extends", None)
     if parent is None:
         return cfg, [str(path)]

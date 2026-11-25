@@ -200,11 +200,16 @@ def run_all(a, qdir):
             free = gpu_free_gb()
             if free is None or free >= a.min_free_gb:
                 break
+            if (qdir / "STOP").exists():      # asked to stop while waiting: the next run must not start
+                break
             if not waited:
                 log(qdir, f"waiting for the GPU: {free:.1f} GB free, {a.min_free_gb:.0f} needed "
                           "(is a notebook kernel still holding the model? restart it)")
                 waited = True
             time.sleep(60)
+        if (qdir / "STOP").exists():
+            log(qdir, "stop requested; ending the queue")
+            break
         cmd = [sys.executable, "scripts/run_one_persona.py", "--settings", r["config"]]
         if r.get("resume"):
             last = last_step(r["run_id"])
@@ -240,7 +245,8 @@ def run_all(a, qdir):
         with (qdir / f"{stem}.log").open("rb") as written:
             written.seek(started_at)
             text = written.read().decode("utf-8", errors="replace")
-        ids = [l.split()[1] for l in text.splitlines() if l.startswith("RUN_ID ")]
+        # a run that returned no rows prints "RUN_ID " with nothing after it: no id, not an error
+        ids = [l.split()[1] for l in text.splitlines() if l.startswith("RUN_ID ") and len(l.split()) > 1]
         if not ids:
             ids = [l.split()[1].rstrip(":") for l in text.splitlines() if l.startswith("run ") and "rule=" in l]
         r.update(status="done" if code == 0 else "failed", finished=now(), exit_code=code,

@@ -154,6 +154,10 @@ def main():
             sized = SF.with_gpu(cfg, "8b", gpu)[0] if gpu else cfg
             run = f"Run: python scripts/run_one_persona.py --settings {out_path.relative_to(ROOT).as_posix()}"
             SF.write(out_path, sized, comment + ([SF.gpu_line("8b", gpu)] if gpu else []) + [run])
+        # The first file written stands for the mix from here on: the 16 GB file when it was asked for, as always.
+        # With --gpus 40gb alone no 16 GB file is written, and the build below must not look for one (or use a
+        # stale one from an earlier call). The card sizes do not enter the data, so any of the files builds it.
+        path = sizes[0][1]
         written.append(path.relative_to(ROOT).as_posix())
         out = ROOT / a.data_root / stem
         out.mkdir(parents=True, exist_ok=True)

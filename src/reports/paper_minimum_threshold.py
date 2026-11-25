@@ -119,6 +119,8 @@ KINDS = {
     "cut_probe": {"block": "cut_probe", "keys": 1},
 }
 UNITS_KINDS = ("screen_cut_units", "combined_units")
+WEIGHTS_KINDS = ("weights", "combined_fraction", "combined_units")     # their first n values are the n weights
+WEIGHT_LIMIT = 100.0                # a reported weight lies in -100 to 100; outside it the reply is unreadable
 FULL_LATENT_KINDS = ("screen_weight", "combined_fraction", "combined_units")   # given weights and cuts, not one block
 DEFAULT_BATCHES = ("main", "screen_index", "screen_cut", "screen_weight")
 SINGLE_LEVELS = ("screen_cut", "screen_weight")     # one number each, aggregated as the most common reply
@@ -385,6 +387,13 @@ class PaperMinimumThresholdSchema(Schema):
         if values is None:
             return None
         kind, n = batch.kind or batch.name, self.n
+        # json.loads reads NaN and Infinity as numbers; neither is an answer to any question
+        if not np.all(np.isfinite(values)):
+            return None
+        # a weight outside -100 to 100 is unreadable (WHAT A KIND DOES), alone or as part of a combined reply:
+        # one reply of 1000 among fifty would otherwise set the direction of the persona's mean report
+        if kind in WEIGHTS_KINDS and np.any(np.abs(values[:n]) > WEIGHT_LIMIT):
+            return None
         if kind in UNITS_KINDS:
             read = self._units_to_percent(batch, float(values[-2]), float(values[-1]))
             if read is None:

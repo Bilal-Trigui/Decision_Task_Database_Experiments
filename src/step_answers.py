@@ -120,6 +120,22 @@ def truth(run_dir):
     return rule.dims, weights, screen
 
 
+def personas(run_dir, rows):
+    """{scenario: its attribute names} when `rows` hold replies about more than one persona, else None.
+
+    This summary was written for the one-persona runs: one true rule at the top, one mean per attribute. A run with
+    several personas has a rule and a set of attribute names per persona, so there each reply is checked against
+    its own persona's names and nothing is averaged across personas (summarize_step, update)."""
+    scenarios = {r.get("scenario") for r in rows} - {None}
+    if len(scenarios) < 2:
+        return None
+    try:
+        rules = persona_rule.rules(run_dir)
+    except Exception:
+        rules = {}
+    return {s: list(rules[s].dims) if s in rules else [] for s in scenarios}
+
+
 def _answers(batch, d, dims):
     """Whether a JSON reply holds the keys its question asks for."""
     if _weighted(batch):
@@ -127,14 +143,20 @@ def _answers(batch, d, dims):
     return any(k in d for k in SCREEN_KEYS)
 
 
-def summarize_step(rows, dims=None):
-    """One summary dict per question asked at this step (cut_probe rows aside: see probe_curve)."""
+def summarize_step(rows, dims=None, by_scenario=None):
+    """One summary dict per question asked at this step (cut_probe rows aside: see probe_curve).
+
+    `by_scenario` is personas()'s answer for a run with several personas: a reply is then readable when it holds
+    its own persona's attributes, and the summary is counts and the most common reply alone (no mean weight, named
+    attribute or minimum, which would mix personas that have different ones)."""
     by_batch = {}
     for r in rows:
         if r.get("level") is not None:
             continue
         by_batch.setdefault(r["batch"], []).append(r)
-    if not dims:
+    if by_scenario:
+        dims = []
+    elif not dims:
         dims = []
         for r in by_batch.get("main", []):
             d = _read(r["reply"])
@@ -150,13 +172,24 @@ def summarize_step(rows, dims=None):
         # readable: a JSON object holding what the question asks for (every dimension, for a weight question;
         # a screened dimension or a minimum, for a screen question). Laxer than the scorer, which also wants no
         # other keys and values in range, so a near miss is still shown; scorer_parsed says what was scored.
-        ok = [d for d in (_read(r["reply"]) for r in rs) if d is not None and _answers(batch, d, dims)]
+        if by_scenario:
+            # its own persona's attribute names; a persona whose rule could not be read: any key that is not a screen's
+            read = [(_read(r["reply"]), by_scenario.get(r.get("scenario")) or None) for r in rs]
+            ok = [d for d, own in read if d is not None
+                  and _answers(batch, d, own if own is not None else [k for k in d if k not in SCREEN_KEYS])]
+        else:
+            ok = [d for d in (_read(r["reply"]) for r in rs) if d is not None and _answers(batch, d, dims)]
         s = {"question": batch, "asked": len(rs), "readable": len(ok),
              "scorer_parsed": sum(bool(r.get("parsed")) for r in rs)}
         if _weighted(batch):
             for dim in dims:
                 vals = [v for v in (_num(d.get(dim)) for d in ok) if v is not None]
                 s[dim] = sum(vals) / len(vals) if vals else None
+        if by_scenario:
+            top, n = Counter(r["reply"].strip() for r in rs).most_common(1)[0]
+            s["most_common_reply"], s["most_common_reply_count"] = top, n
+            out.append(s)
+            continue
         named = [v for v in (_num(d.get("screened_dimension")) for d in ok) if v is not None]
         if not named and not ok and len(rs) == 1 and _base(batch).startswith("screen"):
             bare = re.fullmatch(r"\s*(\d+)\s*", rs[0]["reply"])
@@ -254,7 +287,9 @@ def _md_step(tag, summary, dims, probe):
         L.append("|" + "---|" * len(head))
         for s in none:
             reply = s.get("reply", s.get("most_common_reply", ""))
-            cells = [f"`{s['question']}`", f"`{_cell(reply)}`", "yes" if s["scorer_parsed"] else "no"]
+            # asked once: yes or no. Asked of several personas (or at several levels): how many the scorer accepted
+            parsed = ("yes" if s["scorer_parsed"] else "no") if s["asked"] == 1 else f"{s['scorer_parsed']}/{s['asked']}"
+            cells = [f"`{s['question']}`", f"`{_cell(reply)}`", parsed]
             cells += [_fmt(s.get(d)) if _weighted(s["question"]) else "" for d in dims]
             cells.append(_fmt(s.get("screened_dimension")) if "screened_dimension" in s else "")
             m = next((k for k in MINIMA if k in s), None)
@@ -281,9 +316,15 @@ def update(run_dir):
     steps = _collect(run_dir)
     if not steps:
         return None
-    t = truth(run_dir)
+    many = personas(run_dir, [r for _, raw in steps for r in raw])
+    t = None if many else truth(run_dir)
     dims = t[0] if t else []
     md = [f"# Report answers per step: {run_dir.name}\n"]
+    if many:
+        md.append(f"This run has {len(many)} personas, each with its own attributes and rule, so no true rule and no mean "
+                  "per attribute is shown: the tables count, per question, the replies readable against their own "
+                  "persona's attributes and the replies the scorer accepted. Each persona's scores are in the "
+                  "persona_scores_ and weight_reports_ files.\n")
     if t:
         _, weights, screen = t
         md.append("**True rule (the persona's):**\n")
@@ -297,7 +338,7 @@ def update(run_dir):
         md.append("| " + " | ".join(_fmt(weights[d]) for d in dims) + f" | {sc} | {mn} |\n")
         if screen:
             md.append("`main_threshold_not_met` has no agreed right answer yet.\n")
-    if not dims:
+    if not dims and not many:
         # no rule could be read: take the dimension names from the first readable weight reply
         for _, raw in steps:
             dims = next((s for s in [summarize_step(raw)] if s), [])
@@ -306,8 +347,8 @@ def update(run_dir):
                 and not k.startswith(("most_common", "reply", "screened", "minimum"))]
     rows = []
     for tag, raw in steps:
-        summary = summarize_step(raw, dims)
-        probe = probe_curve(raw)
+        summary = summarize_step(raw, dims, many)
+        probe = {} if many else probe_curve(raw)     # one curve per persona's own screen: not drawn across several
         md.append(_md_step(tag, summary, dims, probe))
         step = _step_of(tag)[1]
         rows += [{"tag": tag, "step": step, **s} for s in summary]
@@ -326,12 +367,13 @@ def print_step(run_dir, tag):
     f = Path(run_dir) / f"reports_raw_{tag}.jsonl"
     if not f.exists():
         return
-    t = truth(run_dir)
-    dims = t[0] if t else []
     with f.open(encoding="utf-8") as h:
         raw = [json.loads(line) for line in h if line.strip()]
-    print(f"  answers at {tag}:")
-    for s in summarize_step(raw, dims):
+    many = personas(run_dir, raw)
+    t = None if many else truth(run_dir)
+    dims = t[0] if t else []
+    print(f"  answers at {tag}:" + (f" ({len(many)} personas: counts only)" if many else ""))
+    for s in summarize_step(raw, dims, many):
         parts = []
         if _weighted(s["question"]) and dims:
             parts.append("weights " + "/".join(_fmt(s.get(d)) for d in dims))

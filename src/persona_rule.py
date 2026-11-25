@@ -45,10 +45,9 @@ class Rule:
 
 
 def _settings(run_dir):
-    settings = json.loads((Path(run_dir) / "settings.json").read_text())
-    data_dir = Path(data_paths.resolve(settings["model_training"]["data_dir"]))   # a folder that moved, followed
-    if not data_dir.is_absolute():
-        data_dir = Path(run_dir).resolve().parents[1] / data_dir
+    settings = json.loads((Path(run_dir) / "settings.json").read_text(encoding="utf-8"))
+    # a folder that moved is followed, and one recorded on another machine is found in this repo (data_paths.locate)
+    data_dir = data_paths.locate(settings["model_training"]["data_dir"], run_dir)
     rule_type = str(settings.get("decision_rule", {}).get("type", ""))
     if "maximum" in rule_type:
         # refused, not read as a minimum: every summary built on the rule would sort its trials the wrong way round

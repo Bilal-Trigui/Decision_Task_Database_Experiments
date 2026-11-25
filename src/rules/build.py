@@ -118,6 +118,12 @@ def make_dataset(rule, source_dir, out_dir, attribute_count=None, instances=100,
     for path in sorted(out.iterdir()):
         if path.name != "manifest.json" and path.is_file():
             manifest["files"][path.name] = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    # check_manifest compares manifest["inputs"] with the folder as it is now, so the inputs are recorded there too
+    # (as data/general/vector_dataset_constructor.py does): an instilled_weights.csv edited after the build is then
+    # refused instead of training on labels from the old weights
+    manifest["inputs"] = {name: manifest["files"][name] for name in
+                          (D.SCENARIO_DEFINITIONS, "roles.csv", "scenarios.csv", "instilled_weights.csv")
+                          if name in manifest["files"]}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {out}: {len(scenarios)} latents, {instances} personas x ({train} train + {val} val) trials")
     if manifest["stats"]:

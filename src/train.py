@@ -334,6 +334,18 @@ def _append_log(path, rows):
         writer.writerows(rows)
 
 
+def top_up(order, count, batch_size, rng):
+    """`order` (the example indices still to come) with fresh shuffled passes over the `count` examples added until
+    it holds a batch. One pass is enough unless there are fewer examples than a batch: then one pass does not fill
+    it, and the step would train on a short batch while the log says the full size (it did, before 2026-11-24).
+    train_stage calls this before every step, and again when it replays the draws of a resumed run."""
+    while len(order) < batch_size:
+        fresh = list(range(count))
+        rng.shuffle(fresh)
+        order += fresh
+    return order
+
+
 def train_stage(
     model,
     tok,
@@ -378,6 +390,12 @@ def train_stage(
     Introspection stages keep the constant rate. `target` is an introspection stage's target (hidden,
     recovered, shuffled, random): it names the checkpoint folder and fills the log's column.
     """
+    if not examples:
+        # refused here, by name: further down it was torch.stack failing on an empty list
+        where = f"'{stage}'" + (f" fold {fold}" if fold else "") + ("" if stage == "decision" else f", target {target or 'hidden'}")
+        raise ValueError(f"training stage {where} has no examples to train on"
+                         + ("" if stage == "decision" else " (every persona of the fold was left out)")
+                         + "; nothing was trained")
     mh, comp = cfg["model_hyperparameters"], cfg["compute"]
     precision = comp["mixed_precision"] if device == "cuda" else "no"
     mask = mh["loss_mask_answer_only"]
@@ -411,10 +429,7 @@ def train_stage(
             order = list(state["order"])
         else:
             for _ in range(start_step):      # replay the draws, so step start_step + 1 sees its own batch
-                if len(order) < batch_size:
-                    fresh = list(range(len(encoded)))
-                    rng.shuffle(fresh)
-                    order += fresh
+                order = top_up(order, len(encoded), batch_size, rng)
                 order = order[batch_size:]
         if (resume or {}).get("optimizer") is not None:
             optimizer.load_state_dict(resume["optimizer"])
@@ -458,11 +473,10 @@ def train_stage(
         f"batch {batch_size}" + (f" in micro-batches of {micro}" if micro < batch_size else "")
         + (f", resuming after step {start_step}" if start_step else "")
     )
+    if len(encoded) < batch_size:
+        print(f"  {len(encoded)} examples for a batch of {batch_size}: every batch holds examples more than once")
     for step in range(start_step + 1, steps + 1):
-        if len(order) < batch_size:
-            fresh = list(range(len(encoded)))
-            rng.shuffle(fresh)
-            order += fresh
+        order = top_up(order, len(encoded), batch_size, rng)
         batch = [encoded[i] for i in order[:batch_size]]
         order = order[batch_size:]
         chunks = [batch[i : i + micro] for i in range(0, len(batch), micro)]

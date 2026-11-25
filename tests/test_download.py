@@ -211,8 +211,11 @@ def test_the_notebooks_download_before_they_need_the_files():
     ask = [i for i, s in enumerate(code) if "A.ask_runs(RUN, STEPS" in s and "hub_repo=HUB_REPO" in s]
     assert len(ask) == 1 and any("HUB_REPO =" in s for s in code[:ask[0]]), ask
     runs = (ROOT / "src" / "ask_only.py").read_text(encoding="utf-8").split("\ndef ask_runs(")[1].split("\ndef ")[0]
-    assert runs.index('DL.fetch_run(hub_repo, j["run_id"], steps') < runs.index('ask(j["run_id"], steps'), \
+    # j["fetch"]: the steps the Hub has an adapter for; j["loose"]: saved decisions of steps whose adapter is here
+    assert runs.index('DL.fetch_run(hub_repo, j["run_id"], j["fetch"]') < runs.index('ask(j["run_id"], steps'), \
         "ask_runs asks a run before it has fetched the run's adapters"
+    assert runs.index('DL.fetch_files(hub_repo, j["loose"]') < runs.index('ask(j["run_id"], steps'), \
+        "ask_runs asks a run before it has fetched the saved decisions that are only on the Hub"
     print("  evaluate_checkpoints and cut_sweep_training: HUB_REPO set, then Download, then the cells that read the "
           "files; ask_only: each run fetched before it is asked")
 

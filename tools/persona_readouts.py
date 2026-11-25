@@ -40,7 +40,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src import persona_rule  # noqa: E402
 
-FILE = re.compile(r"weight_reports_(?P<stage>.+?)_step-(?P<step>\d+)_paper_minimum_threshold_(?P<q>.+)\.csv$")
+# base_model and decision only, as tools/trial_regression.py: a run with introspection training also holds
+# weight_reports_introspection-..._step-N files, whose step N is a stage-two step, not a decision step
+FILE = re.compile(r"weight_reports_(?P<stage>base_model|decision)_step-(?P<step>\d+)_paper_minimum_threshold_(?P<q>.+)\.csv$")
 
 
 def _spearman(x, y):

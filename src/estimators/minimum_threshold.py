@@ -75,6 +75,11 @@ class MinimumThresholdEstimator(Estimator):
     def __init__(self, attribute_count, grid_step=None, option_count=2):
         super().__init__(attribute_count)
         if grid_step is not None:
+            if isinstance(grid_step, bool) or not isinstance(grid_step, (int, float)) or int(grid_step) != grid_step \
+                    or not 1 <= grid_step < CUT_SCALE:
+                # 0 has no levels to step through, and 100 or more leaves no cut strictly inside the range
+                raise ValueError(f"model_estimating.grid_step must be a whole number from 1 to {int(CUT_SCALE) - 1} "
+                                 f"(percent of range between the cut levels tried), got {grid_step!r}")
             self.grid_step = int(grid_step)
         if option_count not in (2, 3):
             raise ValueError(f"the minimum threshold estimator reads 2 or 3 options, not {option_count!r}")

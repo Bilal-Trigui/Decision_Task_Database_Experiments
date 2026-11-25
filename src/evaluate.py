@@ -1088,6 +1088,10 @@ def shuffled_baseline(estimator, block, keyed, draws, seed, name):
     Returns shuffled_<name>[_centred, _pearson, _spearman], shuffled_<name>_low / _high (the middle
     95% of the reshuffled means of the block's own distance) and the reshuffled means themselves
     (key "_draws"), from which the caller takes the gap and the permutation p-value.
+
+    With few personas (8 or fewer, and no more such reshufflings than `draws`: 6 or fewer at the default 1000)
+    every such reshuffling is used exactly once instead of `draws` random ones, so the p-value cannot read lower
+    than that many personas can support (1/2 for two, 1/3 for three, 1/10 for four).
     """
     m = len(keyed)
     if m < 2:
@@ -1104,8 +1108,13 @@ def shuffled_baseline(estimator, block, keyed, draws, seed, name):
                     rank[i, j] = estimator.block_rank_correlation(block, first[i], second[j])
     rng = np.random.default_rng(seed)
     rows, means = np.arange(m), {"": [], "_centred": [], "_spearman": [], "_pearson": []}
-    for _ in range(draws):
-        perm = rng.permutation(m)
+    # With few personas there are few re-pairings in which nobody keeps their own partner (1, 2, 9, 44, 265 for 2 to
+    # 6 personas). Drawing `draws` of them would count each many times, and the permutation p-value taken from the
+    # draws could then read 1/1001 where three personas can support no less than 1/3. So when they all fit in
+    # `draws`, each is used exactly once; otherwise they are drawn at random, as before.
+    every = _derangements(m) if m <= 8 and _derangement_count(m) <= draws else None    # 8: 14,833 of them at most
+    for d in range(draws if every is None else len(every)):
+        perm = rng.permutation(m) if every is None else every[d]
         while np.any(perm == rows):     # a derangement: nobody keeps their own partner
             perm = rng.permutation(m)
         means[""].append(np.nanmean(dist[rows, perm]) if np.isfinite(dist[rows, perm]).any() else np.nan)
@@ -1121,6 +1130,20 @@ def shuffled_baseline(estimator, block, keyed, draws, seed, name):
     out[f"shuffled_{name}_high"] = float(np.percentile(finite, 97.5)) if finite.size else float("nan")
     out["_draws"] = finite
     return out
+
+
+def _derangement_count(m):
+    """How many ways m personas can be re-paired with nobody keeping their own partner."""
+    a, b = 1, 0                      # D(0), D(1)
+    for k in range(2, m + 1):
+        a, b = b, (k - 1) * (a + b)
+    return b if m >= 1 else a
+
+
+def _derangements(m):
+    """Every such re-pairing, as index arrays. Only called for a small m (shuffled_baseline)."""
+    from itertools import permutations
+    return [np.array(p) for p in permutations(range(m)) if all(p[i] != i for i in range(m))]
 
 
 def _with_shuffled(estimator, block, keyed, real, name, me, seed, gap_name=None, p_name=None):

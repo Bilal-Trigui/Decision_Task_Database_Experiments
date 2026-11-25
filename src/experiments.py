@@ -232,6 +232,14 @@ def _push(run_id, hub_repo):
         return f"push FAILED ({type(err).__name__}: {err}); push it later from the Results section"
 
 
+def _run_folders(results_dir="results"):
+    """The run ids that have a results folder with a settings.json (where pipeline.run puts every run it starts)."""
+    results_dir = Path(results_dir)
+    if not results_dir.is_dir():
+        return []
+    return sorted(p.name for p in results_dir.iterdir() if (p / "settings.json").exists())
+
+
 def _rule(text):
     print("\n" + "=" * 100 + f"\n{text}\n" + "=" * 100)
 
@@ -261,6 +269,7 @@ def run_experiments(configs, sweep=None, start_from=None, end=None, every=None, 
             outcome[config] = entry.get("run_id")
             continue
         _rule(f"[{i}/{len(configs)}] {config}   {_now()}")
+        before = set(_run_folders())
         try:
             cfg = load_experiment(config, start_from, end, every)
             describe(cfg)
@@ -287,9 +296,17 @@ def run_experiments(configs, sweep=None, start_from=None, end=None, every=None, 
         except Exception as err:
             traceback.print_exc()
             outcome[config] = None
-            print(f"\n[{i}/{len(configs)}] FAILED: {config}: {type(err).__name__}: {err}; going on to the next")
+            # The run this attempt began (or was continuing), when it got as far as its results folder. Its id is
+            # recorded and what it wrote is pushed, as scripts/run_queue.py does: a failed run's partial results are
+            # worth keeping, and on Colab they are otherwise gone with the session.
+            began = [r for r in _run_folders() if r not in before]
+            failed_id = (resume or {}).get("run_id") or (began[-1] if began else None)
+            pushed = _push(failed_id, hub_repo) if failed_id else "nothing to push (it failed before the run began)"
+            print(f"\n[{i}/{len(configs)}] FAILED: {config}: {type(err).__name__}: {err}; "
+                  + (f"run {failed_id}, {pushed}; " if failed_id else f"{pushed}; ") + "going on to the next")
             if status:
-                entry.update(status="failed", finished=_now(), error=f"{type(err).__name__}: {err}")
+                entry.update(status="failed", finished=_now(), error=f"{type(err).__name__}: {err}",
+                             run_id=failed_id, pushed=pushed.startswith("pushed"))
         finally:
             if status:
                 status.save()
