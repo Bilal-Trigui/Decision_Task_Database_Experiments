@@ -1,6 +1,6 @@
 # configs/plunkett_linear
 
-Plunkett's linear task (no threshold): the Atkinson variant, the 4B and 8B versions sized for 20 GB, and `linear-8b_control`, the control for the one-persona runs: his task on Qwen3-8B with the "{" reply prefix and no introspection training, one file a card (24, 40 and 80 GB).
+Plunkett's linear task (no threshold): the Atkinson variant, the 4B and 8B versions sized for 20 GB, and `linear-8b_control`, the control for the one-persona runs: his task on Qwen3-8B with the "{" reply prefix and no introspection training, one file a card (24, 40 and 80 GB). Its one-persona version is `../minimum_threshold_one_persona/controls/plunkett_linear/`.
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|

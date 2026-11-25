@@ -193,8 +193,10 @@ def test_every_one_persona_file_asks_the_nine_questions():
                          / "one_persona_no_trial_a.json").read_text(encoding="utf-8"))["report_schema"]["questions"]
     assert tuple(q for q, v in source.items() if v["ask"]) == nine, "the nine are no_trial_a's questions, in its order"
     short, total = [], 0
-    for tree in ("minimum_threshold_one_persona", "minimum_threshold_one_persona_qwen3_14b",
-                 "minimum_threshold_one_persona_qwen3_32b"):
+    trees = ["minimum_threshold_one_persona"] + [f"minimum_threshold_one_persona_qwen3_{model}"
+                                                 for model in ("0.6b", "1.7b", "4b", "14b", "32b")]
+    for tree in trees:
+        assert (ROOT / "configs" / tree).is_dir(), tree
         for path in sorted((ROOT / "configs" / tree).rglob("*.json")):
             total += 1
             q = json.loads(path.read_text(encoding="utf-8"))["report_schema"].get("questions") or {}

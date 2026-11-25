@@ -7,7 +7,7 @@ On **Qwen3-32B**. F-oxidation-inverse and F-resteep-inverse: each F with every s
 | `one_persona_f_oxidation_inverse` | Persona F-oxidation-inverse (loose_leaf_tea, Djedefre): F-oxidation with every sign flipped: the largest weight on oxidation_level at +100 (leaf -30, steeping -45, resteep +20). | Qwen3-32B | `one_persona_f_oxidation_inverse_32b_48gb.json` (48 GB), `one_persona_f_oxidation_inverse_32b_80gb.json` (80 GB) | 1500 |
 | `one_persona_f_resteep_inverse` | Persona F-resteep-inverse (loose_leaf_tea, Djedefre): F-resteep with every sign flipped: the largest weight on resteep_potential at -100 (leaf +25, oxidation -40, steeping +30). | Qwen3-32B | `one_persona_f_resteep_inverse_32b_48gb.json` (48 GB), `one_persona_f_resteep_inverse_32b_80gb.json` (80 GB) | 1500 |
 
-Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, on in the 16 GB files only); the effective batch, LoRA, quantization and everything else match. `scripts/make_card_files.py` writes a missing card's file.
+Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing); the effective batch, LoRA, quantization and everything else match. The cards and their sizes are in `configs/minimum_threshold_one_persona_qwen3_32b/README.md`.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona_qwen3_32b/inverse/persona_f/<file>.json

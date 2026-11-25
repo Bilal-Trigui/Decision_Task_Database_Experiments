@@ -41,8 +41,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = ROOT / "configs"
-TREES = ("minimum_threshold_one_persona", "minimum_threshold_one_persona_qwen3_14b",
-         "minimum_threshold_one_persona_qwen3_32b")
+TREES = ("minimum_threshold_one_persona",) + tuple(f"minimum_threshold_one_persona_qwen3_{model}"
+                                                   for model in ("0.6b", "1.7b", "4b", "14b", "32b"))
 NINE = ("main", "screen_index", "screen_cut_units", "main_report_units", "main_threshold_met",
         "main_threshold_not_met", "screen_index_no_trial", "screen_cut_units_no_trial", "screen_cut_percent_no_trial")
 ASKED = {"ask": True, "train": False}

@@ -10,6 +10,7 @@ replies stopped parsing cannot show faithfulness either way. Step 0 is the untra
 baseline every later step is read against.
 """
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def main():
 
     r = pd.read_csv(ROOT / "results" / "results.csv")
     if a.run_id is None:
-        runs = sorted(i for i in r["run_id"].unique() if "Qwen3-8B" in i and _one_persona(i))
+        runs = sorted(i for i in r["run_id"].unique() if _one_persona(i))      # any model: ids start with the time
         if not runs:
             sys.exit("no one-persona run in results/results.csv yet; pass a run id")
         a.run_id = runs[-1]
@@ -52,7 +53,9 @@ def main():
 
 def _one_persona(run_id):
     settings = ROOT / "results" / run_id / "settings.json"
-    return settings.exists() and '"instances": 1,' in settings.read_text()
+    if not settings.exists():
+        return False
+    return json.loads(settings.read_text(encoding="utf-8")).get("model_training", {}).get("instances") == 1
 
 
 if __name__ == "__main__":

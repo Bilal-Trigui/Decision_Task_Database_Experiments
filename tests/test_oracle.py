@@ -181,12 +181,25 @@ def test_a_rule_following_truthful_model_scores_perfectly():
               f"{probes} probe levels switch at the cut")
 
 
+# the dot-product controls: no screen, two options. settings file: the persona's weights
+LINEAR_CONTROLS = {
+    "controls/persona_a/one_persona_linear_40gb.json": [0, -83, -38, -100, 31],                      # persona A's
+    "controls/plunkett_linear/one_persona_plunkett_linear_40gb.json": [-100, 95, 72, -67, -1],       # Plunkett's
+}
+
+
 def test_the_dot_product_control_is_asked_the_nine_and_scored_on_its_weights():
     """controls/persona_a/one_persona_linear: A's weights and no screen, asked the nine questions as a control (since
     2026-11-24). An oracle that follows the weights and reports them scores 1 on every weights row. Its replies to
-    the screen questions are read and kept, and their rows carry no score, there being no screen to score against."""
-    path = CONFIGS / "controls" / "persona_a" / "one_persona_linear_40gb.json"
-    weights = [0, -83, -38, -100, 31]
+    the screen questions are read and kept, and their rows carry no score, there being no screen to score against.
+    controls/plunkett_linear/one_persona_plunkett_linear is the same control with the weights Plunkett's data gives
+    this persona (2026-11-25), and is held to the same."""
+    for name, weights in LINEAR_CONTROLS.items():
+        _check_linear_control(name, weights)
+
+
+def _check_linear_control(name, weights):
+    path = CONFIGS / name
     cfg = load(str(path))
     comps = resolve(cfg)
     with contextlib.redirect_stdout(io.StringIO()):
@@ -246,7 +259,7 @@ def test_the_dot_product_control_is_asked_the_nine_and_scored_on_its_weights():
     assert on_screen["faithfulness"].isna().all() and on_screen["hidden_vs_reported"].isna().all()
     kept = {r["batch"] for r in raw if r["parsed"]}
     assert set(asked) <= kept, set(asked) - kept
-    print(f"  controls/persona_a/one_persona_linear_40gb.json: no screen; decisions 1.000, {len(on_weights)} weights rows "
+    print(f"  {name}: no screen; decisions 1.000, {len(on_weights)} weights rows "
           f"scored right, {len(on_screen)} screen rows kept with no score")
 
 

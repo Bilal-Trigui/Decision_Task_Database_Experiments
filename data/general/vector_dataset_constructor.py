@@ -193,7 +193,9 @@ def from_settings(path):
 
 def main(default_data=None, default_rule=None):
     """The command line. A folder's own wrapper calls this with itself as the default."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    # allow_abbrev off: which arguments were typed is read from sys.argv by their full names (below), so a
+    # shortened one (--trial 9) was parsed and then treated as not typed, and its value silently dropped
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
     parser.add_argument("--settings", default=None,
                         help="build the folder a settings file runs on, under its decision_rule, counts and seeds")
     parser.add_argument("--data", default=default_data, required=default_data is None and "--settings" not in sys.argv,

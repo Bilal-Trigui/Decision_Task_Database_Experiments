@@ -92,6 +92,9 @@ configs/
   paper_minimum_threshold/                   the paper's minimum threshold design, many personas
   minimum_threshold_one_persona/             one persona, minimum threshold, Qwen3-8B (16 GB, _24gb, _40gb and _80gb files)
     base/  controls/  inverse/  rule_tests/  cut_sweep/     each split into persona_a/ and persona_b/
+  minimum_threshold_one_persona_qwen3_0.6b/  persona A and A-inverse on Qwen3-0.6B (_24gb, _40gb, _80gb)
+  minimum_threshold_one_persona_qwen3_1.7b/  the same on Qwen3-1.7B
+  minimum_threshold_one_persona_qwen3_4b/    the same on Qwen3-4B
   minimum_threshold_one_persona_qwen3_14b/   the same experiments on Qwen3-14B (_24gb, _80gb)
   minimum_threshold_one_persona_qwen3_32b/   the same experiments on Qwen3-32B (_48gb, _80gb)
 ```
@@ -127,6 +130,8 @@ Hopper card gives: bf16 instead of fp16, gradient checkpointing, micro-batches o
 one-persona runs: Plunkett's task on Qwen3-8B, 100 personas and the linear rule, with the "{" reply prefix
 those runs use, no introspection training (the pipeline refuses the prefix beside it), and a checkpoint
 every 250 steps.
+Its one-persona version, the first of his personas alone, trained and asked as the one-persona runs are, is
+**`configs/minimum_threshold_one_persona/controls/plunkett_linear/one_persona_plunkett_linear_40gb.json`**.
 **`configs/minimum_threshold/minimum_threshold_8b.json`** is the minimum threshold rule at Qwen3-8B for 3000 steps, with three
 options (A, B, or C for neither). **`configs/paper_minimum_threshold/paper_minimum_threshold_8b.json`** is it with the paper's
 draw and four report questions, and **`configs/paper_minimum_threshold/paper_minimum_threshold_0.6b.json`** is that run at

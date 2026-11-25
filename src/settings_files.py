@@ -20,7 +20,8 @@ from src.config import apply_defaults, read_settings
 BLOCK_ORDER = ["object", "decision_rule", "model_training", "model_estimating", "report_schema",
                "model_hyperparameters", "gates", "compute"]
 
-MODELS = {"8b": "Qwen/Qwen3-8B", "14b": "Qwen/Qwen3-14B", "32b": "Qwen/Qwen3-32B"}
+MODELS = {"0.6b": "Qwen/Qwen3-0.6B", "1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B",
+          "8b": "Qwen/Qwen3-8B", "14b": "Qwen/Qwen3-14B", "32b": "Qwen/Qwen3-32B"}
 
 # (model, card): micro-batch, eval batch sizes, and why. All keep 4-bit and bf16, and gradient checkpointing on
 # unless the profile sets gradient_checkpointing (8B on 40 GB turns it off: the memory is there, and it costs time).
@@ -67,6 +68,34 @@ GPU_PROFILES = {
                           cards="A100 80GB, H100",
                           why="Out of memory: eval batches 8"),
 }
+
+# The three smaller models (scripts/make_model_files.py), 4-bit like the rest. Their evaluation batches are
+# Qwen3-8B's for the card, and so is every training pass that is not safely larger: a smaller model needs less memory
+# than Qwen3-8B at the same sizes, so a size that ran on 8B fits. A larger pass is written only where the estimate
+# leaves the card half empty. The estimate: one example in a pass takes (layers x MLP width) / Qwen3-8B's of 8B's
+# 2.6 GiB, plus about 0.5 GiB for its 152k-token logits whatever the model: 4B 0.79 (36 x 9728), 1.7B 0.39
+# (28 x 6144), 0.6B 0.19 (28 x 3072). None of these is measured on its model.
+_EVAL_8B = {"24gb": (48, 4), "40gb": (96, 8), "80gb": (192, 16)}      # card: (eval and decision batches, introspection)
+_CARDS = {"24gb": "L4, A10, RTX 4090, RTX 3090", "40gb": "A100 40GB", "80gb": "A100 80GB, H100"}
+_SMALL = {      # model: ({card: micro-batch}, why the passes are that size)
+    "4b": ({"24gb": 2, "40gb": 5, "80gb": 10},
+           "Qwen3-8B's sizes for this card: Qwen3-4B has 8B's 36 layers, narrower, so it needs less memory at the same sizes"),
+    "1.7b": ({"24gb": 5, "40gb": 10, "80gb": 10},
+             "Evaluation batches are Qwen3-8B's for this card. The training pass is larger than 8B's where the card "
+             "allows: one example takes about 0.4 of 8B's activations (28 layers, half the width)"),
+    "0.6b": ({"24gb": 10, "40gb": 10, "80gb": 10},
+             "Evaluation batches are Qwen3-8B's for this card. The whole batch of 10 in one pass: one example takes "
+             "about 0.2 of 8B's activations (28 layers, a quarter of the width)"),
+}
+for _model, (_micro, _why) in _SMALL.items():
+    for _card, _size in _micro.items():
+        _eval, _introspection = _EVAL_8B[_card]
+        GPU_PROFILES[(_model, _card)] = dict(
+            micro_batch_size=_size, gradient_checkpointing=False, eval_batch_size=_eval, decision_eval_batch_size=_eval,
+            introspection_eval_batch_size=_introspection, cards=_CARDS[_card],
+            why=f"{_why}. Not measured on {MODELS[_model].split('/')[-1]}. Out of memory in training: "
+                + ("micro_batch_size " + str(_size // 2 or 1) + ", then " if _size > 2 else "")
+                + f"gradient_checkpointing true. Out of memory in evaluation: eval batches {_eval // 2}")
 
 
 def flat(path):

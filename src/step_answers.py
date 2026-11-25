@@ -385,7 +385,8 @@ def print_step(run_dir, tag):
         if "reply" in s:
             parts.append("reply " + json.dumps(s["reply"]))
         print(f"    {s['question']:<34} scored {s['scorer_parsed']}/{s['asked']}, readable {s['readable']}/{s['asked']}  " + ", ".join(parts))
-    for name, curve in probe_curve(raw).items():
+    # one curve per persona's own screen: not drawn across several (as update)
+    for name, curve in ({} if many else probe_curve(raw)).items():
         line = "".join({"yes": "Y", "no": "n"}.get(a, "?") for _, _, a in curve["points"])
         lo, hi = curve["points"][0][0], curve["points"][-1][0]
         print(f"    {name:<34} {_fmt(lo)}..{_fmt(hi)} {line}  stated minimum {curve['stated_minimum']}")

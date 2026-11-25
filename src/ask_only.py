@@ -537,6 +537,17 @@ def _plan(runs, steps, questions_from, only, show_neither, reply_prefix, per_kin
         cfg = run_settings(run_dir, questions_from, only, show_neither, reply_prefix, flip_ab, size)
         with contextlib.redirect_stdout(io.StringIO()):                              # two lines about the data, per run
             data = D.load_data(cfg, C.resolve(cfg).rule)
+        if per_kind:
+            # PER_KIND draws its trials around the persona's screen. A persona with none (a linear control) was
+            # refused only in ask_step, once the adapters were fetched and the model loaded; refused here since
+            # 2026-11-25
+            rules = persona_rule.rules(run_dir)
+            bare = [k.short_name for k in data.personas[:cfg["model_training"]["instances"]]
+                    if getattr(rules.get(k.short_name), "screen", None) is None]
+            if bare:
+                raise ValueError(f"{run_id}: PER_KIND asks trials of each kind around the persona's screen, and this "
+                                 f"run's persona has none ({', '.join(bare)}: a linear run). Set PER_KIND = None to "
+                                 "ask it on the run's own trials, or take it out of RUN")
         record, finished = held(run_id, name, root, hub_repo, every)
         if record is not None:
             _same_setup_or_stop(record, cfg, per_kind, f"results/{run_id}/ask_only/{name}")

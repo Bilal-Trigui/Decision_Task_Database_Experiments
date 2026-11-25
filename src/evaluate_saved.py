@@ -66,6 +66,26 @@ def apply_overrides(cfg, overrides):
     return cfg
 
 
+def setup_differences(record, cfg, overrides):
+    """What differs between the set-up an evaluate-only folder was evaluated under (`record`, its settings.json) and
+    the one about to run: the questions and how they are asked (report_schema, which `only` and QUESTIONS_FROM
+    change), whether A and B are swapped (flip_ab), and the overrides. [] when they are the same. compute's
+    overrides are not compared: batch sizes do not change a result. As ask_only.setup_differences."""
+    plain = lambda value: json.loads(json.dumps(value))
+    old_rs, new_rs = record.get("report_schema", {}), plain(cfg["report_schema"])
+    out = [f"report_schema.{k}: {json.dumps(old_rs.get(k))} there, {json.dumps(new_rs.get(k))} now"
+           for k in sorted(set(old_rs) | set(new_rs)) if old_rs.get(k) != new_rs.get(k)]
+    was = record.get("_evaluate_only", {})
+    flip = bool(cfg["model_estimating"].get("flip_ab", False))
+    if bool(was.get("flip_ab", False)) != flip:
+        out.append(f"flip_ab: {bool(was.get('flip_ab', False))} there, {flip} now")
+    kept = lambda o: {k: v for k, v in plain(o or {}).items() if not k.startswith("compute.")}
+    old_o, new_o = kept(was.get("overrides")), kept(overrides)
+    out += [f"override {k}: {json.dumps(old_o.get(k))} there, {json.dumps(new_o.get(k))} now"
+            for k in sorted(set(old_o) | set(new_o)) if old_o.get(k) != new_o.get(k)]
+    return out
+
+
 def prepare(run, name, questions_from=None, only=None, show_neither=None, reply_prefix=None, overrides=None,
             results_dir=None, flip_ab=None):
     """(run_dir, out_dir, cfg): the run's settings with the changes applied, and the output folder."""
@@ -77,6 +97,15 @@ def prepare(run, name, questions_from=None, only=None, show_neither=None, reply_
     cfg["model_training"]["data_dir"] = str(data_dir if data_dir.is_absolute() else (ROOT / data_dir).resolve())
     apply_overrides(cfg, overrides)
     out_dir = run_dir / "evaluate_only" / name
+    # One folder holds one set-up: its settings.json describes every step in it, and the summaries are rebuilt
+    # over all of them. Until 2026-11-25 a second call with another set-up (FLIP_AB, other questions, an override)
+    # rewrote settings.json and added its steps to the first call's, so the folder mixed two set-ups under the
+    # description of the last.
+    if (out_dir / "settings.json").exists() and any(out_dir.glob("reports_raw_*.jsonl")):
+        diff = setup_differences(json.loads((out_dir / "settings.json").read_text(encoding="utf-8")), cfg, overrides)
+        if diff:
+            raise ValueError(f"{out_dir} already holds steps evaluated with other settings, and one folder must hold "
+                             "one set-up. Choose another NAME (or delete that folder). What differs: " + "; ".join(diff))
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {**cfg, "_evaluate_only": {"run_id": run_dir.name, "questions_from": str(questions_from) if questions_from else None,
                                         "only": list(only) if only else None, "overrides": overrides or {},

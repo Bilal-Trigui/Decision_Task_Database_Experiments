@@ -8,7 +8,7 @@ On **Qwen3-14B**. Persona B, the cross-persona control for A: the same prompts w
 | `one_persona_no_trial_b` | No-trial report questions, persona B (loose_leaf_tea, weights 0 / 100 / 20 / -50 / -70, caffeine screened at 35 mg): | Qwen3-14B | `one_persona_no_trial_b_14b_24gb.json` (24 GB), `one_persona_no_trial_b_14b_80gb.json` (80 GB) | 1500 |
 | `one_persona_probes_b` | Persona B (loose_leaf_tea, weights 0 / 100 / 20 / -50 / -70, caffeine screened at 35 mg): one_persona_probes_a.json on persona B's data folder. | Qwen3-14B | `one_persona_probes_b_14b_24gb.json` (24 GB), `one_persona_probes_b_14b_80gb.json` (80 GB) | 1500 |
 
-Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, on in the 16 GB files only); the effective batch, LoRA, quantization and everything else match. `scripts/make_card_files.py` writes a missing card's file.
+Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing); the effective batch, LoRA, quantization and everything else match. The cards and their sizes are in `configs/minimum_threshold_one_persona_qwen3_14b/README.md`.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona_qwen3_14b/base/persona_b/<file>.json

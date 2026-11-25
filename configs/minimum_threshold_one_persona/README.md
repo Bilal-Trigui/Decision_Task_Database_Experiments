@@ -3,7 +3,8 @@
 Every one-persona minimum-threshold experiment on **Qwen3-8B**: one persona (loose_leaf_tea, "Djedefre"), A/B/C
 answers, a checkpoint every 250 steps (100 in the cut sweep). The same experiments on Qwen3-14B and Qwen3-32B are in
 `../minimum_threshold_one_persona_qwen3_14b/` and `../minimum_threshold_one_persona_qwen3_32b/`., where every file
-trains 1500 steps (since 2026-11-24); the files here train 3000.
+trains 1500 steps (since 2026-11-24); the files here train 3000. Persona A and A-inverse are also on the three smaller
+models, 3000 steps each: `../minimum_threshold_one_persona_qwen3_0.6b/`, `..._qwen3_1.7b/` and `..._qwen3_4b/`.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/<group>/<persona>/<file>.json
@@ -155,6 +156,15 @@ leaves caffeine out although its weight is 60: read the five-value cosine as wel
 |---|---|
 | `one_persona_linear.json` | A's weights, no screen, two options: the plain dot-product rule. Asks the nine as a control (a persona with no screen asked about one) and `main_trial_first`, `main_no_trial`; its screen replies are kept and not scored, there being no screen to score them against |
 | `one_persona_minimum_threshold_shuffled.json` | A's prompts with the answers permuted (seed 11): no rule to learn |
+
+## controls/plunkett_linear/
+
+| file | what |
+|---|---|
+| `one_persona_plunkett_linear.json` | Plunkett's linear task with one persona instead of his hundred: the first of his personas (loose_leaf_tea, Djedefre, the persona of every run here) with the weights his data gives it, caffeine_content -100, leaf_size 95, oxidation_level 72, steeping_time -67, resteep_potential -1. No screen, two options. Every other setting is `controls/persona_a/one_persona_linear.json`'s, so the two differ in the weights alone: 5000 training trials (the size of his training set, 100 personas x 50), 3000 steps, the nine questions plus `main_trial_first` and `main_no_trial`. `main` is his report question word for word. The training prompts are that control's 5000, answered by these weights (2772 answers differ) |
+
+His own design, 100 personas x 50 trials and 1500 steps, is `configs/plunkett_linear/linear-8b_control_*.json`. Built by
+`scripts/make_plunkett_one_persona.py`; checked by `tests/test_plunkett_one_persona.py` and `tests/test_oracle.py`.
 
 ## The base model as a control
 

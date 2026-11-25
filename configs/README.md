@@ -18,6 +18,9 @@ or set `SETTINGS_FILE` to the path in `run_experiment.ipynb`.
 | `minimum_threshold/` | `minimum_threshold_8b.json`: the minimum threshold rule, many personas, answers A/B/C | 8B |
 | `paper_minimum_threshold/` | the paper's minimum threshold design, many personas: 8B, 8B on 16 GB (with `_units`, `_resume`, `_extend`), 0.6B, and `minimum_threshold_1500_steps.json` | 0.6B, 8B |
 | `minimum_threshold_one_persona/` | one persona, minimum threshold: personas A and B, inverse, rule tests, controls, A's cut sweep, and personas C to H. Every experiment has a file per card: 16 GB (no suffix), `_24gb` (L4), `_40gb` (A100 40GB) and `_80gb` (A100 80GB), written by `scripts/make_card_files.py` | 8B |
+| `minimum_threshold_one_persona_qwen3_0.6b/` | persona A and A-inverse on a smaller model: `_0.6b_24gb`, `_0.6b_40gb` and `_0.6b_80gb`, written by `scripts/make_model_files.py` | 0.6B |
+| `minimum_threshold_one_persona_qwen3_1.7b/` | persona A and A-inverse on a smaller model: `_1.7b_24gb`, `_1.7b_40gb` and `_1.7b_80gb`, written by `scripts/make_model_files.py` | 1.7B |
+| `minimum_threshold_one_persona_qwen3_4b/` | persona A and A-inverse on a smaller model: `_4b_24gb`, `_4b_40gb` and `_4b_80gb`, written by `scripts/make_model_files.py` | 4B |
 | `minimum_threshold_one_persona_qwen3_14b/` | the same experiments (no cut sweep yet), `_14b_24gb` and `_14b_80gb` | 14B |
 | `minimum_threshold_one_persona_qwen3_32b/` | the same experiments (no cut sweep yet), `_32b_48gb` and `_32b_80gb` | 32B |
 
@@ -35,7 +38,7 @@ and change them). `src/settings_files.py` (`GPU_PROFILES`) lists the sizes the s
 
 Copy the closest file, change what differs, and say what it is in its `_comment`. The generators write complete files
 the same way: `scripts/make_rule_tests.py` (rule tests and the shuffled control), `scripts/make_new_personas.py`
-(personas C to H, on 8B, 14B and 32B) and `scripts/make_cut_sweep.py` (a cut sweep from any base file). The loader can still follow an `"extends"` field, but `tests/test_settings.py`
+(personas C to H, on 8B, 14B and 32B), `scripts/make_cut_sweep.py` (a cut sweep from any base file), `scripts/make_model_files.py` (an 8B experiment on Qwen3-0.6B, 1.7B and 4B) and `scripts/make_plunkett_one_persona.py` (the one-persona Plunkett control). The loader can still follow an `"extends"` field, but `tests/test_settings.py`
 refuses one in this folder.
 
 ## Old paths

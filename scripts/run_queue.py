@@ -174,8 +174,16 @@ def run_all(a, qdir):
         if not finished:
             sys.exit(f"queue {a.continue_from} has no finished runs to continue")
         mine = {r["run_id"]: r for r in status["runs"]}
-        status["runs"] = [mine.get(r["run_id"], {"config": r["config"], "run_id": r["run_id"], "resume": True,
-                                                  "status": "pending"}) for r in finished]
+
+        def again(r):
+            # A run this queue has already continued is done only as far as the --end it was given then. Asked
+            # for a later one, it is pending again (the loop below leaves it alone if it is already that far).
+            # Before 2026-11-25 it stayed "done", so the same command with a larger --end ran nothing.
+            return {**r, "status": "pending"} if r["status"] == "done" and r.get("end", -1) < a.end else r
+
+        status["runs"] = [again(mine[r["run_id"]]) if r["run_id"] in mine else
+                          {"config": r["config"], "run_id": r["run_id"], "resume": True, "status": "pending"}
+                          for r in finished]
     known = {r["config"]: r for r in status["runs"]}
     if a.configs:
         for c in a.configs:
@@ -219,7 +227,7 @@ def run_all(a, qdir):
                 log(qdir, f"failed {r['run_id']}: no evaluated decision checkpoint to continue from")
                 continue
             if last >= a.end:
-                r.update(status="done", finished=now(), from_step=last)
+                r.update(status="done", finished=now(), from_step=last, end=a.end)
                 write_status(qdir, status)
                 log(qdir, f"done {r['run_id']}: already at step {last}")
                 continue
@@ -251,6 +259,8 @@ def run_all(a, qdir):
             ids = [l.split()[1].rstrip(":") for l in text.splitlines() if l.startswith("run ") and "rule=" in l]
         r.update(status="done" if code == 0 else "failed", finished=now(), exit_code=code,
                  run_id=r["run_id"] if r.get("resume") else (ids[-1] if ids else None))
+        if code == 0 and r.get("resume") and a.end is not None:
+            r["end"] = a.end          # how far this continuation went: a later, larger --end runs it again
         write_status(qdir, status)
         log(qdir, f"{r['status']} {r['config']} (exit {code}, run {r['run_id']})")
         if a.hub_repo and r.get("run_id"):

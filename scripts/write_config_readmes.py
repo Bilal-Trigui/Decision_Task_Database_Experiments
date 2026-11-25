@@ -4,9 +4,9 @@ each experiment in it is for, with the card sizes available.
     python scripts/write_config_readmes.py
 
 The folder purposes are written below (PURPOSE); each experiment's purpose is the first line of its file's `_comment`
-(the line after "Notes, written when..." for older files). Size twins (`_24gb`, `_40gb`, `_14b_80gb`, ...) are one row.
+(the line after "Notes, written when..." for older files). Size twins (`_24gb`, `_40gb`, `_14b_80gb`, `_4b_24gb`, ...) are one row.
 The hand-written READMEs one level up (configs/README.md, configs/minimum_threshold_one_persona/README.md, its cut_sweep/
-README and the 14B and 32B ones) are left alone. Rerun after adding or changing a settings file.
+README and the model trees' own) are left alone. Rerun after adding or changing a settings file.
 """
 import json
 import re
@@ -18,9 +18,12 @@ sys.path.insert(0, str(ROOT))
 from src import settings_files as SF  # noqa: E402
 
 CONFIGS = ROOT / "configs"
+# the model trees: 14B and 32B hold every experiment, the three smaller ones A and A-inverse (scripts/make_model_files.py)
+MODEL_TREES = {f"minimum_threshold_one_persona_qwen3_{model}": SF.MODELS[model].split("/")[-1]
+               for model in ("0.6b", "1.7b", "4b", "14b", "32b")}
 HANDWRITTEN = {CONFIGS, CONFIGS / "minimum_threshold_one_persona", CONFIGS / "minimum_threshold_one_persona" / "cut_sweep",
-               CONFIGS / "minimum_threshold_one_persona_qwen3_14b", CONFIGS / "minimum_threshold_one_persona_qwen3_32b"}
-SIZE = re.compile(r"_(?:(?:14b|32b)_)?(?:16gb|24gb|40gb|48gb|80gb)$")
+               *(CONFIGS / tree for tree in MODEL_TREES)}
+SIZE = re.compile(r"_(?:(?:0\.6b|1\.7b|4b|14b|32b)_)?(?:16gb|24gb|40gb|48gb|80gb)$")
 
 # seed 7 with the cut at 75% (scripts/make_cut75_seed_runs.py): beside seeds 5 and 6 on 8B, alone on 14B and 32B
 CUT75_WHAT = {
@@ -95,6 +98,7 @@ PERSONA_DIRS = {
                          "See ../README.md.",
     "cut_sweep/persona_e_negative": "Persona E-negative's cut sweep (cut at 25% of range), branching from 20261116-221120 at step 1500. "
                          "See ../README.md.",
+    "controls/plunkett_linear": "The one-persona Plunkett control: his linear task with the first of his hundred personas alone (loose_leaf_tea, Djedefre, his weights -100, 95, 72, -67, -1; no screen, two options), trained and asked as the one-persona runs are. The same file as controls/persona_a/one_persona_linear with the weights changed. Written by scripts/make_plunkett_one_persona.py.",
     "controls/persona_a_inverse": "Shuffled-label control for A-inverse: its seed-4 run 20261113-170347 again on its prompts with "
                                   "the training answers permuted, so no rule can be learned. Compared with the trained run "
                                   "and its step 0 by tools/trial_regression.py. Written by scripts/make_shuffled_controls.py.",
@@ -137,11 +141,10 @@ OTHER_DIRS = {
                                "2500-step run with twice the data.",
     "plunkett_linear": "Plunkett's linear task (no threshold): the Atkinson variant, the 4B and 8B versions sized for 20 GB, and "
                        "`linear-8b_control`, the control for the one-persona runs: his task on Qwen3-8B with the \"{\" reply "
-                       "prefix and no introspection training, one file a card (24, 40 and 80 GB).",
+                       "prefix and no introspection training, one file a card (24, 40 and 80 GB). Its one-persona version is "
+                       "`../minimum_threshold_one_persona/controls/plunkett_linear/`.",
 }
-TREES = {"minimum_threshold_one_persona": "Qwen3-8B",
-         "minimum_threshold_one_persona_qwen3_14b": "Qwen3-14B",
-         "minimum_threshold_one_persona_qwen3_32b": "Qwen3-32B"}
+TREES = {"minimum_threshold_one_persona": "Qwen3-8B", **MODEL_TREES}
 # folders that hold other files in one model's tree than in 8B's, keyed by (tree, <group>/<persona>): the 14B and 32B
 # seeds/ folders hold only the cut-75 seed, not seeds 5 and 6
 TREE_DIRS = {(tree, f"seeds/{persona}"): what[0].upper() + what[1:]
@@ -198,12 +201,19 @@ def readme(d):
         purpose = purpose_of(raws[0]).replace("|", "/")
         sizes = ", ".join(f"`{f.name}` ({card_of(r)})" for f, r in zip(fs, raws))
         lines.append(f"| `{stem}` | {purpose} | {mh['model_name'].split('/')[-1]} | {sizes} | {mh['training_steps']} |")
-    lines += ["", "Every file is complete (nothing inherited): open it to see or edit any setting."
-              + (" The files of one experiment differ only in how they are sized for the card "
-                 "(`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, "
-                 "on in the 16 GB files only); the effective batch, LoRA, quantization and everything else match. "
-                 "`scripts/make_card_files.py` writes a missing card's file."
-                 if one_persona else ""), "",
+    tree = d.relative_to(CONFIGS).parts[0]
+    sized = (" The files of one experiment differ only in how they are sized for the card "
+             "(`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing")
+    same = "; the effective batch, LoRA, quantization and everything else match."
+    if tree == "minimum_threshold_one_persona":
+        closing = sized + ", on in the 16 GB files only)" + same + " `scripts/make_card_files.py` writes a missing card's file."
+    elif tree in MODEL_TREES:
+        # the 8B sentence was written here too until 2026-11-25: these trees have no 16 GB file, and
+        # make_card_files.py writes 8B files only
+        closing = sized + ")" + same + f" The cards and their sizes are in `configs/{tree}/README.md`."
+    else:
+        closing = ""
+    lines += ["", "Every file is complete (nothing inherited): open it to see or edit any setting." + closing, "",
               "```", f"python scripts/run_one_persona.py --settings {rel}/<file>.json", "```", "",
               "Written by `scripts/write_config_readmes.py`; rerun it after adding a file.", ""]
     return "\n".join(lines)

@@ -500,7 +500,7 @@ def read_settings(path, _seen=()):
     """
     path = Path(path)
     if not path.exists():
-        with_json = path.with_suffix(".json")
+        with_json = Path(f"{path}.json")      # not with_suffix: a name like ..._0.6b_24gb would be cut at its dot
         if with_json.exists():
             raise SettingsError(f"no settings file at '{path}'; did you mean '{with_json}'?")
         folder = path.parent if path.parent.is_dir() else Path("configs")
