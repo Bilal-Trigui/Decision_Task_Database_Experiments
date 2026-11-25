@@ -123,6 +123,10 @@ report training. The two baseline papers are two settings files for one pipeline
 settings at Qwen3-4B and Qwen3-8B inside a 20 GB budget, which is what a MIG slice of a
 Hopper card gives: bf16 instead of fp16, gradient checkpointing, micro-batches of two and
 96-token reports, with the 4B file unquantized and the 8B file left at the default 4-bit.
+**`configs/plunkett_linear/linear-8b_control_40gb.json`** (with `_24gb` and `_80gb`) is the control for the
+one-persona runs: Plunkett's task on Qwen3-8B, 100 personas and the linear rule, with the "{" reply prefix
+those runs use, no introspection training (the pipeline refuses the prefix beside it), and a checkpoint
+every 250 steps.
 **`configs/minimum_threshold/minimum_threshold_8b.json`** is the minimum threshold rule at Qwen3-8B for 3000 steps, with three
 options (A, B, or C for neither). **`configs/paper_minimum_threshold/paper_minimum_threshold_8b.json`** is it with the paper's
 draw and four report questions, and **`configs/paper_minimum_threshold/paper_minimum_threshold_0.6b.json`** is that run at

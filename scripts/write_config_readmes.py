@@ -135,7 +135,9 @@ OTHER_DIRS = {
     "paper_minimum_threshold": "The paper's minimum threshold design over 100 personas: the 8B run, its 16 GB versions (with "
                                "revised questions, a resume and an extension), a 0.6B version and its smoke tests, and the "
                                "2500-step run with twice the data.",
-    "plunkett_linear": "Plunkett's linear task (no threshold): the Atkinson variant and the 4B and 8B versions sized for 20 GB.",
+    "plunkett_linear": "Plunkett's linear task (no threshold): the Atkinson variant, the 4B and 8B versions sized for 20 GB, and "
+                       "`linear-8b_control`, the control for the one-persona runs: his task on Qwen3-8B with the \"{\" reply "
+                       "prefix and no introspection training, one file a card (24, 40 and 80 GB).",
 }
 TREES = {"minimum_threshold_one_persona": "Qwen3-8B",
          "minimum_threshold_one_persona_qwen3_14b": "Qwen3-14B",

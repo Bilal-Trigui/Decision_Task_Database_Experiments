@@ -14,7 +14,7 @@ or set `SETTINGS_FILE` to the path in `run_experiment.ipynb`.
 | folder | what | model |
 |---|---|---|
 | `default.json` | Plunkett's replication, and the whole list of settings (`tests/test_settings.py` checks every field the pipeline reads is in it) | Qwen3-0.6B |
-| `plunkett_linear/` | `atkinson.json` (3000 steps, no report training), `linear-4b_20gb.json`, `linear-8b_20gb.json` | 0.6B, 4B, 8B |
+| `plunkett_linear/` | `atkinson.json` (3000 steps, no report training), `linear-4b_20gb.json`, `linear-8b_20gb.json`, and the control for the one-persona runs, `linear-8b_control_24gb.json`, `_40gb` and `_80gb` (Plunkett's task on 8B, the "{" reply prefix, no introspection training) | 0.6B, 4B, 8B |
 | `minimum_threshold/` | `minimum_threshold_8b.json`: the minimum threshold rule, many personas, answers A/B/C | 8B |
 | `paper_minimum_threshold/` | the paper's minimum threshold design, many personas: 8B, 8B on 16 GB (with `_units`, `_resume`, `_extend`), 0.6B, and `minimum_threshold_1500_steps.json` | 0.6B, 8B |
 | `minimum_threshold_one_persona/` | one persona, minimum threshold: personas A and B, inverse, rule tests, controls, A's cut sweep, and personas C to H. Every experiment has a file per card: 16 GB (no suffix), `_24gb` (L4), `_40gb` (A100 40GB) and `_80gb` (A100 80GB), written by `scripts/make_card_files.py` | 8B |
