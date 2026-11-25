@@ -30,6 +30,9 @@ from src.rules.base import check_manifest
 # subfolders too (configs/minimum_threshold_one_persona/...), but not hidden ones such as .ipynb_checkpoints
 CONFIGS = sorted(p for p in Path("configs").rglob("*.json") if not any(part.startswith(".") for part in p.parts))
 
+# rule -> report blocks it may be asked about and has nothing to score against (tests/test_oracle.py checks the rows)
+NO_SCREEN_TO_SCORE = {"linear": ("screen_index", "screen_cut")}
+
 
 def test_every_config_loads_and_resolves():
     assert CONFIGS, "no settings files found in configs/"
@@ -46,6 +49,10 @@ def test_every_config_loads_and_resolves():
             for batch in schema.batches([f"a{i}" for i in range(1, n + 1)]):
                 if not getattr(batch, "scored", True):
                     continue    # a probe (cut_probe) is asked and kept, never scored against a block
+                # a screen question put to a rule with no screen (the dot-product control, one_persona_linear, since
+                # 2026-11-24): evaluate compares a block only where the rule has it, so the reply is kept and not scored
+                if batch.block in NO_SCREEN_TO_SCORE.get(comps.rule.name, ()):
+                    continue
                 assert batch.block in rule_blocks, (path.name, schema.name, batch.name, batch.block)
         print(f"  {path.name:34s} {comps.rule.name:12s} {comps.estimator.name:12s} "
               f"{[s.name for s in comps.schemas]}")

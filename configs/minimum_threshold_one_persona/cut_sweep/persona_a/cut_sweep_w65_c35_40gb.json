@@ -1,6 +1,7 @@
 {
   "_comment": [
     "Persona A cut sweep: 65% of training trials decided by the weights, 35% by the cut. Branches from A's run 20261106-152354 at decision step 1500.",
+    "Since 2026-11-24 asks the nine report questions every one-persona experiment asks: main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each), every reply started with \"{\" (reply_prefix) and C shown in report trials (show_neither). Until then it asked the first 4 only, with no reply prefix and C not shown, and so was every run of it before that date. scripts/add_nine_questions.py.",
     "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
     "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
@@ -102,8 +103,30 @@
       "cut": {
         "ask": false,
         "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
       }
-    }
+    },
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",

@@ -44,7 +44,7 @@ Those one-fails trials differ between the first A sweep and the matched four:
 
 | folder | files | persona (weights) | branches from (step 1500) | questions | evaluated every |
 |---|---|---|---|---|---|
-| `persona_a/` | `cut_sweep_wXX_cYY` | A (0, -83, -38, -100, 31) | 20261106-152354, A's first 10000-step run (adapter and AdamW state) | the original four | 100; **all nine ran** 2026-11-07/08 |
+| `persona_a/` | `cut_sweep_wXX_cYY` | A (0, -83, -38, -100, 31) | 20261106-152354, A's first 10000-step run (adapter and AdamW state) | the nine questions, `"{"` prefix, C shown (since 2026-11-24; the runs were asked the original four with neither) | 100; **all nine mixes ran** 2026-11-07/08 |
 | `persona_a/` | `cut_sweep_a_wXX_cYY` | A | 20261110-211307 (A, 3000 steps, clipping 1.0) | every question (probes_a) | 250; not run |
 | `persona_b/` | `cut_sweep_b_wXX_cYY` | B (0, 100, 20, -50, -70) | 20261110-112915 (B, 3000 steps) | every question (probes_b) | 250; not run |
 | `persona_a_inverse/` | `cut_sweep_a_inverse_wXX_cYY` | A-inverse (0, 83, 38, 100, -31) | 20261113-170347 (A-inverse) | every question | 250; not run |

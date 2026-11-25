@@ -169,6 +169,27 @@ def test_no_8b_one_persona_file_scores_the_base_model():
     assert not on, on
 
 
+def test_every_one_persona_file_asks_the_nine_questions():
+    """Since 2026-11-24 every one-persona settings file, on every model, asks the nine questions of A's
+    one_persona_no_trial_a.json at every checkpoint, whatever else it asks (scripts/add_nine_questions.py). The
+    dot-product control asks them too: it has no screen, so its screen questions are kept and not scored."""
+    nine = ("main", "screen_index", "screen_cut_units", "main_report_units", "main_threshold_met",
+            "main_threshold_not_met", "screen_index_no_trial", "screen_cut_units_no_trial", "screen_cut_percent_no_trial")
+    source = json.loads((ROOT / "configs" / "minimum_threshold_one_persona" / "base" / "persona_a"
+                         / "one_persona_no_trial_a.json").read_text(encoding="utf-8"))["report_schema"]["questions"]
+    assert tuple(q for q, v in source.items() if v["ask"]) == nine, "the nine are no_trial_a's questions, in its order"
+    short, total = [], 0
+    for tree in ("minimum_threshold_one_persona", "minimum_threshold_one_persona_qwen3_14b",
+                 "minimum_threshold_one_persona_qwen3_32b"):
+        for path in sorted((ROOT / "configs" / tree).rglob("*.json")):
+            total += 1
+            q = json.loads(path.read_text(encoding="utf-8"))["report_schema"].get("questions") or {}
+            lacks = [name for name in nine if not q.get(name, {}).get("ask")]
+            if lacks:
+                short.append((path.relative_to(ROOT).as_posix(), lacks))
+    assert total and not short, short
+
+
 if __name__ == "__main__":
     for fn in [v for k, v in dict(globals()).items() if k.startswith("test_")]:
         fn()

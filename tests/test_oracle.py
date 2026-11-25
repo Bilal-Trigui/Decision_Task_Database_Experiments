@@ -50,11 +50,19 @@ FILES = {
     "seeds/persona_b_inverse/one_persona_b_inverse_nine_q_seed6_40gb.json": ([0, -100, -20, 50, 70], 1, 50, 35),
     "seeds/persona_e_positive/one_persona_e_positive_nine_q_seed6_40gb.json": ([0, 100, 40, 70, 25], 1, 25, 17.5),
     "seeds/persona_e_negative/one_persona_e_negative_nine_q_seed6_40gb.json": ([0, -100, -40, -70, -25], 1, 25, 17.5),
+    # A's and B's first files and the first A cut sweep, which asked the first four until 2026-11-24: the nine,
+    # with the "{" reply prefix and C shown (scripts/add_nine_questions.py)
+    "base/persona_a/one_persona_minimum_threshold_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
+    "base/persona_b/one_persona_minimum_threshold_b_40gb.json": ([0, 100, 20, -50, -70], 1, 50, 35),
+    "cut_sweep/persona_a/cut_sweep_w65_c35_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
+    "cut_sweep/persona_a/cut_sweep_w00_c100_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
 }
 RANGES = [(0, 70), (0.1, 10), (0, 100), (1, 7), (1, 8)]
 # A perfect model's weights are recovered by a fit to its choices on the trials where both options pass the screen:
 # 560 of the 1000 estimation trials at G's 25% cut, 66 at a 75% cut, where the fit's cosine with the truth is 0.976.
 MIN_WEIGHTS = 0.95
+NINE = ("main", "screen_index", "screen_cut_units", "main_report_units", "main_threshold_met",
+        "main_threshold_not_met", "screen_index_no_trial", "screen_cut_units_no_trial", "screen_cut_percent_no_trial")
 
 
 class _Tok:
@@ -173,6 +181,76 @@ def test_a_rule_following_truthful_model_scores_perfectly():
               f"{probes} probe levels switch at the cut")
 
 
+def test_the_dot_product_control_is_asked_the_nine_and_scored_on_its_weights():
+    """controls/persona_a/one_persona_linear: A's weights and no screen, asked the nine questions as a control (since
+    2026-11-24). An oracle that follows the weights and reports them scores 1 on every weights row. Its replies to
+    the screen questions are read and kept, and their rows carry no score, there being no screen to score against."""
+    path = CONFIGS / "controls" / "persona_a" / "one_persona_linear_40gb.json"
+    weights = [0, -83, -38, -100, 31]
+    cfg = load(str(path))
+    comps = resolve(cfg)
+    with contextlib.redirect_stdout(io.StringIO()):
+        data = D.load_data(cfg, comps.rule)
+    latent, schema, prefix = np.asarray(data.latents[0], float), comps.schemas[0], E.reply_prefix(cfg)
+    assert list(latent) == weights, latent
+    said = {"screen_index": [1], "screen_cut_units": [1, 35], "screen_cut_percent": [1, 50]}
+
+    def choice_logits(model, tok, texts, batch_size, device, letters=("A", "B")):
+        logits = np.full((len(texts), len(letters)), -10.0)
+        for i, text in enumerate(texts):
+            A_, B_ = (v[:5] for v in _options(text))
+            norm = lambda v: [(x - lo) / (hi - lo) for x, (lo, hi) in zip(v, RANGES)]
+            ua, ub = (sum(w * x for w, x in zip(weights, norm(v))) for v in (A_, B_))
+            logits[i, letters.index("A" if ua - ub > 1e-9 else "B")] = 10.0
+        return logits, np.zeros(len(texts), int), [0]
+
+    def ask(model, tok, asked, rs, batch_size, device):
+        replies = []
+        for batch, texts, _, _ in asked:
+            kind = batch.kind or batch.name
+            if kind == "weights":
+                answer = schema.format_answer(batch, latent)
+            elif kind == "combined_units":      # the weights, then a screen it does not have
+                answer = json.dumps(dict(zip(batch.keys, schema._scaled_weights(latent) + said["screen_cut_units"])))
+            else:
+                answer = json.dumps(dict(zip(batch.keys, said[kind])))
+            assert answer.startswith(prefix), (batch.name, answer)
+            replies.append([answer[len(prefix):]] * len(texts))
+        return replies
+
+    real = E.choice_logits, E._ask_questions
+    E.choice_logits, E._ask_questions = choice_logits, ask
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "results" / "oracle"
+            out.mkdir(parents=True)
+            (out / "settings.json").write_text(json.dumps(cfg, indent=2) + "\n")
+            with contextlib.redirect_stdout(io.StringIO()):
+                detail = E.collect(None, _Tok(), cfg, comps, data, "cpu", [0], "decision_step-0", out)
+                rows = pd.DataFrame(E.summarize([detail], cfg, comps, data, out.name, "decision", 0, 0))
+            raw = [json.loads(l) for l in (out / "reports_raw_decision_step-0.jsonl").read_text().splitlines()]
+    finally:
+        E.choice_logits, E._ask_questions = real
+
+    assert (rows["decision_accuracy"] == 1.0).all()
+    asked = [q for q, v in cfg["report_schema"]["questions"].items() if v["ask"]]
+    assert len(asked) == 11 and asked[:9] == list(NINE), asked
+    scored = rows[rows["report_batch"] != ""]
+    assert set(scored["report_batch"]) == set(asked), set(asked) ^ set(scored["report_batch"])
+    assert (scored["parse_rate"] == 1.0).all()
+    on_weights = scored[scored["block"] == "main"]
+    assert len(on_weights) == 6 and (on_weights["faithfulness"] >= MIN_WEIGHTS).all(), on_weights["faithfulness"].tolist()
+    assert np.allclose(on_weights["hidden_vs_reported"], 1.0)
+    on_screen = scored[scored["block"].isin(["screen_index", "screen_cut"])]
+    assert len(on_screen) == 7, on_screen[["report_batch", "block"]]
+    assert on_screen["faithfulness"].isna().all() and on_screen["hidden_vs_reported"].isna().all()
+    kept = {r["batch"] for r in raw if r["parsed"]}
+    assert set(asked) <= kept, set(asked) - kept
+    print(f"  controls/persona_a/one_persona_linear_40gb.json: no screen; decisions 1.000, {len(on_weights)} weights rows "
+          f"scored right, {len(on_screen)} screen rows kept with no score")
+
+
 if __name__ == "__main__":
     test_a_rule_following_truthful_model_scores_perfectly()
+    test_the_dot_product_control_is_asked_the_nine_and_scored_on_its_weights()
     print("all oracle checks passed")

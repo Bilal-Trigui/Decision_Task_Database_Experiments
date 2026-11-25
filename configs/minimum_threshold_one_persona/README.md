@@ -48,12 +48,34 @@ carry what training put there, not attribute-name priors. Compare with `tools/cr
 
 | file | persona | steps | report questions | finished run |
 |---|---|---|---|---|
-| `persona_a/one_persona_minimum_threshold.json` | A | 10000, clipping 1.0 (run 20261106 had none) | the original 4 | 20261106-152354 (A-old) |
+| `persona_a/one_persona_minimum_threshold.json` | A | 10000, clipping 1.0 (run 20261106 had none) | the nine, `"{"` prefix, C shown (the original 4, neither, until 2026-11-24) | 20261106-152354 (A-old), asked the original 4 |
 | `persona_a/one_persona_no_trial_a.json` | A | 3000, clipping 1.0 | + the no-trial questions | 20261110-211307 (A-new) |
 | `persona_a/one_persona_probes_a.json` | A | 3000, clipping 1.0 | every question, `"{"` prefix, C shown | not run |
-| `persona_b/one_persona_minimum_threshold_b.json` | B | 3000, clipping 1.0 | the original 4 | 20261109-214726 (B-old) |
+| `persona_b/one_persona_minimum_threshold_b.json` | B | 3000, clipping 1.0 | the nine, `"{"` prefix, C shown (the original 4, neither, until 2026-11-24) | 20261109-214726 (B-old), asked the original 4 |
 | `persona_b/one_persona_no_trial_b.json` | B | 3000, clipping 1.0 | + the no-trial questions | 20261110-112915 (B-new) |
 | `persona_b/one_persona_probes_b.json` | B | 3000, clipping 1.0 | every question, `"{"` prefix, C shown | not run |
+
+### The nine questions every file asks
+
+Since 2026-11-24 every settings file in this folder, and in the 14B and 32B folders, asks these nine at every
+checkpoint, whatever else it asks (`scripts/add_nine_questions.py`; `tests/test_new_personas.py` holds it there).
+They are nine of the folders in `questions/paper_minimum_threshold/`, which holds every question a file can ask:
+
+| | question | what it asks | trial shown |
+|---|---|---|---|
+| 1 | `main` | the five weights, -100 to 100 | yes, 50 samples |
+| 2 | `screen_index` | which attribute, 1 to 5, carries the minimum | yes, 50 samples |
+| 3 | `screen_cut_units` | that attribute and its minimum in its own units | yes, 50 samples |
+| 4 | `main_report_units` | the weights, the attribute and the minimum in one reply | yes, 50 samples |
+| 5 | `main_threshold_met` | the weights once an option meets the minimum | no, asked once |
+| 6 | `main_threshold_not_met` | the weights when an option falls below it | no, asked once |
+| 7 | `screen_index_no_trial` | which attribute carries the minimum | no, asked once |
+| 8 | `screen_cut_units_no_trial` | that attribute and its minimum in units | no, asked once |
+| 9 | `screen_cut_percent_no_trial` | the same, as a percentage of the range | no, asked once |
+
+Until that date A's and B's first files and the first A cut sweep asked 1 to 4 only, and the dot-product control
+(`controls/persona_a/one_persona_linear`) asked weight questions only. The files `one_persona_no_trial_a`, `_b` and
+their two shuffled controls ask the nine with no reply prefix and C not shown, as their runs were asked.
 
 ## inverse/: every weight's sign flipped, the screen kept
 
@@ -130,7 +152,7 @@ leaves caffeine out although its weight is 60: read the five-value cosine as wel
 
 | file | what |
 |---|---|
-| `one_persona_linear.json` | A's weights, no screen, two options: the plain dot-product rule |
+| `one_persona_linear.json` | A's weights, no screen, two options: the plain dot-product rule. Asks the nine as a control (a persona with no screen asked about one) and `main_trial_first`, `main_no_trial`; its screen replies are kept and not scored, there being no screen to score them against |
 | `one_persona_minimum_threshold_shuffled.json` | A's prompts with the answers permuted (seed 11): no rule to learn |
 
 ## The base model as a control
@@ -166,7 +188,8 @@ the weights would pick, which also teaches the opposite weights; the matched fou
 and trains steps 1501 to 3000.
 
 - `persona_a/cut_sweep_wXX_cYY.json`: the first sweep, from A's run 20261106-152354, evaluated every 100. All nine ran
-  on 2026-11-07/08 (`results/queue/cut_sweep/`, summary: `python scripts/sweep_summary.py cut_sweep`).
+  on 2026-11-07/08 (`results/queue/cut_sweep/`, summary: `python scripts/sweep_summary.py cut_sweep`), asked the
+  original four questions. Since 2026-11-24 the files ask the nine questions, with the `"{"` prefix and C shown.
 - `persona_a/cut_sweep_a_*`, `persona_b/cut_sweep_b_*`, `persona_a_inverse/cut_sweep_a_inverse_*`,
   `persona_b_inverse/cut_sweep_b_inverse_*`: a matched set of four, each from its persona's 3000-step run, every
   question asked, evaluated every 250, with `_40gb` files. Rebuilt 2026-11-16 with `cut_overturns_only` off; not run yet. `cut_sweep/README.md` has the source runs and

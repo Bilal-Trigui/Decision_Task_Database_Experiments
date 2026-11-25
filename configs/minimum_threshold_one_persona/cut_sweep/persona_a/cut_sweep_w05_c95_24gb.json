@@ -1,6 +1,7 @@
 {
   "_comment": [
     "Persona A cut sweep: 5% of training trials decided by the weights, 95% by the cut. Branches from A's run 20261106-152354 at decision step 1500.",
+    "Since 2026-11-24 asks the nine report questions every one-persona experiment asks: main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each), every reply started with \"{\" (reply_prefix) and C shown in report trials (show_neither). Until then it asked the first 4 only, with no reply prefix and C not shown, and so was every run of it before that date. scripts/add_nine_questions.py.",
     "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
     "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 2, gradient_checkpointing false, eval batches 48 (decision 48, introspection 4). Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16). The batch of 10 in five passes of 2: with checkpointing off, two passes of 5 ran a Colab L4 (22 GiB) out of memory on the first training step (2026-11-22: 21.7 GiB in use when the loss asked for 0.66 GiB more), about 2.6 GiB per example in a pass on top of the model. Passes of 2 should need about 15 GiB; not yet measured, and the eval batches of 48 have not run on a 24 GB card either. Out of memory in training: gradient_checkpointing true (then micro_batch_size 5 fits). Out of memory in evaluation: eval batches 24, then 16.",
@@ -102,8 +103,30 @@
       "cut": {
         "ask": false,
         "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
       }
-    }
+    },
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",

@@ -1,6 +1,7 @@
 {
   "_comment": [
     "Control: persona A's weights with no screen and two options (Plunkett's dot-product rule).",
+    "Since 2026-11-24 asks the nine report questions every one-persona experiment asks, as a control (a persona with no screen asked about one): main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each). The screen questions are read and kept (parse rate, every reply in reports_raw) and get no score, there being no screen to score them against; the weight questions are scored as before. Until then it asked main, main_trial_first, main_no_trial only. scripts/add_nine_questions.py.",
     "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: none.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
     "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
@@ -16,7 +17,7 @@
     "untrained model was step 0 until 2026-11-23 and is not scored now), clipping 1.0, 1000 estimation trials and 1000 natural validation trials per checkpoint,",
     "50 samples per report question, the \"{\" reply prefix, show_neither (a no-op here: two options), the seeds.",
     "Necessarily different from the threshold runs: the decision prompt offers A or B only (no C line), so the training",
-    "prompts are not A's 5000; and only weight questions are asked (no screen exists to ask about):",
+    "prompts are not A's 5000. Until 2026-11-24 only the weight questions were asked, and they still are:",
     "  main, main_trial_first   shown a trial, 50 samples each",
     "  main_no_trial            no trial, no mention of a threshold, asked once",
     "Extends default.json (not the threshold files), since a merged file cannot drop the threshold rule's fields.",
@@ -67,6 +68,38 @@
     "show_neither": true,
     "questions": {
       "main": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
         "ask": true,
         "train": false
       },

@@ -1,6 +1,7 @@
 {
   "_comment": [
-    "Persona B, the cross-persona control for A: B's weights, 3000 steps, clipping 1.0, the four original report questions (the Qwen3-8B run was 20261109-214726, 'B-old'). On Qwen/Qwen3-14B.",
+    "Persona B, the cross-persona control for A: B's weights, 3000 steps, clipping 1.0, the nine report questions (the four original ones until 2026-11-24: the Qwen3-8B run was 20261109-214726, 'B-old'). On Qwen/Qwen3-14B.",
+    "Since 2026-11-24 asks the nine report questions every one-persona experiment asks: main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each), every reply started with \"{\" (reply_prefix) and C shown in report trials (show_neither). Until then it asked the first 4 only, with no reply prefix and C not shown, and so was every run of it before that date. scripts/add_nine_questions.py.",
     "Persona B (loose_leaf_tea): weights caffeine_content 0, leaf_size 100, oxidation_level 20, steeping_time -50, resteep_potential -70; screen: caffeine_content at 50% of its range.",
     "The data folder is the Qwen3-8B experiment's: trials and answers do not depend on the model.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
@@ -113,8 +114,30 @@
       "cut": {
         "ask": false,
         "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
       }
-    }
+    },
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-14B",

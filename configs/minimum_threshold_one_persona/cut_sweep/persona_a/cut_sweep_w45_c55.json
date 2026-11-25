@@ -1,6 +1,7 @@
 {
   "_comment": [
     "Persona A cut sweep: 45% of training trials decided by the weights, 55% by the cut. Branches from A's run 20261106-152354 at decision step 1500.",
+    "Since 2026-11-24 asks the nine report questions every one-persona experiment asks: main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each), every reply started with \"{\" (reply_prefix) and C shown in report trials (show_neither). Until then it asked the first 4 only, with no reply prefix and C not shown, and so was every run of it before that date. scripts/add_nine_questions.py.",
     "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
     "Sized for Qwen/Qwen3-8B on a 16 GB card (RTX 5070 Ti, RTX 4080): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-8B in 4-bit is about 6 GB, which leaves room for the 152k-token logits. Out of memory: micro_batch_size 1, then report_schema.max_new_tokens 200.",
@@ -102,8 +103,30 @@
       "cut": {
         "ask": false,
         "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
       }
-    }
+    },
+    "reply_prefix": "{",
+    "show_neither": true
   },
   "model_hyperparameters": {
     "model_name": "Qwen/Qwen3-8B",
