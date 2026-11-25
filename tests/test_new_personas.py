@@ -147,7 +147,8 @@ def test_seven_settings_files_each_complete_and_pointing_at_the_folder():
             assert "extends" not in raw, path
             mh, comp = raw["model_hyperparameters"], raw["compute"]
             assert (mh["model_name"], mh["micro_batch_size"], comp["decision_eval_batch_size"]) == (model, micro, eval_batch), path
-            assert (mh["batch_size"], mh["lora_rank"], mh["quantization"], mh["training_steps"]) == (10, 8, "4bit", 3000), path
+            steps = 3000 if model == "Qwen/Qwen3-8B" else 1500       # 14B and 32B train half as long since 2026-11-24
+            assert (mh["batch_size"], mh["lora_rank"], mh["quantization"], mh["training_steps"]) == (10, 8, "4bit", steps), path
             assert mh["run_tag"] == name.replace("_", "-"), path
             # the base model is scored before training only where it has no step 0 yet: 14B and 32B, not 8B
             assert mh["baseline_before_training"] is (model != "Qwen/Qwen3-8B"), path
@@ -167,6 +168,19 @@ def test_no_8b_one_persona_file_scores_the_base_model():
     on = [p.relative_to(ROOT).as_posix() for p in files
           if json.loads(p.read_text(encoding="utf-8"))["model_hyperparameters"]["baseline_before_training"]]
     assert not on, on
+
+
+def test_every_14b_and_32b_file_trains_1500_steps():
+    """Since 2026-11-24 every Qwen3-14B and Qwen3-32B one-persona file trains 1500 steps, half the 8B files' 3000
+    (src.settings_files.TRAINING_STEPS, which the scripts that write those files go through)."""
+    from src import settings_files as SF
+    assert SF.TRAINING_STEPS == {"14b": 1500, "32b": 1500}
+    for tree in ("minimum_threshold_one_persona_qwen3_14b", "minimum_threshold_one_persona_qwen3_32b"):
+        files = sorted((ROOT / "configs" / tree).rglob("*.json"))
+        assert files, tree
+        other = [p.relative_to(ROOT).as_posix() for p in files
+                 if json.loads(p.read_text(encoding="utf-8"))["model_hyperparameters"]["training_steps"] != 1500]
+        assert not other, other
 
 
 def test_every_one_persona_file_asks_the_nine_questions():

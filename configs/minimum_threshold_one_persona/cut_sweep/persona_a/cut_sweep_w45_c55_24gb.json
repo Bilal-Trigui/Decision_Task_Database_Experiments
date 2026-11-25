@@ -7,12 +7,12 @@
     "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 2, gradient_checkpointing false, eval batches 48 (decision 48, introspection 4). Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16). The batch of 10 in five passes of 2: with checkpointing off, two passes of 5 ran a Colab L4 (22 GiB) out of memory on the first training step (2026-11-22: 21.7 GiB in use when the loss asked for 0.66 GiB more), about 2.6 GiB per example in a pass on top of the model. Passes of 2 should need about 15 GiB; not yet measured, and the eval batches of 48 have not run on a 24 GB card either. Out of memory in training: gradient_checkpointing true (then micro_batch_size 5 fits). Out of memory in evaluation: eval batches 24, then 16.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w45_c55_24gb.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "Cut sweep: 45% of training trials decided by the weights, 55% by the cut (27.5% C, both options",
     "  below the cut; 27.5% one option below it, where the cut changes the answer from what the weights alone",
     "  would pick). Branches from 20261106-152354_paper_minimum_threshold_Qwen3-8B decision step 1500 (its adapter and AdamW",
     "  state) and trains steps 1501 to 3000, evaluated and saved every 100, over data/minimum_threshold_one_persona/cut_sweep/persona_a/w45_c55/.",
-    "  Everything else is one_persona_minimum_threshold.json's. Written by scripts/make_cut_sweep.py.",
+    "  Everything else is one_persona_minimum_threshold_a.json's. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last."
   ],
   "object": {

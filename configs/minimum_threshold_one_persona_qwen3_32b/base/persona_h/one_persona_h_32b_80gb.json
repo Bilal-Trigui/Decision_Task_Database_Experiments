@@ -1,7 +1,8 @@
 {
   "_comment": [
     "Persona H (cutting_board, Antonín Dvořák): B's weights in a new domain: cutting_board, Antonín Dvořák, board_thickness screened at 25% (2.0 cm); surface_area 100, knife_mark_resistance 20, grip_stability -50, ease_of_cleaning -70.",
-    "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
+    "1500 training steps since 2026-11-24, as every Qwen3-32B file: 6 checkpoints, one every 250. The Qwen3-8B files train 3000. Where a note below says 3000 steps, read 1500 for this file.",
+    "  1500 steps, every report question asked, replies started with \"{\", C shown in report trials.",
     "  weights: board_thickness 0, surface_area 100, knife_mark_resistance 20, grip_stability -50, ease_of_cleaning -70",
     "  screen: board_thickness (attribute 1) at 25% of its range (2 centimeters, of 1 to 5)",
     "data: data/minimum_threshold_one_persona/base/persona_h/one_persona_minimum_threshold_h/ (persona A's input files, first row of instilled_weights.csv changed; the cutting_board row moved to the top; A's seeds).",
@@ -182,7 +183,7 @@
     "micro_batch_size": 5,
     "gradient_checkpointing": true,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 250,
     "baseline_before_training": true,
     "introspection_training": false,

@@ -1,6 +1,7 @@
 {
   "_comment": [
     "Control: persona A's weights with no screen and two options (Plunkett's dot-product rule). On Qwen/Qwen3-14B.",
+    "1500 training steps since 2026-11-24, as every Qwen3-14B file: 6 checkpoints, one every 250. The Qwen3-8B files train 3000. Where a note below says 3000 steps, read 1500 for this file.",
     "Since 2026-11-24 asks the nine report questions every one-persona experiment asks, as a control (a persona with no screen asked about one): main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each). The screen questions are read and kept (parse rate, every reply in reports_raw) and get no score, there being no screen to score them against; the weight questions are scored as before. Until then it asked main, main_trial_first, main_no_trial only. scripts/add_nine_questions.py.",
     "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: none.",
     "The data folder is the Qwen3-8B experiment's: trials and answers do not depend on the model.",
@@ -125,7 +126,7 @@
     "micro_batch_size": 2,
     "gradient_checkpointing": true,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 250,
     "baseline_before_training": true,
     "introspection_training": false,

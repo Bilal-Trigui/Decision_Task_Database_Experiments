@@ -275,7 +275,7 @@ def write_configs(name):
     changes = [f"plus {', '.join(spec['add'])}"] + ([f"not {', '.join(spec['drop'])}"] if spec.get("drop") else [])
     comment = [
         f"Persona {display_name(name)} ({scenario}, {who}): {spec['purpose']}.",
-        "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
+        "  {steps} steps, every report question asked, replies started with \"{\", C shown in report trials.",
         f"  weights: {weights_line(spec)}",
         f"  screen: {cut_text(spec)[1]}",
         f"data: {rel(data_dir(name))}/ (persona A's input files, first row of instilled_weights.csv changed"
@@ -291,7 +291,8 @@ def write_configs(name):
             # yet. Every 8B file skips it since 2026-11-23 (the 8B base model is a control: the configs README).
             sized["model_hyperparameters"]["baseline_before_training"] = model != "8b"
             path = config_path(name, model, gpu)
-            SF.write(path, sized, comment + [SF.gpu_line(model, gpu),
+            steps = sized["model_hyperparameters"]["training_steps"]      # 3000 on 8B, 1500 on 14B and 32B
+            SF.write(path, sized, [line.replace("{steps}", str(steps)) for line in comment] + [SF.gpu_line(model, gpu),
                                              f"Run: python scripts/run_one_persona.py --settings {rel(path)}"])
     return config_path(name, "8b", "16gb")
 

@@ -6,7 +6,7 @@
     "Sized for Qwen/Qwen3-8B on a 16 GB card (RTX 5070 Ti, RTX 4080): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-8B in 4-bit is about 6 GB, which leaves room for the 152k-token logits. Out of memory: micro_batch_size 1, then report_schema.max_new_tokens 200.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "No-trial report questions, persona A (loose_leaf_tea, weights 0 / -83 / -38 / -100 / 31, caffeine screened at 35 mg).",
     "Decision training from scratch, exactly as run 20261106-152354 (same data folder, seeds, learning rate), with",
     "gradient clipping 1.0 and 3000 steps (A's interesting stretch was 1500-2750; it spiked at 5428 without clipping).",

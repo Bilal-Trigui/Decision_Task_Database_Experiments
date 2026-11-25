@@ -1,8 +1,9 @@
 # configs/minimum_threshold_one_persona_qwen3_14b
 
 The one-persona minimum-threshold experiments of `../minimum_threshold_one_persona/` on **Qwen/Qwen3-14B**. Each file is
-its Qwen3-8B namesake with only the model and the batch sizes changed: same personas, data folders, trials, seeds,
-learning rate, LoRA rank, steps and report questions. The 8B README describes every experiment and persona.
+its Qwen3-8B namesake with only the model, the batch sizes and the training steps changed: same personas, data
+folders, trials, seeds, learning rate, LoRA rank and report questions. Every file here trains **1500 steps** (6
+checkpoints, one every 250) since 2026-11-24; the 8B files train 3000. The 8B README describes every experiment and persona.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona_qwen3_14b/<group>/<persona>/<file>.json
@@ -24,7 +25,7 @@ Qwen/Qwen3-14B: watch the first checkpoint's evaluation, which is the memory pea
 ## Layout
 
 ```
-base/persona_a/        one_persona_minimum_threshold, one_persona_no_trial_a, one_persona_probes_a
+base/persona_a/        one_persona_minimum_threshold_a, one_persona_no_trial_a, one_persona_probes_a
 base/persona_b/        one_persona_minimum_threshold_b, one_persona_no_trial_b, one_persona_probes_b
 base/persona_c..h/     one_persona_c, _d, _e_positive, _f_oxidation, _f_resteep, _g, _h   (personas C to H)
 controls/persona_a/    one_persona_linear, one_persona_minimum_threshold_shuffled

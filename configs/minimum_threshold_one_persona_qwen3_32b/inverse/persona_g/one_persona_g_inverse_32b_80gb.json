@@ -1,7 +1,8 @@
 {
   "_comment": [
     "Persona G-inverse (loose_leaf_tea, Djedefre): G with every sign flipped, the screen kept on steeping_time (attribute 4) at 25% (2.5 minutes): caffeine +83, leaf +38, oxidation +100, resteep -31 (A-inverse's four weight values on the unscreened slots).",
-    "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
+    "1500 training steps since 2026-11-24, as every Qwen3-32B file: 6 checkpoints, one every 250. The Qwen3-8B files train 3000. Where a note below says 3000 steps, read 1500 for this file.",
+    "  1500 steps, every report question asked, replies started with \"{\", C shown in report trials.",
     "  weights: caffeine_content 83, leaf_size 38, oxidation_level 100, steeping_time 0, resteep_potential -31",
     "  screen: steeping_time (attribute 4) at 25% of its range (2.5 minutes, of 1 to 7)",
     "data: data/minimum_threshold_one_persona/inverse/persona_g/one_persona_minimum_threshold_g_inverse/ (persona A's input files, first row of instilled_weights.csv changed; A's seeds).",
@@ -186,7 +187,7 @@
     "micro_batch_size": 5,
     "gradient_checkpointing": true,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 250,
     "baseline_before_training": true,
     "introspection_training": false,

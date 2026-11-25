@@ -267,7 +267,7 @@ def test_a_rebuild_keeps_the_folders_own_build():
 
     seen, real_construct, real_argv = [], VC.construct, sys.argv
     VC.construct = lambda *args: seen.append(args)
-    settings = "configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json"
+    settings = "configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json"
     try:
         for argv in (["--data", str(ROOT / W60)], ["--data", str(ROOT / W60), "--train", "50", "--trials-seed", "9"],
                      ["--settings", settings], ["--settings", settings, "--trials-seed", "9"]):

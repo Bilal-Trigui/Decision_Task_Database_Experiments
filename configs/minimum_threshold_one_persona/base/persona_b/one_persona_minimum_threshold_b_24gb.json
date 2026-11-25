@@ -7,7 +7,7 @@
     "Sized for Qwen/Qwen3-8B on a 24 GB card (L4, A10, RTX 4090, RTX 3090): micro_batch_size 2, gradient_checkpointing false, eval batches 48 (decision 48, introspection 4). Gradient checkpointing off and eval batches of 48 since 2026-11-22 (they were on and 16). The batch of 10 in five passes of 2: with checkpointing off, two passes of 5 ran a Colab L4 (22 GiB) out of memory on the first training step (2026-11-22: 21.7 GiB in use when the loss asked for 0.66 GiB more), about 2.6 GiB per example in a pass on top of the model. Passes of 2 should need about 15 GiB; not yet measured, and the eval batches of 48 have not run on a 24 GB card either. Out of memory in training: gradient_checkpointing true (then micro_batch_size 5 fits). Out of memory in evaluation: eval batches 24, then 16.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b_24gb.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "Persona B: the cross-persona control for the one-persona run 20261106-152354 (persona A). Same persona",
     "(loose_leaf_tea, 'Imagine you are Djedefre'), same attributes, same caffeine screen (50% of range, 35 mg), same",
     "trial seeds and shares, same report questions; only the weights differ:",
@@ -21,7 +21,7 @@
     "Differs from run A on purpose: max_grad_norm 1.0 (A had none and spiked at step 5428), 3000 steps instead of",
     "10000 (A's faithful stretch was 1500-2750), optimizer state saved for the last checkpoint only (disk).",
     "natural_val_trials_per_persona 1000 is validation only; it does not touch training or reports.",
-    "Everything else comes from one_persona_minimum_threshold.json and the files it extends.",
+    "Everything else comes from one_persona_minimum_threshold_a.json and the files it extends.",
     "",
     "Built (LF line endings) from data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b/ with",
     "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b.json"

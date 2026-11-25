@@ -1,7 +1,8 @@
 {
   "_comment": [
     "Persona F-resteep (loose_leaf_tea, Djedefre): the largest weight on resteep_potential (+100), an attribute that has never carried it.",
-    "  3000 steps, every report question asked, replies started with \"{\", C shown in report trials.",
+    "1500 training steps since 2026-11-24, as every Qwen3-14B file: 6 checkpoints, one every 250. The Qwen3-8B files train 3000. Where a note below says 3000 steps, read 1500 for this file.",
+    "  1500 steps, every report question asked, replies started with \"{\", C shown in report trials.",
     "  weights: caffeine_content 0, leaf_size -25, oxidation_level 40, steeping_time -30, resteep_potential 100",
     "  screen: caffeine_content (attribute 1) at 25% of its range (17.5 mg per cup, of 0 to 70)",
     "data: data/minimum_threshold_one_persona/base/persona_f/one_persona_minimum_threshold_f_resteep/ (persona A's input files, first row of instilled_weights.csv changed; A's seeds).",
@@ -182,7 +183,7 @@
     "micro_batch_size": 10,
     "gradient_checkpointing": true,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 250,
     "baseline_before_training": true,
     "introspection_training": false,

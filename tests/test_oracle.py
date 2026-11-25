@@ -52,7 +52,7 @@ FILES = {
     "seeds/persona_e_negative/one_persona_e_negative_nine_q_seed6_40gb.json": ([0, -100, -40, -70, -25], 1, 25, 17.5),
     # A's and B's first files and the first A cut sweep, which asked the first four until 2026-11-24: the nine,
     # with the "{" reply prefix and C shown (scripts/add_nine_questions.py)
-    "base/persona_a/one_persona_minimum_threshold_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
+    "base/persona_a/one_persona_minimum_threshold_a_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
     "base/persona_b/one_persona_minimum_threshold_b_40gb.json": ([0, 100, 20, -50, -70], 1, 50, 35),
     "cut_sweep/persona_a/cut_sweep_w65_c35_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
     "cut_sweep/persona_a/cut_sweep_w00_c100_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),

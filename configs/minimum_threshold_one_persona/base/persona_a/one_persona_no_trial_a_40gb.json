@@ -6,7 +6,7 @@
     "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a_40gb.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "No-trial report questions, persona A (loose_leaf_tea, weights 0 / -83 / -38 / -100 / 31, caffeine screened at 35 mg).",
     "Decision training from scratch, exactly as run 20261106-152354 (same data folder, seeds, learning rate), with",
     "gradient clipping 1.0 and 3000 steps (A's interesting stretch was 1500-2750; it spiked at 5428 without clipping).",

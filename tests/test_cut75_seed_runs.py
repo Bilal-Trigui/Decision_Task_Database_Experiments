@@ -108,7 +108,8 @@ def test_a_file_for_every_model_and_card():
             mh = cfg["model_hyperparameters"]
             assert (mh["model_name"], mh["micro_batch_size"], mh["gradient_checkpointing"]) == (model, micro, checkpointing), path
             assert cfg["compute"]["decision_eval_batch_size"] == eval_batch, path
-            assert (mh["seed"], mh["training_steps"], mh["checkpoint_every"], mh["batch_size"]) == (SEED, 3000, 250, 10), path
+            steps = 3000 if model == "Qwen/Qwen3-8B" else 1500       # 14B and 32B train half as long since 2026-11-24
+            assert (mh["seed"], mh["training_steps"], mh["checkpoint_every"], mh["batch_size"]) == (SEED, steps, 250, 10), path
             assert mh["run_tag"] == f"{name.replace('_', '-')}-nine-q-seed{SEED}", path
             assert mh["baseline_before_training"] is (model != "Qwen/Qwen3-8B"), path
             assert mh["start_from"] is None, path

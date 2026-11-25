@@ -8,7 +8,7 @@
 e_positive, e_negative) and the folder its
 files go to (persona_<persona>); --prefix names the files (default --name); --gpus the 8B card sizes written.
 
-Every config is --base (configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json)
+Every config is --base (configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json)
 written out in full (no extends: every value can be edited in the file), branching from --source-run's decision
 step --step, training on to step --end, evaluated and saved every --every steps. Each sets
     weight_decided_share  W%   trials both options pass the cut: the weights alone decide
@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--end", type=int, default=3000, help="the step each branch trains to")
     parser.add_argument("--every", type=int, default=100, help="evaluate and save a checkpoint every this many steps")
     parser.add_argument("--name", default="cut_sweep", help="config prefix and data folder name")
-    parser.add_argument("--base", default="configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
+    parser.add_argument("--base", default="configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json")
     parser.add_argument("--persona", default="a", choices=sorted(PERSONA_DATA), help="whose data and folder")
     parser.add_argument("--prefix", default=None, help="file name prefix (default --name)")
     parser.add_argument("--gpus", nargs="+", default=["16gb", "24gb"], help="8B card sizes to write (16gb 24gb 40gb)")

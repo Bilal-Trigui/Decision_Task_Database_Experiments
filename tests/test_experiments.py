@@ -149,11 +149,16 @@ def test_disk_needed():
     cfg = E.load_experiment("configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w45_c55.json")
     count = (cfg["model_hyperparameters"]["training_steps"] - 1500) // cfg["model_hyperparameters"]["checkpoint_every"] + 1
     assert abs(E.disk_needed_gb(cfg) - ((count * E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
-    one = E.load_experiment("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
-    assert abs(E.disk_needed_gb(one) - (41 * (E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
+    one = E.load_experiment("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json")
+    # 3000 steps, a checkpoint every 250: 13 adapters, AdamW's state at the last only (save_optimizer last)
+    assert abs(E.disk_needed_gb(one) - ((13 * E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
+    # save_optimizer all keeps AdamW's state at every checkpoint, as this file did until 2026-11-24 (10000 steps: 41)
+    every = {**one, "model_hyperparameters": {**one["model_hyperparameters"], "save_optimizer": "all", "training_steps": 10000}}
+    assert abs(E.disk_needed_gb(every) - (41 * (E.ADAPTER_MB + E.OPTIMIZER_MB) / 1024 + 0.5)) < 1e-9
     # a larger model's adapter is larger at the same rank
-    big = E.load_experiment("configs/minimum_threshold_one_persona_qwen3_32b/base/persona_a/one_persona_minimum_threshold_32b_80gb.json")
-    assert abs(E.disk_needed_gb(big) - (41 * (E.ADAPTER_MB + E.OPTIMIZER_MB) * 3.07 / 1024 + 0.5)) < 1e-9
+    big = E.load_experiment("configs/minimum_threshold_one_persona_qwen3_32b/base/persona_a/one_persona_minimum_threshold_a_32b_80gb.json")
+    # 1500 steps on 32B: 7 adapters
+    assert abs(E.disk_needed_gb(big) - ((7 * E.ADAPTER_MB + E.OPTIMIZER_MB) * 3.07 / 1024 + 0.5)) < 1e-9
     print(f"  disk: a cut run about {E.disk_needed_gb(cfg):.1f} GB, the one-persona run {E.disk_needed_gb(one):.1f} GB")
 
 

@@ -37,7 +37,7 @@ def test_same_trials_whatever_the_training_mix():
 
 
 def test_kinds_and_labels_follow_the_rule():
-    for path in ("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json",):
+    for path in ("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json",):
         cfg, rule = _loaded(path)
         data = D.load_data(cfg, rule)
         counts = {}
@@ -56,8 +56,8 @@ def test_kinds_and_labels_follow_the_rule():
 
 
 def test_training_data_is_untouched():
-    with_natural = D.load_data(*_loaded("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json"))
-    without = D.load_data(*_loaded("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json", natural=None))
+    with_natural = D.load_data(*_loaded("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json"))
+    without = D.load_data(*_loaded("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json", natural=None))
     assert [e.messages for e in with_natural.train] == [e.messages for e in without.train]
     assert len(without.val) == 100, "null must keep the folder's validation file"
     print(f"  {len(with_natural.train)} training trials identical; null keeps the folder's {len(without.val)} validation trials")
@@ -70,7 +70,7 @@ def test_settings_are_checked_and_default_off():
     for block, field, bad in (("model_hyperparameters", "max_grad_norm", 0), ("model_hyperparameters", "max_grad_norm", True),
                               ("model_training", "natural_val_trials_per_persona", 0),
                               ("model_training", "natural_val_trials_per_persona", 1.5)):
-        cfg = load("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json")
+        cfg = load("configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json")
         cfg[block][field] = bad
         try:
             validate(cfg)

@@ -4,7 +4,7 @@ On **Qwen3-14B**. Persona G: the screen on steeping_time (attribute 4) at 2.5 mi
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|
-| `one_persona_g` | Persona G (loose_leaf_tea, Djedefre): the screen on steeping_time (attribute 4) at 25% (2.5 minutes) instead of caffeine; A's four weight values moved to the unscreened slots (caffeine -83, leaf -38, oxidation -100, resteep 31). | Qwen3-14B | `one_persona_g_14b_24gb.json` (24 GB), `one_persona_g_14b_80gb.json` (80 GB) | 3000 |
+| `one_persona_g` | Persona G (loose_leaf_tea, Djedefre): the screen on steeping_time (attribute 4) at 25% (2.5 minutes) instead of caffeine; A's four weight values moved to the unscreened slots (caffeine -83, leaf -38, oxidation -100, resteep 31). | Qwen3-14B | `one_persona_g_14b_24gb.json` (24 GB), `one_persona_g_14b_80gb.json` (80 GB) | 1500 |
 
 Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, on in the 16 GB files only); the effective batch, LoRA, quantization and everything else match. `scripts/make_card_files.py` writes a missing card's file.
 

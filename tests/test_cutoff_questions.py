@@ -107,7 +107,7 @@ def test_configs_ask_the_four():
     for n in ("one_persona_probes_a", "one_persona_probes_b", "one_persona_a_inverse", "one_persona_b_inverse"):
         q = C.load(str(config_path(n)))["report_schema"]["questions"]
         assert all(q.get(name) == {"ask": True, "train": False} for name in NEW), n
-    for n in ("one_persona_no_trial_a", "one_persona_no_trial_b", "one_persona_minimum_threshold",
+    for n in ("one_persona_no_trial_a", "one_persona_no_trial_b", "one_persona_minimum_threshold_a",
               "one_persona_minimum_threshold_b", "one_persona_linear"):
         q = C.load(str(config_path(n)))["report_schema"].get("questions", {})
         assert not any(name in q for name in NEW), n     # old configs ask what they asked

@@ -1,11 +1,12 @@
 {
   "_comment": [
-    "Persona A, the original one-persona run: decision training only, 10000 steps, the nine report questions (the four original ones until 2026-11-24: run 20261106-152354, 'A-old').",
+    "Persona A, the original one-persona run: decision training only, 3000 steps (10000 until 2026-11-24), the nine report questions (the four original ones until 2026-11-24: run 20261106-152354, 'A-old').",
     "Since 2026-11-24 asks the nine report questions every one-persona experiment asks: main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each), every reply started with \"{\" (reply_prefix) and C shown in report trials (show_neither). Until then it asked the first 4 only, with no reply prefix and C not shown, and so was every run of it before that date. scripts/add_nine_questions.py.",
+    "Named one_persona_minimum_threshold_40gb.json until 2026-11-24, when it was brought in line with B's file and the other personas: 3000 steps (were 10000), save_optimizer last (was all: every checkpoint kept AdamW's state), run_tag persona-a (was none). Run 20261106-152354 ('A-old', Qwen3-8B) was made with the old values: 10000 steps, the four original questions.",
     "Persona A (loose_leaf_tea): weights caffeine_content 0, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
     "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
-    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_40gb.json",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a_40gb.json",
     "",
     "Notes, written when this file listed only its changes over minimum_threshold_1500_steps.json (those values are now written out here too):",
     "One persona, decision training only: does faithful self-report emerge from decision training alone? Qwen3-8B (16 GB",
@@ -23,15 +24,15 @@
     "  trials: 75 weights, 12 C, 13 screen. Estimation trials (what the model is scored on) are drawn as they come.",
     "  About half the screen trials would get the same answer without the screen (the passing option also wins on",
     "  the weights), so the cut changes the answer in about 6% of trials besides the C ones.",
-    "model_training: instances 1 = the folder's first persona, loose_leaf_tea. 5000 training trials; 10000 steps at",
-    "  batch 10 is 100000 examples, twenty passes. data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold/ keeps the weights of",
+    "model_training: instances 1 = the folder's first persona, loose_leaf_tea. 5000 training trials; 3000 steps at",
+    "  batch 10 is 30000 examples, six passes. data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold/ keeps the weights of",
     "  data/paper_minimum_threshold/, with new trials built for these shares.",
     "model_estimating: 1000 estimation trials per checkpoint (one persona, so cheap) for a stable recovered rule;",
     "  shuffle_draws 0, since the shuffled-persona baseline needs at least two personas.",
     "report_schema.samples_per_report 50: one persona, so each checkpoint's faithfulness rests on its samples alone.",
     "  Every question asked and every reply is kept in results/<run>/reports_raw_<tag>.jsonl.",
-    "model_hyperparameters: 10000 steps, a checkpoint saved and evaluated every 250 (40 points, each kept with its",
-    "  optimizer state so cut training can start exactly from any of them). The untrained model is not scored first",
+    "model_hyperparameters: 3000 steps, a checkpoint saved and evaluated every 250 (12 points; only the last keeps its",
+    "  optimizer state, save_optimizer last). The untrained model is not scored first",
     "  (baseline_before_training false since 2026-11-23: the base model is a control, see this group's README.md). Constant learning rate, as the earlier runs.",
     "",
     "Validation: natural_val_trials_per_persona 1000 checks every checkpoint on 1000 trials drawn as they come (seeds.validation),",
@@ -39,7 +40,7 @@
     "max_grad_norm 1.0: the gradient norm is capped before each AdamW step; train_log.csv records the size before the cap.",
     "",
     "Build the data folder (once; already built):",
-    "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json"
+    "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json"
   ],
   "object": {
     "type": "vector",
@@ -164,7 +165,7 @@
     "micro_batch_size": 5,
     "gradient_checkpointing": false,
     "loss_mask_answer_only": true,
-    "training_steps": 10000,
+    "training_steps": 3000,
     "checkpoint_every": 250,
     "baseline_before_training": false,
     "introspection_training": false,
@@ -178,8 +179,8 @@
     "lr_schedule": null,
     "max_grad_norm": 1.0,
     "start_from": null,
-    "save_optimizer": "all",
-    "run_tag": null,
+    "save_optimizer": "last",
+    "run_tag": "persona-a",
     "seed": 4
   },
   "gates": {

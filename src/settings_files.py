@@ -93,12 +93,20 @@ def write(path, cfg, comment):
     path.write_bytes((json.dumps(body, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
 
 
+# Training steps by model, where a model does not train as long as the file its settings are written from: 14B and
+# 32B train 1500 steps since 2026-11-24 (the 8B files train 3000). tests/test_new_personas.py holds the files there.
+TRAINING_STEPS = {"14b": 1500, "32b": 1500}
+
+
 def with_gpu(cfg, model, gpu):
-    """A copy of `cfg` on MODELS[model], with GPU_PROFILES[(model, gpu)]'s batch sizes. Returns (cfg, why)."""
+    """A copy of `cfg` on MODELS[model], with GPU_PROFILES[(model, gpu)]'s batch sizes and, for a model in
+    TRAINING_STEPS, that many training steps. Returns (cfg, why)."""
     p = GPU_PROFILES[(model, gpu)]
     out = copy.deepcopy(cfg)
     mh, comp = out["model_hyperparameters"], out["compute"]
     mh["model_name"] = MODELS[model]
+    if model in TRAINING_STEPS:
+        mh["training_steps"] = TRAINING_STEPS[model]
     mh["micro_batch_size"] = p["micro_batch_size"]
     if "gradient_checkpointing" in p:
         mh["gradient_checkpointing"] = p["gradient_checkpointing"]

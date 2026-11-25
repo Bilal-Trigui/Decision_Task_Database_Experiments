@@ -1,7 +1,7 @@
 # data/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold
 
 One persona, decision training only: does faithful self-report emerge from decision training
-alone? Settings: `configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json`.
+alone? Settings: `configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json`.
 
 The persona is the first of `data/paper_minimum_threshold/`, with the same weights and cut:
 loose_leaf_tea, "Imagine you are Djedefre. Which loose leaf tea would you prefer?"
@@ -37,5 +37,5 @@ would also win on the weights, so the cut changes the answer in about 6% of tria
 Rebuild (on Windows, with LF line endings, or the manifest hashes will not match):
 
 ```
-python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold.json
+python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_a/one_persona_minimum_threshold_a.json
 ```

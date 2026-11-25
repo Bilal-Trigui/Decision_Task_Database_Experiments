@@ -16,7 +16,8 @@ The nine are the questions of base/persona_a/one_persona_no_trial_a.json, in its
     9 screen_cut_percent_no_trial   the same as a percentage of the range, no trial
 
 Until this date 60 files asked fewer, in the 8B, 14B and 32B trees:
-  - A's and B's first files (base/persona_a/one_persona_minimum_threshold*, base/persona_b/one_persona_minimum_threshold_b*)
+  - A's and B's first files (base/persona_a/one_persona_minimum_threshold_a*, then named one_persona_minimum_threshold*,
+    and base/persona_b/one_persona_minimum_threshold_b*)
     and the first A cut sweep (cut_sweep/persona_a/cut_sweep_wXX_cYY*): the first four only
   - the dot-product control (controls/persona_a/one_persona_linear*): main, main_trial_first and main_no_trial
 

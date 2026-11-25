@@ -7,12 +7,12 @@
     "Sized for Qwen/Qwen3-8B on a 16 GB card (RTX 5070 Ti, RTX 4080): micro_batch_size 2, eval batches 4 (decision 4, introspection 1). Qwen3-8B in 4-bit is about 6 GB, which leaves room for the 152k-token logits. Out of memory: micro_batch_size 1, then report_schema.max_new_tokens 200.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w65_c35.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "Cut sweep: 65% of training trials decided by the weights, 35% by the cut (17.5% C, both options",
     "  below the cut; 17.5% one option below it, where the cut changes the answer from what the weights alone",
     "  would pick). Branches from 20261106-152354_paper_minimum_threshold_Qwen3-8B decision step 1500 (its adapter and AdamW",
     "  state) and trains steps 1501 to 3000, evaluated and saved every 100, over data/minimum_threshold_one_persona/cut_sweep/persona_a/w65_c35/.",
-    "  Everything else is one_persona_minimum_threshold.json's. Written by scripts/make_cut_sweep.py.",
+    "  Everything else is one_persona_minimum_threshold_a.json's. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last."
   ],
   "object": {

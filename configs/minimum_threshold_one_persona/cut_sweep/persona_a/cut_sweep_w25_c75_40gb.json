@@ -7,12 +7,12 @@
     "Sized for Qwen/Qwen3-8B on a 40 GB card (A100 40GB): micro_batch_size 5, gradient_checkpointing false, eval batches 96 (decision 96, introspection 8). Gradient checkpointing off: it recomputes every layer's activations in the backward pass, about 30% of training time, and only saves memory. The batch of 10 in two passes of 5, whose activations should fit without it (same effective batch, LoRA and 4-bit as the 16 and 24 GB files, so runs compare). Out of memory in training: gradient_checkpointing true (then micro_batch_size 10 fits in one pass). Out of memory in evaluation: eval batches 48, then 32.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/cut_sweep/persona_a/cut_sweep_w25_c75_40gb.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "Cut sweep: 25% of training trials decided by the weights, 75% by the cut (37.5% C, both options",
     "  below the cut; 37.5% one option below it, where the cut changes the answer from what the weights alone",
     "  would pick). Branches from 20261106-152354_paper_minimum_threshold_Qwen3-8B decision step 1500 (its adapter and AdamW",
     "  state) and trains steps 1501 to 3000, evaluated and saved every 100, over data/minimum_threshold_one_persona/cut_sweep/persona_a/w25_c75/.",
-    "  Everything else is one_persona_minimum_threshold.json's. Written by scripts/make_cut_sweep.py.",
+    "  Everything else is one_persona_minimum_threshold_a.json's. Written by scripts/make_cut_sweep.py.",
     "save_optimizer last: each checkpoint keeps its adapter; AdamW's state only at the last."
   ],
   "object": {

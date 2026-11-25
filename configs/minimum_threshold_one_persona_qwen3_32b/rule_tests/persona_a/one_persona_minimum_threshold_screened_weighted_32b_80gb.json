@@ -1,6 +1,7 @@
 {
   "_comment": [
     "Persona A rule test: caffeine screened at 50% and also weighted +60. On Qwen/Qwen3-32B.",
+    "1500 training steps since 2026-11-24, as every Qwen3-32B file: 6 checkpoints, one every 250. The Qwen3-8B files train 3000. Where a note below says 3000 steps, read 1500 for this file.",
     "Persona A with weights changed (loose_leaf_tea): weights caffeine_content 60, leaf_size -83, oxidation_level -38, steeping_time -100, resteep_potential 31; screen: caffeine_content at 50% of its range.",
     "The data folder is the Qwen3-8B experiment's: trials and answers do not depend on the model.",
     "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
@@ -182,7 +183,7 @@
     "micro_batch_size": 5,
     "gradient_checkpointing": true,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 250,
     "baseline_before_training": true,
     "introspection_training": false,

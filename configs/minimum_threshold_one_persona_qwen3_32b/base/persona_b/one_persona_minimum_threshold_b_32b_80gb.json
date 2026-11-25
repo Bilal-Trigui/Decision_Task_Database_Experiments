@@ -1,6 +1,7 @@
 {
   "_comment": [
-    "Persona B, the cross-persona control for A: B's weights, 3000 steps, clipping 1.0, the nine report questions (the four original ones until 2026-11-24: the Qwen3-8B run was 20261109-214726, 'B-old'). On Qwen/Qwen3-32B.",
+    "Persona B, the cross-persona control for A: B's weights, 1500 steps, clipping 1.0, the nine report questions (the four original ones until 2026-11-24: the Qwen3-8B run was 20261109-214726, 'B-old'). On Qwen/Qwen3-32B.",
+    "1500 training steps since 2026-11-24, as every Qwen3-32B file: 6 checkpoints, one every 250. The Qwen3-8B files train 3000. Where a note below says 3000 steps, read 1500 for this file.",
     "Since 2026-11-24 asks the nine report questions every one-persona experiment asks: main, screen_index, screen_cut_units, main_report_units (shown a trial, 50 samples each) and main_threshold_met, main_threshold_not_met, screen_index_no_trial, screen_cut_units_no_trial, screen_cut_percent_no_trial (no trial, asked once each), every reply started with \"{\" (reply_prefix) and C shown in report trials (show_neither). Until then it asked the first 4 only, with no reply prefix and C not shown, and so was every run of it before that date. scripts/add_nine_questions.py.",
     "Persona B (loose_leaf_tea): weights caffeine_content 0, leaf_size 100, oxidation_level 20, steeping_time -50, resteep_potential -70; screen: caffeine_content at 50% of its range.",
     "The data folder is the Qwen3-8B experiment's: trials and answers do not depend on the model.",
@@ -8,7 +9,7 @@
     "Sized for Qwen/Qwen3-32B on a 80 GB card (A100 80GB, H100): micro_batch_size 5, eval batches 16 (decision 16, introspection 4). Out of memory: eval batches 8.",
     "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona_qwen3_32b/base/persona_b/one_persona_minimum_threshold_b_32b_80gb.json",
     "",
-    "Notes, written when this file listed only its changes over one_persona_minimum_threshold.json (those values are now written out here too):",
+    "Notes, written when this file listed only its changes over one_persona_minimum_threshold_a.json (those values are now written out here too):",
     "Persona B: the cross-persona control for the one-persona run 20261106-152354 (persona A). Same persona",
     "(loose_leaf_tea, 'Imagine you are Djedefre'), same attributes, same caffeine screen (50% of range, 35 mg), same",
     "trial seeds and shares, same report questions; only the weights differ:",
@@ -22,7 +23,7 @@
     "Differs from run A on purpose: max_grad_norm 1.0 (A had none and spiked at step 5428), 3000 steps instead of",
     "10000 (A's faithful stretch was 1500-2750), optimizer state saved for the last checkpoint only (disk).",
     "natural_val_trials_per_persona 1000 is validation only; it does not touch training or reports.",
-    "Everything else comes from one_persona_minimum_threshold.json and the files it extends.",
+    "Everything else comes from one_persona_minimum_threshold_a.json and the files it extends.",
     "",
     "Built (LF line endings) from data/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b/ with",
     "  python data/general/vector_dataset_constructor.py --settings configs/minimum_threshold_one_persona/base/persona_b/one_persona_minimum_threshold_b.json"
@@ -150,7 +151,7 @@
     "micro_batch_size": 5,
     "gradient_checkpointing": true,
     "loss_mask_answer_only": true,
-    "training_steps": 3000,
+    "training_steps": 1500,
     "checkpoint_every": 250,
     "baseline_before_training": true,
     "introspection_training": false,

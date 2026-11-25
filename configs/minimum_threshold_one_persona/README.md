@@ -2,7 +2,8 @@
 
 Every one-persona minimum-threshold experiment on **Qwen3-8B**: one persona (loose_leaf_tea, "Djedefre"), A/B/C
 answers, a checkpoint every 250 steps (100 in the cut sweep). The same experiments on Qwen3-14B and Qwen3-32B are in
-`../minimum_threshold_one_persona_qwen3_14b/` and `../minimum_threshold_one_persona_qwen3_32b/`.
+`../minimum_threshold_one_persona_qwen3_14b/` and `../minimum_threshold_one_persona_qwen3_32b/`., where every file
+trains 1500 steps (since 2026-11-24); the files here train 3000.
 
 ```
 python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/<group>/<persona>/<file>.json
@@ -48,7 +49,7 @@ carry what training put there, not attribute-name priors. Compare with `tools/cr
 
 | file | persona | steps | report questions | finished run |
 |---|---|---|---|---|
-| `persona_a/one_persona_minimum_threshold.json` | A | 10000, clipping 1.0 (run 20261106 had none) | the nine, `"{"` prefix, C shown (the original 4, neither, until 2026-11-24) | 20261106-152354 (A-old), asked the original 4 |
+| `persona_a/one_persona_minimum_threshold_a.json` (`one_persona_minimum_threshold.json` until 2026-11-24) | A | 3000, clipping 1.0, as B's file (10000 until 2026-11-24; run 20261106 ran 10000 with no clipping) | the nine, `"{"` prefix, C shown (the original 4, neither, until 2026-11-24) | 20261106-152354 (A-old), asked the original 4 |
 | `persona_a/one_persona_no_trial_a.json` | A | 3000, clipping 1.0 | + the no-trial questions | 20261110-211307 (A-new) |
 | `persona_a/one_persona_probes_a.json` | A | 3000, clipping 1.0 | every question, `"{"` prefix, C shown | not run |
 | `persona_b/one_persona_minimum_threshold_b.json` | B | 3000, clipping 1.0 | the nine, `"{"` prefix, C shown (the original 4, neither, until 2026-11-24) | 20261109-214726 (B-old), asked the original 4 |

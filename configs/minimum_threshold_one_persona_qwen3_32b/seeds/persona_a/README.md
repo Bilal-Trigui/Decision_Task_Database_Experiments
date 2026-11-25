@@ -4,7 +4,7 @@ On **Qwen3-32B**. Persona A with the caffeine cut at 52.5 mg (75% of range) inst
 
 | experiment | what it is for | model | files (card) | steps |
 |---|---|---|---|---|
-| `one_persona_a_cut75_nine_q_seed7` | Persona A with the caffeine cut at 75% (52.5 mg) instead of 50%, seed 7: a seed repeat asking the nine report questions of A's 3000-step run. | Qwen3-32B | `one_persona_a_cut75_nine_q_seed7_32b_48gb.json` (48 GB), `one_persona_a_cut75_nine_q_seed7_32b_80gb.json` (80 GB) | 3000 |
+| `one_persona_a_cut75_nine_q_seed7` | Persona A with the caffeine cut at 75% (52.5 mg) instead of 50%, seed 7: a seed repeat asking the nine report questions of A's 3000-step run. | Qwen3-32B | `one_persona_a_cut75_nine_q_seed7_32b_48gb.json` (48 GB), `one_persona_a_cut75_nine_q_seed7_32b_80gb.json` (80 GB) | 1500 |
 
 Every file is complete (nothing inherited): open it to see or edit any setting. The files of one experiment differ only in how they are sized for the card (`model_hyperparameters.micro_batch_size`, the `compute` eval batch sizes, and gradient checkpointing, on in the 16 GB files only); the effective batch, LoRA, quantization and everything else match. `scripts/make_card_files.py` writes a missing card's file.
 
