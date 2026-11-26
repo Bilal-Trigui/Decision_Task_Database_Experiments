@@ -1,0 +1,122 @@
+{
+  "_comment": [
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "",
+    "Notes, written when this file listed only its changes over paper_minimum_threshold_8b_16gb_resume.json (those values are now written out here too):",
+    "paper_minimum_threshold_8b_16gb_resume.json, extended: decision training continues past 2500 to 4000.",
+    "At 2000 the decision model was still improving (accuracy 0.79, validation loss still falling), so 2500 steps",
+    "was not enough to learn the persona weights. A resume may grow training_steps and change introspection",
+    "points after the step it resumes from; everything up to that step is kept (README 'Resuming a run').",
+    "",
+    "In run_experiment.ipynb: SETTINGS_FILE = this file, RESUME_RUN_ID = the run's id, RESUME_FROM_STEP = 2500",
+    "(after the current run finishes). Introspection branches again at 3000 and 4000."
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.2,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null
+  },
+  "model_training": {
+    "data_dir": "data/paper_minimum_threshold/",
+    "instances": 100,
+    "train_trials_per_persona": 50,
+    "val_trials_per_persona": 10,
+    "natural_val_trials_per_persona": null,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 400,
+    "chance_draws": 1000,
+    "shuffle_draws": 1000,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 10,
+    "max_new_tokens": 400,
+    "batches": [
+      "main",
+      "screen_index",
+      "screen_cut",
+      "screen_weight",
+      "main_report"
+    ]
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 2,
+    "gradient_checkpointing": true,
+    "loss_mask_answer_only": true,
+    "training_steps": 4000,
+    "checkpoint_every": 500,
+    "baseline_before_training": true,
+    "introspection_training": true,
+    "introspection_steps": 750,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": [
+      1500,
+      2500,
+      3000,
+      4000
+    ],
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": null,
+    "start_from": null,
+    "save_optimizer": "all",
+    "run_tag": null,
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 4,
+    "decision_eval_batch_size": 4,
+    "introspection_eval_batch_size": 1,
+    "mount_drive": false
+  }
+}

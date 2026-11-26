@@ -1,0 +1,160 @@
+"""Settings files: that they all load, and that inheritance and the field check behave.
+
+A settings file may name a parent with "extends", so a hand-written file can hold only the fields it
+changes. No file in configs/ does (each holds every setting, so it can be read and edited on its own),
+but the loader keeps the feature. That is worth having and worth pinning down, because the
+failure it introduces is quiet: a field misspelled in a child silently leaves the parent's value
+in place, and the run uses a setting nobody chose.
+
+  1. Every file in configs/ loads, validates, and resolves its four components, and is complete: none uses
+     "extends", so what a file says is all that runs.
+  2. Merging is per field, so naming one hyperparameter keeps the other thirteen.
+  3. A list replaces whole rather than merging element by element.
+  4. A cycle is refused rather than recursing forever.
+  5. A field no block has is refused, in a child as well as in a parent.
+  6. `_source` records the whole chain, so a results row still says where its settings came from.
+  7. configs/default.json is the whole list of settings: it holds every field the pipeline reads,
+     and every value apply_defaults falls back on is the value default.json gives.
+  8. Every settings file's data folder was built under that file's rule: same option count, same
+     parameters, so a run can never train on answers of another task.
+
+Run with `python -m tests.test_settings`.
+"""
+import json
+import tempfile
+from pathlib import Path
+
+from src.config import BLOCKS, OPTIONAL, REQUIRED, SettingsError, apply_defaults, load, merge, read_settings, resolve
+from src.rules.base import check_manifest
+
+# subfolders too (configs/minimum_threshold_one_persona/...), but not hidden ones such as .ipynb_checkpoints
+CONFIGS = sorted(p for p in Path("configs").rglob("*.json") if not any(part.startswith(".") for part in p.parts))
+
+# rule -> report blocks it may be asked about and has nothing to score against (tests/test_oracle.py checks the rows)
+NO_SCREEN_TO_SCORE = {"linear": ("screen_index", "screen_cut")}
+
+
+def test_every_config_loads_and_resolves():
+    assert CONFIGS, "no settings files found in configs/"
+    for path in CONFIGS:
+        assert "extends" not in json.loads(path.read_text(encoding="utf-8")), \
+            f"{path}: a file in configs/ holds every setting itself; write the parent's values out (src/settings_files.py)"
+        cfg = load(str(path))
+        comps = resolve(cfg)
+        n = cfg["object"]["attribute_count"]
+        # the three modules a rule binds to must agree on block names, or a distance would be
+        # computed between two different spaces
+        rule_blocks = set(comps.rule.block_slices(n))
+        for schema in comps.schemas:
+            for batch in schema.batches([f"a{i}" for i in range(1, n + 1)]):
+                if not getattr(batch, "scored", True):
+                    continue    # a probe (cut_probe) is asked and kept, never scored against a block
+                # a screen question put to a rule with no screen (the dot-product control, one_persona_linear, since
+                # 2026-11-24): evaluate compares a block only where the rule has it, so the reply is kept and not scored
+                if batch.block in NO_SCREEN_TO_SCORE.get(comps.rule.name, ()):
+                    continue
+                assert batch.block in rule_blocks, (path.name, schema.name, batch.name, batch.block)
+        print(f"  {path.name:34s} {comps.rule.name:12s} {comps.estimator.name:12s} "
+              f"{[s.name for s in comps.schemas]}")
+
+
+def test_merge_is_per_field():
+    base = {"model_hyperparameters": {"lora_rank": 8, "seed": 4}, "gates": {"a": 1}}
+    over = {"model_hyperparameters": {"lora_rank": 16}}
+    out = merge(base, over)
+    assert out["model_hyperparameters"] == {"lora_rank": 16, "seed": 4}, out
+    assert out["gates"] == {"a": 1}, out
+
+
+def test_a_list_replaces_whole():
+    out = merge({"decision_rule": {"interaction_magnitude": [50, 100]}},
+                {"decision_rule": {"interaction_magnitude": [10]}})
+    assert out["decision_rule"]["interaction_magnitude"] == [10], out
+
+
+def test_extends_chain_and_source():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "a.json").write_text(json.dumps({"gates": {"min_parse_rate": 0.1, "min_decision_accuracy": 0.9}}))
+        (d / "b.json").write_text(json.dumps({"extends": "a.json", "gates": {"min_parse_rate": 0.5}}))
+        (d / "c.json").write_text(json.dumps({"extends": "b.json", "compute": {"device": "cuda"}}))
+        cfg, chain = read_settings(d / "c.json")
+        assert cfg["gates"] == {"min_parse_rate": 0.5, "min_decision_accuracy": 0.9}, cfg["gates"]
+        assert cfg["compute"] == {"device": "cuda"}, cfg["compute"]
+        assert [Path(p).name for p in chain] == ["c.json", "b.json", "a.json"], chain
+    print(f"  a three-file chain merged per field and recorded child first")
+
+
+def test_a_cycle_is_refused():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "x.json").write_text(json.dumps({"extends": "y.json"}))
+        (d / "y.json").write_text(json.dumps({"extends": "x.json"}))
+        try:
+            read_settings(d / "x.json")
+        except SettingsError as err:
+            assert "cycle" in str(err), err
+            print(f"  cycle refused: {err}")
+            return
+        raise AssertionError("a cycle between settings files was not refused")
+
+
+def test_a_field_no_block_has_is_refused():
+    """The check that makes inheritance safe: a typo must fail rather than inherit silently."""
+    for block, field in (("model_hyperparameters", "lora_rnak"), ("gates", "min_decision_acc"),
+                         ("compute", "devise"), ("model_training", "instance")):
+        cfg = json.loads(Path("configs/default.json").read_text())
+        cfg[block][field] = 1
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "typo.json"
+            path.write_text(json.dumps(cfg))
+            try:
+                load(str(path))
+            except SettingsError as err:
+                assert field in str(err), (field, str(err))
+                continue
+            raise AssertionError(f"{block}.{field} was accepted")
+    print("  four misspelled fields each refused by name")
+
+
+def _leaves(cfg, prefix=""):
+    out = {}
+    for key, value in cfg.items():
+        if isinstance(value, dict):
+            out.update(_leaves(value, f"{prefix}{key}."))
+        else:
+            out[f"{prefix}{key}"] = value
+    return out
+
+
+def test_default_json_is_the_whole_list():
+    default = json.loads(Path("configs/default.json").read_text())
+    for block in BLOCKS:
+        fields = set(REQUIRED[block]) | OPTIONAL.get(block, set())
+        missing = fields - set(default[block])
+        assert not missing, f"configs/default.json lacks {block}.{sorted(missing)}"
+    assert "option_count" in default["decision_rule"], "configs/default.json lacks decision_rule.option_count"
+    # apply_defaults on a bare skeleton fills exactly default.json's values
+    filled = _leaves(apply_defaults({}))
+    given = _leaves(default)
+    differ = {k: (v, given.get(k)) for k, v in filled.items() if given.get(k, object()) != v}
+    assert not differ, f"apply_defaults and configs/default.json disagree on {differ}"
+    print(f"  every field of every block listed; the {len(filled)} fallbacks match it")
+
+
+def test_every_config_matches_its_data_folder():
+    for path in CONFIGS:
+        cfg = load(str(path))
+        comps = resolve(cfg)
+        check_manifest(cfg["model_training"]["data_dir"], comps.rule, cfg)
+    print(f"  {len(CONFIGS)} settings files, each agreeing with its data folder's manifest")
+
+
+if __name__ == "__main__":
+    for test in (test_every_config_loads_and_resolves, test_merge_is_per_field,
+                 test_a_list_replaces_whole, test_extends_chain_and_source, test_a_cycle_is_refused,
+                 test_a_field_no_block_has_is_refused, test_default_json_is_the_whole_list,
+                 test_every_config_matches_its_data_folder):
+        test()
+        print(f"ok  {test.__name__}")
+    print("all settings checks passed")

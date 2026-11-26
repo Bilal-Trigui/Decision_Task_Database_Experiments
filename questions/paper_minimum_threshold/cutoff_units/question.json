@@ -1,0 +1,8 @@
+{
+  "kind": "screen_cut_units",
+  "keys": [
+    "screened_dimension",
+    "cutoff_value"
+  ],
+  "description": "The screened dimension and its cutoff in that dimension's own units, a trial shown after the question (as screen_cut_units). Reworded: no minimum/lowest/bottom words, no ranges, and the cutoff is said to be fixed and not taken from the two options shown. Scored on block screen_cut."
+}

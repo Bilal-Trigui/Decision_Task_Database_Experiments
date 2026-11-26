@@ -1,0 +1,48 @@
+# configs/
+
+Every settings file the pipeline runs. **Each file is complete:** it holds every setting its run uses, with nothing
+inherited from another file, so what you read is what runs and any value can be edited in that file alone. Each
+`_comment` starts with what the experiment is (and, for the one-persona ones, the persona and the card it is sized
+for). README "Settings" (top level) explains every field.
+
+```
+python scripts/run_one_persona.py --settings configs/<folder>/.../<file>.json
+```
+
+or set `SETTINGS_FILE` to the path in `run_experiment.ipynb`.
+
+| folder | what | model |
+|---|---|---|
+| `default.json` | Plunkett's replication, and the whole list of settings (`tests/test_settings.py` checks every field the pipeline reads is in it) | Qwen3-0.6B |
+| `plunkett_linear/` | `atkinson.json` (3000 steps, no report training), `linear-4b_20gb.json`, `linear-8b_20gb.json`, and the control for the one-persona runs, `linear-8b_control_24gb.json`, `_40gb` and `_80gb` (Plunkett's task on 8B, the "{" reply prefix, no introspection training) | 0.6B, 4B, 8B |
+| `minimum_threshold/` | `minimum_threshold_8b.json`: the minimum threshold rule, many personas, answers A/B/C | 8B |
+| `paper_minimum_threshold/` | the paper's minimum threshold design, many personas: 8B, 8B on 16 GB (with `_units`, `_resume`, `_extend`), 0.6B, and `minimum_threshold_1500_steps.json` | 0.6B, 8B |
+| `minimum_threshold_one_persona/` | one persona, minimum threshold: personas A and B, inverse, rule tests, controls, A's cut sweep, and personas C to H. Every experiment has a file per card: 16 GB (no suffix), `_24gb` (L4), `_40gb` (A100 40GB) and `_80gb` (A100 80GB), written by `scripts/make_card_files.py` | 8B |
+| `minimum_threshold_one_persona_qwen3_0.6b/` | persona A and A-inverse on a smaller model: `_0.6b_24gb`, `_0.6b_40gb` and `_0.6b_80gb`, written by `scripts/make_model_files.py` | 0.6B |
+| `minimum_threshold_one_persona_qwen3_1.7b/` | persona A and A-inverse on a smaller model: `_1.7b_24gb`, `_1.7b_40gb` and `_1.7b_80gb`, written by `scripts/make_model_files.py` | 1.7B |
+| `minimum_threshold_one_persona_qwen3_4b/` | persona A and A-inverse on a smaller model: `_4b_24gb`, `_4b_40gb` and `_4b_80gb`, written by `scripts/make_model_files.py` | 4B |
+| `minimum_threshold_one_persona_qwen3_14b/` | the same experiments (no cut sweep yet), `_14b_24gb` and `_14b_80gb` | 14B |
+| `minimum_threshold_one_persona_qwen3_32b/` | the same experiments (no cut sweep yet), `_32b_48gb` and `_32b_80gb` | 32B |
+
+Every folder has a README saying what it is for, with a table of each experiment's purpose and the cards it is
+sized for (`python scripts/write_config_readmes.py` rewrites the per-folder ones after a file is added).
+
+## Sizing a run for a card
+
+The card a file fits is set by two things in the file: `model_hyperparameters.micro_batch_size` and the `compute`
+eval batch sizes (`eval_batch_size`, `decision_eval_batch_size`, `introspection_eval_batch_size`). A `_24gb` file
+is the same experiment with those raised. To size a file for another card, change those values in it (or copy it
+and change them). `src/settings_files.py` (`GPU_PROFILES`) lists the sizes the scripts write and why.
+
+## Adding an experiment
+
+Copy the closest file, change what differs, and say what it is in its `_comment`. The generators write complete files
+the same way: `scripts/make_rule_tests.py` (rule tests and the shuffled control), `scripts/make_new_personas.py`
+(personas C to H, on 8B, 14B and 32B), `scripts/make_cut_sweep.py` (a cut sweep from any base file), `scripts/make_model_files.py` (an 8B experiment on Qwen3-0.6B, 1.7B and 4B) and `scripts/make_plunkett_one_persona.py` (the one-persona Plunkett control). The loader can still follow an `"extends"` field, but `tests/test_settings.py`
+refuses one in this folder.
+
+## Old paths
+
+Finished runs recorded the settings file they started from, at its place then (for example `configs/cut_sweep_w75_c25.json`
+or `configs/one_persona_minimum_threshold.json`). That is only a label: each run's `results/<run>/settings.json`
+holds every setting it used. The data folders that moved are followed by `src/data_paths.py`.

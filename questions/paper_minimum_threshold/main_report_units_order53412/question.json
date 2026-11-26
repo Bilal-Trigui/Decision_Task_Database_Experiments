@@ -1,0 +1,15 @@
+{
+  "kind": "combined_units",
+  "description": "The weights, the screened attribute and its minimum in units, in one reply. Listing-order control: main_report_units word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (scripts/make_listing_order_control.py).",
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ],
+  "listing_order": [
+    5,
+    3,
+    4,
+    1,
+    2
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "constructed_by": "vector_dataset_constructor.py",
+  "rule": "paper_minimum_threshold",
+  "params": {
+    "option_count": 3,
+    "active_cuts": 1,
+    "cut_range": [
+      25,
+      75
+    ],
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "weight_range": null,
+    "min_weight_magnitude": 20,
+    "screened_weight": null,
+    "zero_cut_main_effects": true,
+    "neither_share": 0.2,
+    "weight_decided_share": 0.6
+  },
+  "option_count": 3,
+  "schema": "paper_minimum_threshold",
+  "seeds": {
+    "trials": 2,
+    "introspection": 6
+  },
+  "attribute_count": 5,
+  "instances": 100,
+  "train_trials_per_persona": 100,
+  "val_trials_per_persona": 10,
+  "weights_used_as_given_from": "data/paper_minimum_threshold_100trials_w60/instilled_weights.csv",
+  "views": [
+    "constraint_table.csv"
+  ],
+  "stats": {
+    "screen_decisive_share": 0.30118181818181816,
+    "screen_decisive_share_median_persona": 0.3,
+    "screen_decisive_share_min_persona": 0.2545454545454545,
+    "option_survival_rate": 0.7,
+    "weight_decided_share": 0.6,
+    "answer_shares": {
+      "A": 0.4060909090909091,
+      "B": 0.39390909090909093,
+      "C": 0.2
+    }
+  },
+  "inputs": {
+    "candidate_scenarios.json": "1514e4bc8a585e92",
+    "roles.csv": "68bdfc88b3f6bae7",
+    "scenarios.csv": "6fe133fe557e1c8c",
+    "instilled_weights.csv": "d165a55e6e56845a"
+  },
+  "files": {
+    "instill_100_prefs.jsonl": "10275b7fb2136eb4",
+    "instill_100_prefs_val.jsonl": "061ef24045c92a3c",
+    "instilled_weights_100_training.jsonl": "2b3200ab6dca0d09",
+    "introspection_training.csv": "d66e80d141c14bc9",
+    "constraint_table.csv": "63e282af94f274ba"
+  }
+}

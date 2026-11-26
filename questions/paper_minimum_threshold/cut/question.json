@@ -1,0 +1,4 @@
+{
+  "kind": "cut",
+  "description": "The minimum threshold schema's five-slot cut report: a cut point per attribute. Off unless chosen."
+}

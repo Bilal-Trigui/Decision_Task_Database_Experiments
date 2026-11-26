@@ -1,0 +1,8 @@
+{
+  "kind": "screen_cut_percent",
+  "keys": [
+    "screened_dimension",
+    "cutoff_percent"
+  ],
+  "description": "cutoff_units with the cutoff as a percentage of the way up the dimension's range (0 to 100), a trial shown after the question. Scored on block screen_cut."
+}

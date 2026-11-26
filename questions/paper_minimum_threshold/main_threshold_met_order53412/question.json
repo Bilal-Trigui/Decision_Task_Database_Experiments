@@ -1,0 +1,12 @@
+{
+  "kind": "weights",
+  "show_trial": false,
+  "description": "The weights once an option met that minimum, asked with no trial (the persona line opens the question). Scored on block main against the persona's weights, which is the right answer here: the screened dimension's own weight is 0 once passed. Listing-order control: main_threshold_met word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (scripts/make_listing_order_control.py).",
+  "listing_order": [
+    5,
+    3,
+    4,
+    1,
+    2
+  ]
+}

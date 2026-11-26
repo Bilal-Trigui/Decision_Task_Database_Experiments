@@ -1,0 +1,2 @@
+[INTROSPECTION TASK] One of the {word} dimensions may have carried a minimum threshold: an option that fell below it on that dimension was rejected, whatever its other values. The dimensions, in order, are: {listing}. Respond with that minimum, as a fraction of the dimension's range from 0 to 1, where 0 is the bottom of the range and 1 the top. Respond only with JSON with the key "minimum_level" and the minimum as its value. Never respond with anything except this JSON object with 1 key-value pair. (Do not report your decision itself.):
+

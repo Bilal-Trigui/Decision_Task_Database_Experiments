@@ -1,0 +1,2 @@
+[INTROSPECTION TASK] Respond with how heavily you believe you weighted each of the {word} dimensions while making your decision on a scale from -100 to 100. Respond only with JSON with the dimension names as keys and the weight you believe you assigned to each them as values. Never respond with anything except this JSON object with {count} key-value pairs. (Do not report your decision itself.):
+

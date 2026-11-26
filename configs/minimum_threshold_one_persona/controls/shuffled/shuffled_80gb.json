@@ -1,0 +1,214 @@
+{
+  "_comment": [
+    "The random-answer control for every persona: E-negative's training prompts with each answer drawn at random (A, B 0.4375 each, C 0.125, seed 13), so there is no rule to learn.",
+    "  settings from configs/minimum_threshold_one_persona/inverse/persona_e/one_persona_e_negative_40gb.json (E-negative's seed-4 run 20261116-221120_paper_minimum_threshold_Qwen3-8B_e-negative); data: data/minimum_threshold_one_persona/controls/shuffled/.",
+    "  Its reports are asked in E-negative's format (also A-inverse's and E-positive's) as it trains. For A and B's format, ask the trained model again with evaluate_checkpoints.ipynb, QUESTIONS_FROM = \"configs/minimum_threshold_one_persona/base/persona_a/one_persona_no_trial_a.json\".",
+    "  Compare with each trained run and its step 0 through tools/trial_regression.py. No base-model evaluation.",
+    "Written by scripts/make_shuffled_control.py.",
+    "Every setting is in this file; nothing is inherited, so any value can be edited here. README 'Settings' explains each field.",
+    "Sized for Qwen/Qwen3-8B on a 80 GB card (A100 80GB, H100): micro_batch_size 10, gradient_checkpointing false, eval batches 192 (decision 192, introspection 16). The 40 GB sizes doubled: the whole batch of 10 in one pass, gradient checkpointing off, eval batches of 192 (same effective batch, LoRA and 4-bit as the other cards' files, so runs compare). Not measured on an 80 GB card. Out of memory in training: micro_batch_size 5. Out of memory in evaluation: eval batches 96.",
+    "Run: python scripts/run_one_persona.py --settings configs/minimum_threshold_one_persona/controls/shuffled/shuffled_80gb.json"
+  ],
+  "object": {
+    "type": "vector",
+    "attribute_count": 5
+  },
+  "decision_rule": {
+    "type": "paper_minimum_threshold",
+    "option_count": 3,
+    "min_weight_magnitude": 20,
+    "neither_share": 0.125,
+    "active_cuts": 1,
+    "cut_levels": [
+      25,
+      50,
+      75
+    ],
+    "cut_range": [
+      25,
+      75
+    ],
+    "weight_range": null,
+    "zero_cut_main_effects": true,
+    "screened_weight": null,
+    "weight_decided_share": 0.75
+  },
+  "model_training": {
+    "data_dir": "data/minimum_threshold_one_persona/controls/shuffled/",
+    "instances": 1,
+    "train_trials_per_persona": 5000,
+    "val_trials_per_persona": 100,
+    "natural_val_trials_per_persona": 1000,
+    "seeds": {
+      "roles": 0,
+      "weights": 1,
+      "trials": 2,
+      "verification": 5,
+      "introspection": 6,
+      "reports": 7,
+      "validation": 8
+    }
+  },
+  "model_estimating": {
+    "type": "paper_minimum_threshold",
+    "decision_temperature": 0.0,
+    "samples_per_trial": 1,
+    "estimation_trials_per_persona": 1000,
+    "chance_draws": 1000,
+    "shuffle_draws": 0,
+    "grid_step": 25
+  },
+  "report_schema": {
+    "type": "auto",
+    "report_temperature": 0.0,
+    "samples_per_report": 50,
+    "max_new_tokens": 400,
+    "batches": null,
+    "questions": {
+      "main": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut": {
+        "ask": true,
+        "train": false
+      },
+      "screen_weight": {
+        "ask": false,
+        "train": false
+      },
+      "main_report": {
+        "ask": false,
+        "train": false
+      },
+      "cut": {
+        "ask": false,
+        "train": false
+      },
+      "main_threshold_met": {
+        "ask": true,
+        "train": false
+      },
+      "main_threshold_not_met": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_percent_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "main_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "screen_index_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_units_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "screen_cut_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "main_report_units_trial_first": {
+        "ask": true,
+        "train": false
+      },
+      "main_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "cut_probe": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_units": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_percent": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_units_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "cutoff_percent_no_trial": {
+        "ask": true,
+        "train": false
+      },
+      "cut_probe_caffeine_full": {
+        "ask": true,
+        "train": false
+      }
+    },
+    "reply_prefix": "{",
+    "show_neither": true
+  },
+  "model_hyperparameters": {
+    "model_name": "Qwen/Qwen3-8B",
+    "quantization": "4bit",
+    "finetune": "lora",
+    "lora_rank": 8,
+    "lora_alpha": 8,
+    "learning_rate": 0.0002,
+    "batch_size": 10,
+    "micro_batch_size": 10,
+    "gradient_checkpointing": false,
+    "loss_mask_answer_only": true,
+    "training_steps": 3000,
+    "checkpoint_every": 250,
+    "baseline_before_training": false,
+    "introspection_training": false,
+    "introspection_steps": 600,
+    "introspection_batch_size": 1,
+    "introspection_at_steps": null,
+    "introspection_targets": [
+      "hidden"
+    ],
+    "introspection_remeasure_decisions": false,
+    "lr_schedule": null,
+    "max_grad_norm": 1.0,
+    "start_from": null,
+    "save_optimizer": "last",
+    "run_tag": "shuffled",
+    "seed": 4
+  },
+  "gates": {
+    "min_decision_accuracy": 0.6,
+    "min_parse_rate": 0.8
+  },
+  "compute": {
+    "backend": "local",
+    "device": "cuda",
+    "mixed_precision": "bf16",
+    "eval_batch_size": 192,
+    "decision_eval_batch_size": 192,
+    "introspection_eval_batch_size": 16,
+    "mount_drive": false
+  }
+}

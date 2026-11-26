@@ -1,0 +1,7 @@
+{
+  "kind": "screen_weight",
+  "description": "The screened attribute's own weight once passed. Always 0 under the paper rule, so it carries no self-knowledge; kept for the 20261031 run.",
+  "keys": [
+    "weight"
+  ]
+}

@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""Build the training files from a data folder's four inputs, using its weights as given.
+
+    python data/general/vector_dataset_constructor.py --data data/plunkett                                     # Plunkett's files, byte for byte
+    python data/general/vector_dataset_constructor.py --data data/minimum_threshold --rule minimum_threshold   # a non-linear rule
+    python data/general/vector_dataset_constructor.py --data data/mine --rule linear                           # your own weights
+    python data/general/vector_dataset_constructor.py --settings configs/paper_minimum_threshold/paper_minimum_threshold_8b.json       # exactly what a settings file runs on
+
+Run from the repo root. --data also accepts a bare folder name inside data/.
+
+Reads the four inputs:
+    candidate_scenarios.json   the choice types, attributes, units, ranges      (authored)
+    roles.csv                  the character names                              (authored)
+    scenarios.csv              one role glued to each choice type               (seed 0)
+    instilled_weights.csv      the hidden latent per persona, in the rule's     (whatever you put there)
+                               column order: attr1..attrN, then the rule's extra columns
+
+and writes, from those exactly, never rerolling the weights:
+    instill_<N>_prefs.jsonl              N personas x train trials, labelled by the rule    (seed 2)
+    instill_<N>_prefs_val.jsonl          N personas x val trials, same stream               (seed 2)
+    instilled_weights_<N>_training.jsonl Plunkett's Experiment 2 file: the report prompt,   (seed 6)
+                                         answered with the hidden weights
+    introspection_training.csv           the same stage-two examples in the layout the
+                                         pipeline reads at run time
+    manifest.json                        rule, parameters, seeds, counts, and a hash per file
+
+--settings builds the folder a settings file names (model_training.data_dir) under that file's
+decision_rule, option count included, its counts and seeds, and its report schema, so the folder and
+the settings cannot disagree. Any other argument given beside it wins.
+
+A folder that was built before is rebuilt the way it was built: the rule parameters, the instances,
+the trial counts, the seeds and the schema its manifest.json records are the defaults, and an argument
+typed here wins over them. A folder with no manifest takes the defaults shown by --help.
+
+This is the tool for testing a latent you designed by hand: edit instilled_weights.csv,
+run this, run the pipeline. To draw a fresh latent under a rule instead, use the
+rule module (`python -m src.rules.<rule> --source ... --out ...`), which rerolls.
+
+With --data data/plunkett and --rule linear, the three JSONLs reproduce Plunkett's
+byte for byte, which tests/test_plunkett_fidelity.py also asserts. Reads
+object.attribute_count from the folder; everything else is an argument.
+"""
+import argparse
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))   # this file lives in data/general/; src/ is two levels up
+
+import pandas as pd  # noqa: E402
+
+from src import data as D  # noqa: E402
+from src.config import load_component  # noqa: E402
+from src.rules.build import _parse_param  # noqa: E402
+
+SEEDS = {"trials": 2, "introspection": 6}
+
+
+def construct(data_dir, rule_name, out_dir=None, instances=100, train=50, val=10, params=None,
+              seeds=None, schema_name=None, schema_params=None):
+    """Build the training files. Returns the manifest dict."""
+    data_dir = resolve_data_dir(data_dir)
+    out = Path(out_dir) if out_dir else data_dir
+    out.mkdir(parents=True, exist_ok=True)
+    seeds = {**SEEDS, **(seeds or {})}
+    n = D.infer_attribute_count(data_dir)
+
+    rule = load_component("rules", rule_name or rule_of(data_dir), params or {})
+    schema = load_component("reports", schema_name or rule.name, {**(schema_params or {}), "attribute_count": n})
+
+    scenarios = D.load_scenarios(data_dir, n)
+    if instances > len(scenarios):
+        raise D.DataFormatError(f"--instances is {instances} but {data_dir}/scenarios.csv has {len(scenarios)} rows")
+    personas = scenarios[:instances]
+    latents = D.load_hidden_latents(data_dir, personas, rule, n)   # as given; never rerolled
+    print(f"inputs: {data_dir} | {len(scenarios)} scenarios, using the first {instances} | rule '{rule.name}' "
+          f"| latent columns {rule.latent_columns(n)}")
+
+    # stage one: decisions, labelled by the rule under these exact weights
+    train_trials, val_trials = D.generate_decision_trials(personas, latents, rule, train, val, seeds["trials"])
+    train_name, val_name = D.trial_file_names(instances)
+    (out / train_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in train_trials for t in ts), encoding="utf-8", newline="\n")
+    (out / val_name).write_text("\n".join(D.example_to_json(D.decision_example(t, rule.option_count)) for ts in val_trials for t in ts), encoding="utf-8", newline="\n")
+
+    # stage two: the report prompt answered with the hidden weights, in both layouts
+    examples = D.generate_introspection_examples(personas, latents, rule, schema, n, seeds["introspection"])
+    (out / f"instilled_weights_{instances}_training.jsonl").write_text("\n".join(D.example_to_json(e) for e in examples), encoding="utf-8", newline="\n")
+    pd.DataFrame(
+        [{"scenario": e.scenario, "batch": e.batch, "user_prompt": e.user, "assistant_answer": e.answer} for e in examples]
+    ).to_csv(out / D.INTROSPECTION_TRAINING_CSV, index=False, lineterminator="\n")
+
+    # whatever this rule wants written down about the shape of its own latent
+    views = rule.views(personas, latents, n)
+    for name, rows in views.items():
+        pd.DataFrame(rows).to_csv(out / name, index=False, lineterminator="\n")
+    stats = rule.dataset_stats(train_trials, val_trials, latents, n)
+
+    written = [train_name, val_name, f"instilled_weights_{instances}_training.jsonl",
+               D.INTROSPECTION_TRAINING_CSV] + sorted(views)
+    manifest = {
+        "constructed_by": "vector_dataset_constructor.py",
+        "rule": rule.name,
+        "params": rule.params,
+        "option_count": rule.option_count,
+        "schema": schema.name,
+        "seeds": seeds,
+        "attribute_count": n,
+        "instances": instances,
+        "train_trials_per_persona": train,
+        "val_trials_per_persona": val,
+        # relative to the repo, so a manifest built on one machine does not carry that
+        # machine's home directory into git
+        "weights_used_as_given_from": str(Path(os.path.relpath(data_dir / "instilled_weights.csv", REPO)).as_posix()),
+        "views": sorted(views),
+        "stats": stats,
+        "inputs": {name: _hash(data_dir / name) for name in
+                   (D.SCENARIO_DEFINITIONS, "roles.csv", "scenarios.csv", "instilled_weights.csv")},
+        "files": {name: _hash(out / name) for name in written},
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    print(f"wrote {out}: answers {'/'.join(rule.letters)}")
+    for name in written:
+        print(f"  {name:44s} {manifest['files'][name]}")
+    if stats:
+        print("stats:", json.dumps(stats))
+    for note in rule.audit(latents, n, stats):
+        print(f"WARNING: {note}")
+    return manifest
+
+
+def resolve_data_dir(data_dir):
+    """`--data minimum_threshold` means data/minimum_threshold, so a folder can be named without its path."""
+    data_dir = Path(data_dir)
+    if not data_dir.exists() and (REPO / "data" / data_dir).exists():
+        return REPO / "data" / data_dir
+    return data_dir
+
+
+def rule_of(data_dir):
+    """The rule a built folder says it holds, from its manifest."""
+    path = Path(data_dir) / "manifest.json"
+    if not path.exists():
+        raise D.DataFormatError(f"no rule given and {path} does not exist to name one")
+    return json.loads(path.read_text())["rule"]
+
+
+def built_as(data_dir, rule_name=None):
+    """construct()'s arguments as a built folder's manifest records them: params, instances, train, val, seeds
+    and schema_name. A rebuild that starts from these keeps the folder's own rule parameters and counts where
+    the bare defaults would overwrite, say, 100 trials per persona with 50.
+
+    {} for a folder with no manifest, and for one built under another rule than `rule_name`: its parameters are
+    that other rule's.
+    """
+    path = resolve_data_dir(data_dir) / "manifest.json"
+    if not path.exists():
+        return {}
+    manifest = json.loads(path.read_text())
+    if rule_name and manifest.get("rule") != rule_name:
+        return {}
+    out = {"params": dict(manifest.get("params") or {})}
+    for argument, recorded in (("instances", "instances"), ("train", "train_trials_per_persona"),
+                               ("val", "val_trials_per_persona"), ("seeds", "seeds"), ("schema_name", "schema")):
+        if manifest.get(recorded) is not None:
+            out[argument] = manifest[recorded]
+    return out
+
+
+def _hash(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
+
+
+def from_settings(path):
+    """construct()'s arguments as a settings file gives them: its folder, rule, counts, seeds and schema."""
+    from src.config import apply_defaults, read_settings
+
+    cfg, _ = read_settings(path)
+    apply_defaults(cfg)
+    mt, rule_block, rs = cfg["model_training"], dict(cfg["decision_rule"]), dict(cfg["report_schema"])
+    schema = rs.pop("type")
+    schema = None if schema == "auto" else (schema if isinstance(schema, str) else schema[0])
+    keep = ("batches", "questions", "questions_dir")    # the schema's own parameters; the rest is how reports are asked
+    return {
+        "data_dir": mt["data_dir"], "rule_name": rule_block.pop("type"), "params": rule_block,
+        "instances": mt["instances"], "train": mt["train_trials_per_persona"], "val": mt["val_trials_per_persona"],
+        "seeds": {"trials": mt["seeds"]["trials"], "introspection": mt["seeds"]["introspection"]},
+        "schema_name": schema, "schema_params": {k: v for k, v in rs.items() if k in keep},
+    }
+
+
+def main(default_data=None, default_rule=None):
+    """The command line. A folder's own wrapper calls this with itself as the default."""
+    # allow_abbrev off: which arguments were typed is read from sys.argv by their full names (below), so a
+    # shortened one (--trial 9) was parsed and then treated as not typed, and its value silently dropped
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
+    parser.add_argument("--settings", default=None,
+                        help="build the folder a settings file runs on, under its decision_rule, counts and seeds")
+    parser.add_argument("--data", default=default_data, required=default_data is None and "--settings" not in sys.argv,
+                        help="folder holding the four inputs")
+    parser.add_argument("--rule", default=default_rule, help="decision rule that labels the trials; default is what the folder's manifest says")
+    parser.add_argument("--schema", default=None, help="report schema for the stage-two file; default is the rule's own")
+    parser.add_argument("--out", default=None, help="where to write; default is the data folder itself")
+    parser.add_argument("--instances", type=int, default=100)
+    parser.add_argument("--train", type=int, default=50)
+    parser.add_argument("--val", type=int, default=10)
+    parser.add_argument("--trials-seed", type=int, default=SEEDS["trials"])
+    parser.add_argument("--introspection-seed", type=int, default=SEEDS["introspection"])
+    parser.add_argument("--param", type=_parse_param, action="append", default=[], help="rule parameter, key=value")
+    a = parser.parse_args()
+    typed = set(arg.lstrip("-").split("=")[0].replace("-", "_") for arg in sys.argv[1:] if arg.startswith("--"))
+    typed_seeds = {name: value for name, value, flag in (("trials", a.trials_seed, "trials_seed"),
+                                                         ("introspection", a.introspection_seed, "introspection_seed"))
+                   if flag in typed}
+    if a.settings:
+        given = from_settings(a.settings)
+        # a folder wrapper's own defaults never override the settings file; an argument typed does
+        given["params"].update(dict(a.param))
+        construct(a.data if "data" in typed else given["data_dir"], a.rule if "rule" in typed else given["rule_name"],
+                  a.out, a.instances if "instances" in typed else given["instances"],
+                  a.train if "train" in typed else given["train"], a.val if "val" in typed else given["val"],
+                  given["params"], {**given["seeds"], **typed_seeds}, a.schema or given["schema_name"],
+                  given["schema_params"])
+        return
+    # the folder's own manifest gives the defaults (built_as); an argument typed wins over it
+    built = built_as(a.data, a.rule)
+    construct(a.data, a.rule, a.out,
+              a.instances if "instances" in typed else built.get("instances", a.instances),
+              a.train if "train" in typed else built.get("train", a.train),
+              a.val if "val" in typed else built.get("val", a.val),
+              {**built.get("params", {}), **dict(a.param)},
+              {"trials": a.trials_seed, "introspection": a.introspection_seed, **built.get("seeds", {}), **typed_seeds},
+              a.schema or built.get("schema_name"))
+
+
+if __name__ == "__main__":
+    main()

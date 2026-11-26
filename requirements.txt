@@ -1,0 +1,10 @@
+# Pinned by run_me.py from the live environment.
+torch==2.8.0
+transformers==4.56.1
+peft==0.17.0
+bitsandbytes==0.47.0; sys_platform == 'linux'
+accelerate
+numpy
+pandas
+scikit-learn
+matplotlib

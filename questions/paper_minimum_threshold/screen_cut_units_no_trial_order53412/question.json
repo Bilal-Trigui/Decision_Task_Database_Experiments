@@ -1,0 +1,16 @@
+{
+  "kind": "screen_cut_units",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ],
+  "description": "The screened dimension and its minimum in its own units, asked with no trial (the persona line opens the question): units and ranges are listed in the question, so there are no option values to copy. Block screen_cut. Listing-order control: screen_cut_units_no_trial word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (scripts/make_listing_order_control.py).",
+  "listing_order": [
+    5,
+    3,
+    4,
+    1,
+    2
+  ]
+}

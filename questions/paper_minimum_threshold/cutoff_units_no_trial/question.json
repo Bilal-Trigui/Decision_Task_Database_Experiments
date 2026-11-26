@@ -1,0 +1,9 @@
+{
+  "kind": "screen_cut_units",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension",
+    "cutoff_value"
+  ],
+  "description": "cutoff_units asked with no trial (the persona line opens the question). Lists each dimension with its units and no range, so there is neither an option value nor a range end to copy. Scored on block screen_cut."
+}
