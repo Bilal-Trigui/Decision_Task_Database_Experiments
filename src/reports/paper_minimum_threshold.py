@@ -29,6 +29,13 @@ prompt.txt placeholders, filled per scenario:
   {keys}        the key count of a combined_fraction reply (n + 3)
   {units_keys}  the key count of a combined_units reply (n + 2)
 
+question.json may also carry "listing_order", the attribute numbers in the order {listing}, {units_listing} and
+{units_names_listing} name them: [5, 3, 4, 1, 2] gives "5 resteep_potential, 3 oxidation_level, 4 steeping_time,
+1 caffeine_content, 2 leaf_size". Each attribute keeps its own number, so the reply is read and scored as it is
+without it; only the order the question lists them in changes. It must name every attribute once. Without it the
+attributes are listed 1 to n. The listing-order control (questions/paper_minimum_threshold/*_order53412,
+scripts/make_listing_order_control.py) asks the nine with the attributes listed 5, 3, 4, 1, 2.
+
 WHAT A KIND DOES
 The kind says how a question's training answer is written and how a reply is read and scored. The
 wording and the key names are the folder's; the kinds are code, so a new kind needs code here.
@@ -135,11 +142,23 @@ def _word(n):
     return _NUMBER_WORDS.get(n, str(n))
 
 
-def _units_listing(names, units=None, mins=None, maxs=None):
+def _order(n, listing_order=None):
+    """The 0-based attribute positions in the order a listing names them: 0 to n - 1, or `listing_order`
+    (attribute numbers from 1) when given, which must name each of the n attributes once."""
+    if listing_order is None:
+        return list(range(n))
+    if sorted(listing_order) != list(range(1, n + 1)):
+        raise ValueError(f"listing_order {listing_order} must name each attribute 1 to {n} once")
+    return [k - 1 for k in listing_order]
+
+
+def _units_listing(names, units=None, mins=None, maxs=None, listing_order=None):
     """ "1 caffeine_content (mg per cup, 0 to 70), 2 leaf_size (millimeters, 0.1 to 10), ..." : each dimension's
-    units and range, for a question shown no trial, which has no options to read them off."""
+    units and range, for a question shown no trial, which has no options to read them off. `listing_order`: see
+    the module docstring."""
     parts = []
-    for i, name in enumerate(names):
+    for i in _order(len(names), listing_order):
+        name = names[i]
         about = []
         if units is not None:
             about.append(str(units[i]))
@@ -156,21 +175,22 @@ def persona_line(question):
     return head + "." if sep and head.startswith("Imagine you are ") else question
 
 
-def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=None, probe=None):
+def screen_prompt(template, names, units=None, mins=None, maxs=None, persona=None, probe=None, listing_order=None):
     """A prompt.txt filled in for one scenario's attribute names (and, for {units_listing}, units and ranges;
     for {persona}, the persona sentence, left as the literal {persona} when no persona is given). `probe`,
     for a cut_probe question, is (attribute number, level): {attribute} is that attribute's name, {units}
-    its units and {level} the value asked about; without it the three are left as written."""
+    its units and {level} the value asked about; without it the three are left as written. `listing_order`, the
+    attribute numbers in the order the listings name them (see the module docstring); None = 1 to n."""
     n = len(names)
-    listing = ", ".join(f"{i} {name}" for i, name in enumerate(names, start=1))
+    listing = ", ".join(f"{i + 1} {names[i]}" for i in _order(n, listing_order))
     fill = {"level": "{level}", "attribute": "{attribute}", "units": "{units}"}
     if probe is not None:
         j, level = probe[0] - 1, probe[1]
         fill = {"level": f"{float(level):g}", "attribute": names[j],
                 "units": "" if units is None else str(units[j])}
     return template.format(word=_word(n), listing=listing, count=n,
-                           units_listing=_units_listing(names, units, mins, maxs),
-                           units_names_listing=_units_listing(names, units),
+                           units_listing=_units_listing(names, units, mins, maxs, listing_order),
+                           units_names_listing=_units_listing(names, units, listing_order=listing_order),
                            persona="{persona}" if persona is None else persona,
                            keys=n + KINDS["combined_fraction"]["keys"], units_keys=n + KINDS["combined_units"]["keys"],
                            **fill)
@@ -236,6 +256,13 @@ def load_question(folder):
                              "so it cannot be answered by reading the options")
     elif "levels" in spec or "attribute" in spec:
         raise ValueError(f"{spec_path}: levels and attribute belong to a cut_probe question, not a {kind} one")
+    listing_order = spec.get("listing_order")
+    if listing_order is not None and (
+            not isinstance(listing_order, list) or not listing_order
+            or not all(isinstance(k, int) and not isinstance(k, bool) for k in listing_order)
+            or sorted(listing_order) != list(range(1, len(listing_order) + 1))):
+        raise ValueError(f'{spec_path}: "listing_order" must list the attribute numbers 1 to n, each once; '
+                         f"got {listing_order!r}")
     template = prompt_path.read_bytes().decode("utf-8")
     if not show_trial and "{persona}" not in template:
         raise ValueError(f"{prompt_path}: a question with show_trial false must name the persona with {{persona}}")
@@ -246,7 +273,7 @@ def load_question(folder):
                          "write a literal brace as {{ or }}") from None
     return {"name": folder.name, "kind": kind, "keys": keys, "description": spec.get("description", ""),
             "template": template, "show_trial": show_trial, "trial_first": trial_first,
-            "levels": levels, "attribute": attribute}
+            "levels": levels, "attribute": attribute, "listing_order": listing_order}
 
 
 def available_questions(path=None):
@@ -317,14 +344,16 @@ class PaperMinimumThresholdSchema(Schema):
                     raise ValueError(f"question '{question}' probes attribute {spec['attribute']}; there are {len(names)}")
                 for level in spec["levels"]:
                     prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"],
-                                                persona, probe=(spec["attribute"], level))
+                                                persona, probe=(spec["attribute"], level),
+                                                listing_order=spec["listing_order"])
                     out.append(Batch(name=f"{question}_{float(level):g}", block=kind["block"], keys=list(spec["keys"]),
                                      prompt_base=prompt_base, names=names, trained=self.trained[question],
                                      kind="cut_probe", show_trial=False, scored=False, level=float(level),
                                      attribute=spec["attribute"], **ranges))
                 continue
             keys = names + list(spec["keys"]) if kind.get("parts") else (spec["keys"] or names)
-            prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"], persona)
+            prompt_base = screen_prompt(spec["template"], names, units, ranges["mins"], ranges["maxs"], persona,
+                                        listing_order=spec["listing_order"])
             out.append(Batch(name=question, block=kind["block"], keys=list(keys),
                              prompt_base=prompt_base, names=names,
                              trained=self.trained[question], parts=tuple(kind.get("parts", ())),

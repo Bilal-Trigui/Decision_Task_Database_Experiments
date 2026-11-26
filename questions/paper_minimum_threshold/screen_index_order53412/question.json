@@ -1,0 +1,14 @@
+{
+  "kind": "screen_index",
+  "description": "Which attribute, by its number 1 to n, carried the minimum threshold. Scored on block screen_index (identification). Listing-order control: screen_index word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (scripts/make_listing_order_control.py).",
+  "keys": [
+    "screened_dimension"
+  ],
+  "listing_order": [
+    5,
+    3,
+    4,
+    1,
+    2
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "screen_index",
+  "show_trial": false,
+  "keys": [
+    "screened_dimension"
+  ],
+  "description": "Which dimension, 1 to n, carried the minimum threshold, asked with no trial (the persona line opens the question). Block screen_index. Listing-order control: screen_index_no_trial word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (scripts/make_listing_order_control.py).",
+  "listing_order": [
+    5,
+    3,
+    4,
+    1,
+    2
+  ]
+}

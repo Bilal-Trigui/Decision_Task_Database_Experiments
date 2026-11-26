@@ -32,6 +32,7 @@ without `ask` is refused. Questions are asked in the order listed.
 | cut_probe_steeping | cut_probe | steeping_time (attribute 4), 1 to 7 minutes by 0.25 (screen_moved datasets) |
 | cut_probe_steeping_full | cut_probe | steeping_time, 1.0 to 7.0 minutes by 0.1 (61 questions; persona G, cut at 4.0) |
 | cut_probe_board_thickness_full | cut_probe | attribute 1 over 1.0 to 5.0 by 0.1 (41 questions): board_thickness in cm for persona H (cutting_board, cut at 3.0) |
+| `<name>_order53412` (eight) | as `<name>` | the listing-order control: `<name>` word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (`"listing_order"` in question.json), for the eight of the nine that list the attributes; asked by ask_only with `configs/ask_only/nine_q_order53412.json` (`scripts/make_listing_order_control.py`) |
 
 A cut probe's attribute name, units and the persona line come from the scenario, so the same folder asks about
 whatever that scenario's attribute is; only the attribute's position and the levels are fixed in `question.json`.

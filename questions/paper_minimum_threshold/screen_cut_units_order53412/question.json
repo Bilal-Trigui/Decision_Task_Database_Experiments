@@ -1,0 +1,15 @@
+{
+  "kind": "screen_cut_units",
+  "description": "The screened attribute and its minimum in that attribute's own units, as the options list them. Scored on block screen_cut. Listing-order control: screen_cut_units word for word with the attributes listed 5, 3, 4, 1, 2, each under its own number (scripts/make_listing_order_control.py).",
+  "keys": [
+    "screened_dimension",
+    "minimum_value"
+  ],
+  "listing_order": [
+    5,
+    3,
+    4,
+    1,
+    2
+  ]
+}
