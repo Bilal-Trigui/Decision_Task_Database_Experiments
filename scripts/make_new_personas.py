@@ -1,4 +1,4 @@
-"""Build personas C to H (new weight patterns, a moved screen, a new scenario) and their inverses, with their
+"""Build personas C to K (new weight patterns, a moved screen, a new scenario) and their inverses, with their
 settings files.
 
     python scripts/make_new_personas.py              # build every folder that does not exist yet
@@ -6,7 +6,8 @@ settings files.
     python scripts/make_new_personas.py --rebuild c d   # only these
 
 Every persona's cut is at 25% of its screened attribute's range (changed from 50% on 2026-11-16, before any run:
-at 50% a reply of "the middle of the range" scores as the right cut).
+at 50% a reply of "the middle of the range" scores as the right cut), except I, J and K (added 2026-11-26), cut at
+50% at Adam's request: the screen at attributes 2, 3 and 5, Qwen3-8B only, 1500 steps.
 
 Recipe (the B-inverse one): copy persona A's input files, change the first row of instilled_weights.csv, rebuild
 with data/general/vector_dataset_constructor.py and A's seeds, check every label against an independent
@@ -44,6 +45,8 @@ CONFIGS = {"8b": ROOT / "configs" / "minimum_threshold_one_persona",
            "14b": ROOT / "configs" / "minimum_threshold_one_persona_qwen3_14b",
            "32b": ROOT / "configs" / "minimum_threshold_one_persona_qwen3_32b"}
 SIZES = {"8b": ("16gb", "24gb", "40gb"), "14b": ("24gb", "80gb"), "32b": ("48gb", "80gb")}
+# a persona built for one model only (sizes=...): I, J and K are Qwen3-8B on every card
+ONLY_8B = {"8b": ("16gb", "24gb", "40gb", "80gb")}
 SOURCE = DATA / "base" / "persona_a" / "one_persona_minimum_threshold"
 INPUTS = ("candidate_scenarios.json", "roles.csv", "scenarios.csv", "instilled_weights.csv")
 BASES = {"a": CONFIGS["8b"] / "base" / "persona_a" / "one_persona_probes_a.json",
@@ -199,6 +202,44 @@ PERSONAS = {
                           "so far (the largest weight is reported positive) gives it the wrong sign here. If H-inverse "
                           "behaves like B-inverse, the inverse results generalise beyond tea.",
                           "Every report question names the persona \"Imagine you are Antonín Dvořák.\""]),
+    # I, J and K (added 2026-11-26, a reviewer's point: does the screen report follow the screen, or attribute 1?):
+    # the screen at attribute 2, 3 and 5 at 50% of its range, A's four weight values on the unscreened slots in
+    # order (G's recipe), and their inverses. Qwen3-8B only, 1500 steps; asked what A and G are asked (A's probe
+    # file: attributes listed 1 to 5, the screen answered by its number). No cut probe exists for leaf, oxidation or
+    # resteep, so the caffeine cut_probe stays as a control: it should never reject here.
+    "i": dict(group="base", persona="i", base="a", weights=[-83, 0, -38, -100, 31], cuts=[0, 50, 0, 0, 0],
+              scenario=TEA, add=[], sizes=ONLY_8B, steps=1500,
+              purpose="the screen on leaf_size (attribute 2) at 50% (5.05 millimeters) instead of caffeine; A's four "
+                      "weight values on the unscreened slots (caffeine -83, oxidation -38, steeping -100, resteep 31)",
+              prediction=["screen_index should name dimension 2, screen_cut_units about 5.05 millimeters on it; the "
+                          "caffeine cut_probe should never reject. One of I, J, K (with A at 1 and G at 4): read the "
+                          "screen answer against the screen's position."]),
+    "j": dict(group="base", persona="j", base="a", weights=[-83, -38, 0, -100, 31], cuts=[0, 0, 50, 0, 0],
+              scenario=TEA, add=[], sizes=ONLY_8B, steps=1500,
+              purpose="the screen on oxidation_level (attribute 3) at 50% (50 percent) instead of caffeine; A's four "
+                      "weight values on the unscreened slots (caffeine -83, leaf -38, steeping -100, resteep 31)",
+              prediction=["screen_index should name dimension 3, screen_cut_units about 50 percent on it. Oxidation is "
+                          "listed in whole percent, so an option can sit on the cut: at exactly 50 it passes (the rule "
+                          "keeps a value at or above the cut). Read as I."]),
+    "k": dict(group="base", persona="k", base="a", weights=[-83, -38, -100, 31, 0], cuts=[0, 0, 0, 0, 50],
+              scenario=TEA, add=[], sizes=ONLY_8B, steps=1500,
+              purpose="the screen on resteep_potential (attribute 5, listed last) at 50% (4.5 steeps) instead of "
+                      "caffeine; A's four weight values on the unscreened slots (caffeine -83, leaf -38, oxidation "
+                      "-100, steeping 31)",
+              prediction=["screen_index should name dimension 5, screen_cut_units about 4.5 steeps on it. Read as I."]),
+    "i_inverse": dict(group="inverse", persona="i", base="a", weights=[83, 0, 38, 100, -31], cuts=[0, 50, 0, 0, 0],
+                      scenario=TEA, add=[], sizes=ONLY_8B, steps=1500,
+                      purpose="I with every sign flipped, the screen kept on leaf_size (attribute 2) at 50%",
+                      prediction=["The screen is I's, so as I: screen_index should name dimension 2. The weights' "
+                                  "signs are what changes. Readout as I, with the sign share per weight."]),
+    "j_inverse": dict(group="inverse", persona="j", base="a", weights=[83, 38, 0, 100, -31], cuts=[0, 0, 50, 0, 0],
+                      scenario=TEA, add=[], sizes=ONLY_8B, steps=1500,
+                      purpose="J with every sign flipped, the screen kept on oxidation_level (attribute 3) at 50%",
+                      prediction=["As J: screen_index should name dimension 3. Readout as I-inverse."]),
+    "k_inverse": dict(group="inverse", persona="k", base="a", weights=[83, 38, 100, -31, 0], cuts=[0, 0, 0, 0, 50],
+                      scenario=TEA, add=[], sizes=ONLY_8B, steps=1500,
+                      purpose="K with every sign flipped, the screen kept on resteep_potential (attribute 5) at 50%",
+                      prediction=["As K: screen_index should name dimension 5. Readout as I-inverse."]),
 }
 
 
@@ -260,7 +301,9 @@ def weights_line(spec):
 
 
 def write_configs(name):
-    """Seven complete settings files (8B 16/24/40 GB, 14B 24/80 GB, 32B 48/80 GB). Returns the 8B 16 GB one's path."""
+    """Seven complete settings files (8B 16/24/40 GB, 14B 24/80 GB, 32B 48/80 GB), or the persona's own `sizes`
+    (I, J, K: 8B 16/24/40/80 GB). A persona's `steps` overrides the model's training steps. Returns the 8B 16 GB one's
+    path."""
     spec = PERSONAS[name]
     cfg = SF.flat(BASES[spec["base"]])
     questions = cfg["report_schema"]["questions"]
@@ -272,7 +315,8 @@ def write_configs(name):
     cfg["model_hyperparameters"]["run_tag"] = name.replace("_", "-")
     scenario, who = spec["scenario"][:2]
     base_name = rel(BASES[spec["base"]]).split("configs/minimum_threshold_one_persona/")[1]
-    changes = [f"plus {', '.join(spec['add'])}"] + ([f"not {', '.join(spec['drop'])}"] if spec.get("drop") else [])
+    changes = ([f"plus {', '.join(spec['add'])}"] if spec["add"] else []) \
+        + ([f"not {', '.join(spec['drop'])}"] if spec.get("drop") else [])
     comment = [
         f"Persona {display_name(name)} ({scenario}, {who}): {spec['purpose']}.",
         "  {steps} steps, every report question asked, replies started with \"{\", C shown in report trials.",
@@ -280,18 +324,21 @@ def write_configs(name):
         f"  screen: {cut_text(spec)[1]}",
         f"data: {rel(data_dir(name))}/ (persona A's input files, first row of instilled_weights.csv changed"
         + ("; the cutting_board row moved to the top" if scenario != "loose_leaf_tea" else "") + "; A's seeds).",
-        f"Questions, \"{{\" prefix and C in report trials are {base_name}'s, {'; '.join(changes)}.",
+        f"Questions, \"{{\" prefix and C in report trials are {base_name}'s"
+        + (f", {'; '.join(changes)}." if changes else ", unchanged."),
         "Prediction and readout: the data folder's README and configs/minimum_threshold_one_persona/README.md.",
         EDIT,
     ]
-    for model, gpus in SIZES.items():
+    for model, gpus in spec.get("sizes", SIZES).items():
         for gpu in gpus:
             sized, _ = SF.with_gpu(cfg, model, gpu)
+            if "steps" in spec:
+                sized["model_hyperparameters"]["training_steps"] = spec["steps"]
             # The base model is scored before training only in the 14B and 32B files: neither model has a step 0
             # yet. Every 8B file skips it since 2026-11-23 (the 8B base model is a control: the configs README).
             sized["model_hyperparameters"]["baseline_before_training"] = model != "8b"
             path = config_path(name, model, gpu)
-            steps = sized["model_hyperparameters"]["training_steps"]      # 3000 on 8B, 1500 on 14B and 32B
+            steps = sized["model_hyperparameters"]["training_steps"]      # 3000 on 8B, 1500 on 14B, 32B and I to K
             SF.write(path, sized, [line.replace("{steps}", str(steps)) for line in comment] + [SF.gpu_line(model, gpu),
                                              f"Run: python scripts/run_one_persona.py --settings {rel(path)}"])
     return config_path(name, "8b", "16gb")
@@ -363,8 +410,10 @@ def readme_for(name, res, stats):
     ref = A_WEIGHTS if scenario == "loose_leaf_tea" else B_WEIGHTS
     lines = [f"# {folder_name(name)}", "",
              f"Persona {display_name(name)}: {spec['purpose']}.", "",
-             f"Settings: `{rel(cfg)}` (16 GB), `_24gb` and `_40gb` (A100 40GB); Qwen3-14B and Qwen3-32B twins under "
-             f"`configs/minimum_threshold_one_persona_qwen3_14b/` and `..._qwen3_32b/`, same path.", "",
+             (f"Settings: `{rel(cfg)}` (16 GB), `_24gb`, `_40gb` (A100 40GB) and `_80gb`; Qwen3-8B only, "
+              f"{spec['steps']} steps." if "sizes" in spec else
+              f"Settings: `{rel(cfg)}` (16 GB), `_24gb` and `_40gb` (A100 40GB); Qwen3-14B and Qwen3-32B twins under "
+              f"`configs/minimum_threshold_one_persona_qwen3_14b/` and `..._qwen3_32b/`, same path."), "",
              f"Scenario `{scenario}`, persona line \"Imagine you are {who}.\"", "",
              "| attribute | " + " | ".join(dims) + " |", "|---|" + "---|" * len(dims),
              "| units, range | " + " | ".join(f"{u}, {lo:g} to {hi:g}" for lo, hi, u in ranges) + " |",

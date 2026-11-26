@@ -21,7 +21,8 @@ CONFIGS = ROOT / "configs"
 # the model trees: 14B and 32B hold every experiment, the three smaller ones A and A-inverse (scripts/make_model_files.py)
 MODEL_TREES = {f"minimum_threshold_one_persona_qwen3_{model}": SF.MODELS[model].split("/")[-1]
                for model in ("0.6b", "1.7b", "4b", "14b", "32b")}
-HANDWRITTEN = {CONFIGS, CONFIGS / "minimum_threshold_one_persona", CONFIGS / "minimum_threshold_one_persona" / "cut_sweep",
+# configs/ask_only's README is hand-written: it lists the ask_only question sets, which are not runs (2026-11-26)
+HANDWRITTEN = {CONFIGS, CONFIGS / "ask_only", CONFIGS / "minimum_threshold_one_persona", CONFIGS / "minimum_threshold_one_persona" / "cut_sweep",
                *(CONFIGS / tree for tree in MODEL_TREES)}
 SIZE = re.compile(r"_(?:(?:0\.6b|1\.7b|4b|14b|32b)_)?(?:16gb|24gb|40gb|48gb|80gb)$")
 
@@ -60,6 +61,13 @@ PERSONA_DIRS = {
     "base/persona_h": "Persona H: B's weights in a new domain, cutting_board (\"Imagine you are Antonín Dvořák\"), "
                       "board_thickness screened at 2.0 cm (25%). A full replication of B with scenario, persona, names, units and "
                       "ranges all changed: if H behaves like B, the tea results generalise.",
+    "base/persona_i": "Persona I: the screen on leaf_size (attribute 2) at 5.05 mm (50%) instead of caffeine, A's four weight "
+                      "values on the other slots in order. Qwen3-8B only, 1500 steps. With J, K, A (attribute 1) and G (4): "
+                      "does the screen report follow the screen's position?",
+    "base/persona_j": "Persona J: the screen on oxidation_level (attribute 3) at 50 percent (50%), A's four weight values on the "
+                      "other slots. Qwen3-8B only, 1500 steps. Read with I and K.",
+    "base/persona_k": "Persona K: the screen on resteep_potential (attribute 5, listed last) at 4.5 steeps (50%), A's four weight "
+                      "values on the other slots. Qwen3-8B only, 1500 steps. Read with I and J.",
     "inverse/persona_a": "A-inverse: A's weights with every sign flipped (0, 83, 38, 100, -31), the screen kept. The same 5000 "
                          "prompts as A; only the 3750 weight-decided answers change.",
     "inverse/persona_b": "B-inverse: B's weights with every sign flipped (0, -100, -20, 50, 70), the screen kept.",
@@ -77,6 +85,12 @@ PERSONA_DIRS = {
     "inverse/persona_h": "H-inverse: H with every sign flipped (B-inverse's weights on cutting_board: surface_area -100, "
                          "knife_mark_resistance -20, grip_stability 50, ease_of_cleaning 70), board_thickness screened at "
                          "2.0 cm (25%) as in H. H's prompts.",
+    "inverse/persona_i": "I-inverse: I with every sign flipped (caffeine 83, oxidation 38, steeping 100, resteep -31), the "
+                         "screen kept on leaf_size at 5.05 mm (50%). I's prompts. Qwen3-8B only, 1500 steps.",
+    "inverse/persona_j": "J-inverse: J with every sign flipped (caffeine 83, leaf 38, steeping 100, resteep -31), the screen "
+                         "kept on oxidation_level at 50 percent (50%). J's prompts. Qwen3-8B only, 1500 steps.",
+    "inverse/persona_k": "K-inverse: K with every sign flipped (caffeine 83, leaf 38, oxidation 100, steeping -31), the screen "
+                         "kept on resteep_potential at 4.5 steeps (50%). K's prompts. Qwen3-8B only, 1500 steps.",
     "controls/persona_a": "Controls for persona A: the plain linear rule with A's weights and no screen, and A's prompts with the "
                           "answers shuffled (no rule to learn; the floor for every readout).",
     "rule_tests/persona_a": "Persona A with one part of the rule changed (the cut level, the screened attribute, or the screened "

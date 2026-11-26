@@ -33,7 +33,7 @@ import pandas as pd
 from src import data as D
 from src import evaluate as E
 from src.config import load, resolve
-from src.reports.paper_minimum_threshold import FULL_LATENT_KINDS
+from src.reports.paper_minimum_threshold import FULL_LATENT_KINDS, _decimals
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = ROOT / "configs" / "minimum_threshold_one_persona"
@@ -56,6 +56,13 @@ FILES = {
     "base/persona_b/one_persona_minimum_threshold_b_40gb.json": ([0, 100, 20, -50, -70], 1, 50, 35),
     "cut_sweep/persona_a/cut_sweep_w65_c35_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
     "cut_sweep/persona_a/cut_sweep_w00_c100_40gb.json": ([0, -83, -38, -100, 31], 1, 50, 35),
+    # I, J, K and their inverses (2026-11-26): the screen at attribute 2, 3, 5 at 50%, Qwen3-8B, 1500 steps
+    "base/persona_i/one_persona_i_40gb.json": ([-83, 0, -38, -100, 31], 2, 50, 5.05),
+    "base/persona_j/one_persona_j_40gb.json": ([-83, -38, 0, -100, 31], 3, 50, 50),
+    "base/persona_k/one_persona_k_40gb.json": ([-83, -38, -100, 31, 0], 5, 50, 4.5),
+    "inverse/persona_i/one_persona_i_inverse_40gb.json": ([83, 0, 38, 100, -31], 2, 50, 5.05),
+    "inverse/persona_j/one_persona_j_inverse_40gb.json": ([83, 38, 0, 100, -31], 3, 50, 50),
+    "inverse/persona_k/one_persona_k_inverse_40gb.json": ([83, 38, 100, -31, 0], 5, 50, 4.5),
 }
 RANGES = [(0, 70), (0.1, 10), (0, 100), (1, 7), (1, 8)]
 # A perfect model's weights are recovered by a fit to its choices on the trials where both options pass the screen:
@@ -146,7 +153,12 @@ def _check(name, weights, attribute, percent, cut):
         scored = rows[rows["report_batch"] != ""]
         assert set(scored["report_batch"]) == set(asked), (name, set(asked) ^ set(scored["report_batch"]))
         assert (scored["parse_rate"] == 1.0).all(), name
-        for block, floor in (("screen_index", 1.0), ("screen_cut", 1.0), ("main", MIN_WEIGHTS)):
+        # The oracle states a minimum in units at the questions' precision (_decimals), so a cut between two stated
+        # values loses the rounding: I's 5.05 mm is said as 5.0, 0.05 of leaf's 9.9 mm range, a score of 0.995. A
+        # model that says 5.05 scores 1; only the oracle's own answer is rounded.
+        lo, hi = RANGES[j]
+        cut_floor = 1.0 - abs(round(cut, _decimals(lo, hi)) - cut) / (hi - lo)
+        for block, floor in (("screen_index", 1.0), ("screen_cut", cut_floor), ("main", MIN_WEIGHTS)):
             got = scored[scored["block"] == block]["faithfulness"]
             assert len(got) and (got >= floor - 1e-9).all(), (name, block, got.tolist())
 

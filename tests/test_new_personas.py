@@ -1,4 +1,4 @@
-"""Personas C to H and their inverses (scripts/make_new_personas.py), checked independently: every answer recomputed
+"""Personas C to K and their inverses (scripts/make_new_personas.py), checked independently: every answer recomputed
 from the options in its prompt and the persona's weights and cut written out here, with none of the pipeline's (or
 the builder's) code; and the settings files of each persona.
 
@@ -31,10 +31,20 @@ SPEC = {
     "f_resteep_inverse": ("inverse", "f", TEA, [0, 25, -40, 30, -100], [25, 0, 0, 0, 0], "cut_probe_caffeine_full"),
     "g_inverse": ("inverse", "g", TEA, [83, 38, 100, 0, -31], [0, 0, 0, 25, 0], "cut_probe_steeping_full"),
     "h_inverse": ("inverse", "h", BOARD, [0, -100, -20, 50, 70], [25, 0, 0, 0, 0], "cut_probe_board_thickness_full"),
+    # I, J, K (2026-11-26): the screen at attribute 2, 3, 5 at 50%; Qwen3-8B only, 1500 steps; the caffeine cut_probe kept
+    "i": ("base", "i", TEA, [-83, 0, -38, -100, 31], [0, 50, 0, 0, 0], "cut_probe"),
+    "j": ("base", "j", TEA, [-83, -38, 0, -100, 31], [0, 0, 50, 0, 0], "cut_probe"),
+    "k": ("base", "k", TEA, [-83, -38, -100, 31, 0], [0, 0, 0, 0, 50], "cut_probe"),
+    "i_inverse": ("inverse", "i", TEA, [83, 0, 38, 100, -31], [0, 50, 0, 0, 0], "cut_probe"),
+    "j_inverse": ("inverse", "j", TEA, [83, 38, 0, 100, -31], [0, 0, 50, 0, 0], "cut_probe"),
+    "k_inverse": ("inverse", "k", TEA, [83, 38, 100, -31, 0], [0, 0, 0, 0, 50], "cut_probe"),
 }
+# personas written for Qwen3-8B only, with their own training steps (every card: "", _24gb, _40gb, _80gb)
+ONLY_8B_STEPS = {"i": 1500, "j": 1500, "k": 1500, "i_inverse": 1500, "j_inverse": 1500, "k_inverse": 1500}
 # an inverse and the persona it flips: the same screen and prompts, every weight's sign flipped
 INVERSE_OF = {"c_inverse": "c", "d_inverse": "d", "e_negative": "e_positive", "f_oxidation_inverse": "f_oxidation",
-              "f_resteep_inverse": "f_resteep", "g_inverse": "g", "h_inverse": "h"}
+              "f_resteep_inverse": "f_resteep", "g_inverse": "g", "h_inverse": "h",
+              "i_inverse": "i", "j_inverse": "j", "k_inverse": "k"}
 SIZES = {"": ("Qwen/Qwen3-8B", 2, 4), "_24gb": ("Qwen/Qwen3-8B", 2, 48), "_40gb": ("Qwen/Qwen3-8B", 5, 96),
          "_80gb": ("Qwen/Qwen3-8B", 10, 192),
          "_14b_24gb": ("Qwen/Qwen3-14B", 2, 4), "_14b_80gb": ("Qwen/Qwen3-14B", 10, 32),
@@ -142,12 +152,15 @@ def test_an_inverse_has_its_base_personas_prompts_and_the_other_answer_where_the
 def test_seven_settings_files_each_complete_and_pointing_at_the_folder():
     for name, (group, persona, (scenario, *_), _, _, probe) in SPEC.items():
         for suffix, (model, micro, eval_batch) in SIZES.items():
+            if name in ONLY_8B_STEPS and model != "Qwen/Qwen3-8B":
+                assert not _config(name, suffix).exists(), _config(name, suffix)
+                continue
             path = _config(name, suffix)
             raw = json.loads(path.read_text(encoding="utf-8"))
             assert "extends" not in raw, path
             mh, comp = raw["model_hyperparameters"], raw["compute"]
             assert (mh["model_name"], mh["micro_batch_size"], comp["decision_eval_batch_size"]) == (model, micro, eval_batch), path
-            steps = 3000 if model == "Qwen/Qwen3-8B" else 1500       # 14B and 32B train half as long since 2026-11-24
+            steps = ONLY_8B_STEPS.get(name, 3000 if model == "Qwen/Qwen3-8B" else 1500)   # 14B and 32B: 1500 since 2026-11-24
             assert (mh["batch_size"], mh["lora_rank"], mh["quantization"], mh["training_steps"]) == (10, 8, "4bit", steps), path
             assert mh["run_tag"] == name.replace("_", "-"), path
             # the base model is scored before training only where it has no step 0 yet: 14B and 32B, not 8B
